@@ -5,12 +5,56 @@ export interface SpawnZone {
   cx: number
   cy: number
   radius: number
-  table: EnemyConfig[]   // weighted pool — duplicate entries to increase odds
+  table: EnemyConfig[]
   maxEnemies: number
 }
 
-const BORDER      = 80    // world-edge clearance for obstacle placement
-const SAFE_RADIUS = 360   // obstacle-free zone around player start
+// ── Zone definitions ───────────────────────────────────────────────────────────
+
+export interface ZoneDef {
+  name:       string
+  labelColor: string  // CSS hex for UI text
+  atmosphere: number  // numeric color for viewport overlay
+  atmoAlpha:  number  // overlay alpha (0–1)
+  danger:     1 | 2 | 3 | 4
+  x: number; y: number; w: number; h: number
+}
+
+export const ZONE_DEFS: readonly ZoneDef[] = [
+  {
+    name: 'Beginner Forest',  labelColor: '#44cc44',
+    atmosphere: 0x002200, atmoAlpha: 0.04,
+    danger: 1, x: 0,    y: 2500, w: 3600, h: 1100,
+  },
+  {
+    name: 'Frozen Ruins',     labelColor: '#88ccff',
+    atmosphere: 0x001133, atmoAlpha: 0.09,
+    danger: 2, x: 0,    y: 0,    w: 3600, h: 1100,
+  },
+  {
+    name: 'Corrupted Fields', labelColor: '#cc4444',
+    atmosphere: 0x220000, atmoAlpha: 0.09,
+    danger: 3, x: 0,    y: 1100, w: 1500, h: 1400,
+  },
+  {
+    name: 'Arcane Caves',     labelColor: '#aa44ff',
+    atmosphere: 0x110022, atmoAlpha: 0.11,
+    danger: 4, x: 2100, y: 1100, w: 1500, h: 1400,
+  },
+]
+
+/** Returns the named zone at world coordinates, or null for the central area. */
+export function getZoneAt(worldX: number, worldY: number): ZoneDef | null {
+  return ZONE_DEFS.find(z =>
+    worldX >= z.x && worldX < z.x + z.w &&
+    worldY >= z.y && worldY < z.y + z.h
+  ) ?? null
+}
+
+const BORDER      = 80
+const SAFE_RADIUS = 360
+
+// ── World ──────────────────────────────────────────────────────────────────────
 
 export class World {
   readonly size: number
@@ -34,26 +78,28 @@ export class World {
     scene.physics.world.setBounds(0, 0, size, size)
   }
 
-  // ── Textures ─────────────────────────────────────────────────────────────
+  // ── Textures ───────────────────────────────────────────────────────────────
 
   private buildTextures() {
     const g = this.scene.add.graphics()
 
+    // ── Terrain tiles ─────────────────────────────────────────────────────────
     const tile = (key: string, base: number, line: number) => {
       g.fillStyle(base)
       g.fillRect(0, 0, 64, 64)
-      g.lineStyle(1, line, 0.45)
+      g.lineStyle(1, line, 0.4)
       g.strokeRect(0, 0, 64, 64)
       g.generateTexture(key, 64, 64)
       g.clear()
     }
 
-    tile('t_plains', 0x1e3a1e, 0x243f24)
-    tile('t_forest', 0x122212, 0x172817)
-    tile('t_swamp',  0x141f14, 0x1a271a)
-    tile('t_rock',   0x282e26, 0x2e342c)
+    tile('t_plains',  0x1e3a1e, 0x243f24)   // neutral green
+    tile('t_forest',  0x112211, 0x172817)   // beginner forest — dark green
+    tile('t_frozen',  0x1a2535, 0x223040)   // frozen ruins — icy blue-grey
+    tile('t_corrupt', 0x1c0c0c, 0x271414)   // corrupted fields — dark blood-red
+    tile('t_arcane',  0x0e0618, 0x150820)   // arcane caves — deep void purple
 
-    // Tree: canopy + trunk
+    // ── Tree (beginner forest) ────────────────────────────────────────────────
     g.fillStyle(0x1e5c1e)
     g.fillCircle(19, 19, 16)
     g.fillStyle(0x287228, 0.55)
@@ -63,7 +109,20 @@ export class World {
     g.generateTexture('tree', 38, 48)
     g.clear()
 
-    // Rock: lumpy grey mound
+    // ── Dead tree (corrupted fields) ──────────────────────────────────────────
+    g.fillStyle(0x3a1a1a)
+    g.fillRect(15, 14, 7, 34)
+    g.lineStyle(2, 0x4a2222)
+    g.lineBetween(18, 20, 5,  9)
+    g.lineBetween(5,  9,  1,  5)
+    g.lineBetween(18, 27, 33, 14)
+    g.lineBetween(33, 14, 37, 10)
+    g.fillStyle(0x330000, 0.28)
+    g.fillCircle(18, 10, 13)      // sinister aura
+    g.generateTexture('dead_tree', 38, 48)
+    g.clear()
+
+    // ── Rock (reused in multiple zones) ──────────────────────────────────────
     g.fillStyle(0x5a5c58)
     g.fillEllipse(21, 17, 36, 26)
     g.fillStyle(0x4a4c48)
@@ -73,70 +132,129 @@ export class World {
     g.generateTexture('rock_obs', 44, 34)
     g.clear()
 
+    // ── Ice crystal (frozen ruins) ────────────────────────────────────────────
+    g.fillStyle(0x88bbdd, 0.92)
+    g.fillTriangle(9, 0, 0, 36, 17, 36)     // main spike
+    g.fillStyle(0xbbddff, 0.72)
+    g.fillTriangle(9, 4, 5, 18, 13, 18)     // inner face
+    g.fillStyle(0xffffff, 0.42)
+    g.fillTriangle(9, 6, 7, 12, 11, 12)     // tip gleam
+    g.fillStyle(0x77aacc, 0.82)
+    g.fillTriangle(15, 8, 11, 30, 19, 30)   // smaller side crystal
+    g.generateTexture('ice_obs', 20, 36)
+    g.clear()
+
+    // ── Arcane pillar (arcane caves) ──────────────────────────────────────────
+    g.fillStyle(0x252030)
+    g.fillRect(5, 5, 12, 32)     // shaft
+    g.fillStyle(0x352844)
+    g.fillRect(1, 0, 20, 6)      // capital
+    g.fillRect(1, 36, 20, 6)     // base
+    g.fillStyle(0xaa44ff, 0.20)
+    g.fillRect(6, 8, 10, 24)     // inner arcane glow
+    g.lineStyle(1, 0xcc66ff, 0.28)
+    g.strokeRect(5, 5, 12, 32)
+    g.generateTexture('pillar_obs', 22, 42)
+    g.clear()
+
     g.destroy()
   }
 
-  // ── Terrain layers ────────────────────────────────────────────────────────
+  // ── Terrain ────────────────────────────────────────────────────────────────
 
   private buildTerrain() {
-    const S = this.size
+    const S   = this.size
     const add = (x: number, y: number, w: number, h: number, key: string, depth = 0) =>
       this.scene.add.tileSprite(x, y, w, h, key).setOrigin(0).setDepth(depth)
 
     // Base — plains everywhere
     add(0, 0, S, S, 't_plains')
 
-    // North forest band (top 20%)
-    add(0, 0, S, S * 0.20, 't_forest', 0.1)
-    // West forest band (left 18%)
-    add(0, 0, S * 0.18, S, 't_forest', 0.1)
-    // South swamp band (bottom 20%)
-    add(0, S * 0.80, S, S * 0.20, 't_swamp', 0.1)
-    // East rocky band (right 20%)
-    add(S * 0.80, 0, S * 0.20, S, 't_rock', 0.1)
+    // Zone overlays
+    add(0,    2500, S,    1100, 't_forest',  0.1)  // Beginner Forest (bottom)
+    add(0,    0,    S,    1100, 't_frozen',  0.1)  // Frozen Ruins (top)
+    add(0,    1100, 1500, 1400, 't_corrupt', 0.1)  // Corrupted Fields (left)
+    add(2100, 1100, 1500, 1400, 't_arcane',  0.1)  // Arcane Caves (right)
 
-    // Central clearing — slightly lighter, drawn last on top
-    const cw = 640, ch = 640
+    // Central clearing — slightly warmer neutral plains, drawn on top
+    const cw = 680, ch = 680
     add(this.cx - cw / 2, this.cy - ch / 2, cw, ch, 't_plains', 0.15)
   }
 
   // ── Decorative details (no physics) ───────────────────────────────────────
 
   private buildDecor() {
-    const S  = this.size
-    const g  = this.scene.add.graphics().setDepth(0.05)
+    const S = this.size
+    const g = this.scene.add.graphics().setDepth(0.05)
 
-    // Dirt path: faint line from center south toward bottom edge
-    g.fillStyle(0x2a3a1a, 0.35)
-    g.fillRect(this.cx - 18, this.cy, 36, S * 0.5)
+    // ── Beginner Forest — mossy patches ──────────────────────────────────────
+    g.fillStyle(0x0e1e0e, 0.3)
+    for (let i = 0; i < 40; i++) {
+      const x = Phaser.Math.FloatBetween(60, S - 60)
+      const y = Phaser.Math.FloatBetween(2560, 3540)
+      g.fillCircle(x, y, Phaser.Math.Between(10, 28))
+    }
+    g.fillStyle(0x22441a, 0.18)
+    for (let i = 0; i < 20; i++) {
+      const x = Phaser.Math.FloatBetween(100, S - 100)
+      const y = Phaser.Math.FloatBetween(2620, 3480)
+      g.fillEllipse(x, y, Phaser.Math.Between(30, 80), Phaser.Math.Between(10, 24))
+    }
 
-    // Water puddles in swamp zone
-    g.fillStyle(0x0a1a14, 0.55)
+    // ── Frozen Ruins — ice cracks, frozen puddles, snow drifts ───────────────
+    g.lineStyle(1, 0x4a6080, 0.5)
+    for (let i = 0; i < 32; i++) {
+      const x = Phaser.Math.FloatBetween(100, S - 100)
+      const y = Phaser.Math.FloatBetween(70, 1030)
+      g.lineBetween(x, y, x + Phaser.Math.Between(-35, 35), y + Phaser.Math.Between(-22, 22))
+    }
+    g.fillStyle(0x182840, 0.62)
     for (const [px, py, rw, rh] of [
-      [S * 0.15, S * 0.83, 80, 32], [S * 0.45, S * 0.87, 110, 40],
-      [S * 0.65, S * 0.85, 70,  28], [S * 0.35, S * 0.92, 90, 36],
-      [S * 0.75, S * 0.90, 60, 26],
+      [400,  300,  90, 36], [1100, 680, 120, 44], [2200, 380,  80, 32],
+      [2900, 620, 100, 38], [820,  880,  70, 28], [3250, 240,  88, 34],
+      [1600, 500,  95, 40], [3000, 900,  72, 30],
+    ]) g.fillEllipse(px, py, rw, rh)
+    g.fillStyle(0x9ab4cc, 0.14)
+    for (let i = 0; i < 28; i++) {
+      const x = Phaser.Math.FloatBetween(60, S - 60)
+      const y = Phaser.Math.FloatBetween(40, 1060)
+      g.fillEllipse(x, y, Phaser.Math.Between(60, 200), Phaser.Math.Between(8, 22))
+    }
+
+    // ── Corrupted Fields — dark pools and corruption veins ────────────────────
+    g.lineStyle(2, 0x440000, 0.6)
+    for (let i = 0; i < 22; i++) {
+      const x = Phaser.Math.FloatBetween(70, 1430)
+      const y = Phaser.Math.FloatBetween(1160, 2430)
+      g.lineBetween(x, y, x + Phaser.Math.Between(-45, 45), y + Phaser.Math.Between(-35, 35))
+    }
+    g.fillStyle(0x1a0000, 0.58)
+    for (const [px, py, rw, rh] of [
+      [300, 1400, 100, 38], [820, 1780, 120, 44], [480, 2200, 80, 32],
+      [1100, 1620, 90, 36], [220, 2420,  70, 28], [650, 2050, 85, 34],
     ]) g.fillEllipse(px, py, rw, rh)
 
-    // Rock surface cracks in east zone
-    g.lineStyle(1, 0x3a3e38, 0.5)
-    for (let i = 0; i < 18; i++) {
-      const x = S * 0.82 + Math.random() * S * 0.14
-      const y = Math.random() * S
-      g.lineBetween(x, y, x + Phaser.Math.Between(-20, 20), y + Phaser.Math.Between(-14, 14))
+    // ── Arcane Caves — rune circles and arcane pools ──────────────────────────
+    g.lineStyle(1, 0x6622aa, 0.38)
+    for (let i = 0; i < 9; i++) {
+      const cx = Phaser.Math.FloatBetween(2200, 3500)
+      const cy = Phaser.Math.FloatBetween(1200, 2400)
+      const r  = Phaser.Math.Between(28, 80)
+      g.strokeCircle(cx, cy, r)
+      for (let j = 0; j < 3; j++) {
+        const angle = (j / 3) * Math.PI * 2
+        g.lineBetween(cx, cy, cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
+      }
     }
+    g.fillStyle(0x220044, 0.45)
+    for (const [px, py, rw, rh] of [
+      [2420, 1400, 100, 40], [2950, 1780, 80, 32], [3220, 1520, 110, 42],
+      [2640, 2180, 90, 36],  [3420, 2300, 76, 30],
+    ]) g.fillEllipse(px, py, rw, rh)
 
-    // Forest floor dabs — dark spots under north/west trees
-    g.fillStyle(0x0e1e0e, 0.3)
-    for (let i = 0; i < 30; i++) {
-      const x = Math.random() < 0.5
-        ? Math.random() * S * 0.18
-        : Phaser.Math.FloatBetween(0, S)
-      const y = Math.random() < 0.5
-        ? Math.random() * S * 0.20
-        : Phaser.Math.FloatBetween(0, S * 0.20)
-      g.fillCircle(x, y, Phaser.Math.Between(12, 30))
-    }
+    // ── Central — dirt path leading south toward beginner forest ──────────────
+    g.fillStyle(0x2a3a1a, 0.3)
+    g.fillRect(this.cx - 18, this.cy, 36, S * 0.5)
   }
 
   // ── Hard boundary ─────────────────────────────────────────────────────────
@@ -145,14 +263,11 @@ export class World {
     const S = this.size
     const W = 56
     const g = this.scene.add.graphics().setDepth(0.5)
-
     g.fillStyle(0x070f07)
-    g.fillRect(0, 0,     S, W)          // top
-    g.fillRect(0, S - W, S, W)          // bottom
-    g.fillRect(0, W,     W, S - W * 2)  // left
-    g.fillRect(S - W, W, W, S - W * 2)  // right
-
-    // Inner edge highlight
+    g.fillRect(0, 0,     S, W)
+    g.fillRect(0, S - W, S, W)
+    g.fillRect(0, W,     W, S - W * 2)
+    g.fillRect(S - W, W, W, S - W * 2)
     g.lineStyle(2, 0x2a4a2a, 0.7)
     g.strokeRect(W, W, S - W * 2, S - W * 2)
   }
@@ -162,28 +277,40 @@ export class World {
   private buildObstacles() {
     const S = this.size
 
-    // North forest
-    this.scatter('tree',     0,         0,          S,          S * 0.20, 38)
-    // West forest
-    this.scatter('tree',     0,         S * 0.20,   S * 0.18,   S * 0.60, 28)
-    // South swamp
-    this.scatter('tree',     0,         S * 0.80,   S,          S * 0.20, 26)
-    // East rocky zone
-    this.scatter('rock_obs', S * 0.80,  0,          S * 0.20,   S,        30)
-    // Sparse plains scatter
-    this.scatter('tree',     S * 0.20,  S * 0.20,   S * 0.60,   S * 0.60, 20)
-    this.scatter('rock_obs', S * 0.20,  S * 0.20,   S * 0.60,   S * 0.60, 10)
+    // Beginner Forest — dense healthy trees
+    this.scatter('tree',      0,    2500, S,    1100, 50)
+
+    // Frozen Ruins — ice crystal clusters + frozen boulders
+    this.scatter('ice_obs',   0,    0,    S,    1100, 32)
+    this.scatter('rock_obs',  0,    0,    S,    1100, 18)
+
+    // Corrupted Fields — twisted dead trees + crumbled stone
+    this.scatter('dead_tree', 0,    1100, 1500, 1400, 26)
+    this.scatter('rock_obs',  0,    1100, 1500, 1400, 14)
+
+    // Arcane Caves — arcane pillars + ancient boulders
+    this.scatter('pillar_obs', 2100, 1100, 1500, 1400, 28)
+    this.scatter('rock_obs',   2100, 1100, 1500, 1400, 16)
+
+    // Central clearing — sparse so player can orient on spawn
+    this.scatter('tree',     1300, 1100, 1000, 1400, 12)
+    this.scatter('rock_obs', 1300, 1100, 1000, 1400,  6)
   }
 
   private scatter(
-    key:    string,
+    key: string,
     zx: number, zy: number, zw: number, zh: number,
-    count:  number,
+    count: number,
   ) {
-    const isTree = key === 'tree'
-    // Tree: canopy collision — radius 13, offset (6, 3)
-    // Rock: centre mass   — radius 13, offset (9, 4)
-    const [radius, ox, oy] = isTree ? [13, 6, 3] : [13, 9, 4]
+    // [circleRadius, bodyOffsetX, bodyOffsetY]
+    const bodyMap: Record<string, [number, number, number]> = {
+      tree:       [13, 6,  3],
+      dead_tree:  [8,  9,  4],
+      rock_obs:   [13, 9,  4],
+      ice_obs:    [5,  5, 22],   // collision at crystal base
+      pillar_obs: [8,  3, 12],
+    }
+    const [radius, ox, oy] = bodyMap[key] ?? [13, 6, 3]
 
     for (let i = 0; i < count; i++) {
       let x: number, y: number, tries = 0
@@ -207,42 +334,59 @@ export class World {
   // ── Spawn zones ───────────────────────────────────────────────────────────
 
   private buildSpawnZones() {
-    const h = this.size / 2
-
-    // Near cardinal zones — Slimes + fast Imps
-    const near: [number, number][] = [
-      [h + 680, h], [h - 680, h], [h, h + 680], [h, h - 680],
-    ]
-    for (const [cx, cy] of near) {
+    // ── Beginner Forest (y: 2500–3600) — danger 1 ─────────────────────────
+    for (const [cx, cy] of [
+      [500, 2800], [1200, 2700], [1800, 3050],
+      [2400, 2700], [3100, 2850], [1800, 3380],
+    ] as [number, number][]) {
       this.spawnZones.push({
-        cx, cy, radius: 360,
-        table: [Slime, Slime, Imp, Imp, Ghoul],
+        cx, cy, radius: 320,
+        table: [Slime, Slime, Slime, Ghoul, Ghoul],
+        maxEnemies: 6,
+      })
+    }
+
+    // ── Frozen Ruins (y: 0–1100) — danger 2 ───────────────────────────────
+    for (const [cx, cy] of [
+      [480,  340], [1200, 620], [1800, 300],
+      [2400, 620], [3120, 340], [1800, 900],
+    ] as [number, number][]) {
+      this.spawnZones.push({
+        cx, cy, radius: 340,
+        table: [Ghoul, Ghoul, Wraith, Wraith, Brute],
         maxEnemies: 5,
       })
     }
 
-    // Mid diagonal zones — Ghouls + casters + Brutes
-    const diag: [number, number][] = [
-      [h + 820, h + 820], [h - 820, h + 820],
-      [h + 820, h - 820], [h - 820, h - 820],
-    ]
-    for (const [cx, cy] of diag) {
+    // ── Corrupted Fields (x: 0–1500, y: 1100–2500) — danger 3 ────────────
+    for (const [cx, cy] of [
+      [380, 1420], [900, 1760], [340, 2120], [1080, 2320],
+    ] as [number, number][]) {
       this.spawnZones.push({
-        cx, cy, radius: 380,
-        table: [Ghoul, Ghoul, Imp, Wraith, Brute],
+        cx, cy, radius: 340,
+        table: [Imp, Imp, Imp, Ghoul, Brute],
+        maxEnemies: 5,
+      })
+    }
+
+    // ── Arcane Caves (x: 2100–3600, y: 1100–2500) — danger 4 ─────────────
+    for (const [cx, cy] of [
+      [2440, 1420], [3120, 1720], [2700, 2120], [3320, 2360],
+    ] as [number, number][]) {
+      this.spawnZones.push({
+        cx, cy, radius: 360,
+        table: [Wraith, Wraith, Brute, Elite, Ghoul],
         maxEnemies: 4,
       })
     }
 
-    // Far corner zones — dangerous mix with elites
-    const corners: [number, number][] = [
-      [h + 1200, h + 1200], [h - 1200, h + 1200],
-      [h + 1200, h - 1200], [h - 1200, h - 1200],
-    ]
-    for (const [cx, cy] of corners) {
+    // ── Central transition (around spawn) — light intro difficulty ────────
+    for (const [cx, cy] of [
+      [1200, 1720], [2400, 1720], [1400, 2200], [2200, 2200],
+    ] as [number, number][]) {
       this.spawnZones.push({
-        cx, cy, radius: 420,
-        table: [Brute, Wraith, Wraith, Ghoul, Elite],
+        cx, cy, radius: 280,
+        table: [Slime, Slime, Ghoul, Imp],
         maxEnemies: 4,
       })
     }

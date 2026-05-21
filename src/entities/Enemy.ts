@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Player } from './Player'
 import { EnemyConfig } from './EnemyTypes'
 import Balance from '../config/Balance'
+import { Device } from '../config/DeviceConfig'
 
 type AIState = 'wander' | 'chase'
 
@@ -85,7 +86,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         angle:     { min: 0, max: 360 },
         emitting:  false,
       }).setDepth(9)
-      burst.explode(14)
+      burst.explode(Device.particleCount(14))
       this.scene.time.delayedCall(500, () => { if (burst.active) burst.destroy() })
     }
   }
@@ -333,7 +334,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       angle:     { min: 0, max: 360 },
       emitting:  false,
     }).setDepth(9)
-    burst.explode(20)
+    burst.explode(Device.particleCount(20))
     this.scene.time.delayedCall(600, () => { if (burst.active) burst.destroy() })
 
     this.scene.tweens.add({

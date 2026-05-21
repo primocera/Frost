@@ -86,6 +86,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   spendFrostNovaCost()       { this.stats.mana -= this.frostNovaCost;       this.frostNovaCooldown       = this.frostNovaCooldownMax }
   spendBlizzardCost()        { this.stats.mana -= this.blizzardCost;        this.blizzardCooldown        = this.blizzardCooldownMax }
 
+  /** Set by MobileControls each frame when on touch devices. Normalised magnitude 0..1. */
+  joystickDir = { x: 0, y: 0 }
+
   private wasd: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
   private manaRegenAccum = 0
 
@@ -130,11 +133,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private move() {
     let vx = 0, vy = 0
-    if (this.wasd.left.isDown)  vx -= 1
-    if (this.wasd.right.isDown) vx += 1
-    if (this.wasd.up.isDown)    vy -= 1
-    if (this.wasd.down.isDown)  vy += 1
-    if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707 }
+    const leftDown  = this.wasd.left.isDown
+    const rightDown = this.wasd.right.isDown
+    const upDown    = this.wasd.up.isDown
+    const downDown  = this.wasd.down.isDown
+
+    if (leftDown)  vx -= 1
+    if (rightDown) vx += 1
+    if (upDown)    vy -= 1
+    if (downDown)  vy += 1
+
+    if (vx === 0 && vy === 0) {
+      // No keyboard input — use joystick (already normalised, no diagonal correction needed)
+      vx = this.joystickDir.x
+      vy = this.joystickDir.y
+    } else if (vx !== 0 && vy !== 0) {
+      // WASD diagonal — normalise to prevent speed boost
+      vx *= 0.707
+      vy *= 0.707
+    }
+
     this.setVelocity(vx * this.effectiveSpeed, vy * this.effectiveSpeed)
   }
 

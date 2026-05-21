@@ -27,11 +27,18 @@ export class HUD {
   private aggroText:   Phaser.GameObjects.Text
   private controls:    Phaser.GameObjects.Text
   private ringLabels:  Phaser.GameObjects.Text[]
+  private bossNameText: Phaser.GameObjects.Text
 
   // Timestamps for transient feedback effects
   private failedCastAt   = [-Infinity, -Infinity, -Infinity, -Infinity]
   private oomAt          = -Infinity
   private activeTextCount = 0
+
+  // Boss bar state
+  private bossName   = ''
+  private bossHp     = 0
+  private bossMaxHp  = 0
+  private bossPhase  = 1
 
   constructor(private scene: Phaser.Scene) {
     const d = 20
@@ -79,9 +86,37 @@ export class HUD {
         fontSize: '10px', color: '#888888', fontFamily: 'monospace',
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
     )
+
+    // Boss name label — hidden until a boss spawns
+    this.bossNameText = scene.add.text(W / 2, 4, '', {
+      fontSize: '11px', color: '#ff8888', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0).setVisible(false)
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
+
+  /** Hide the keyboard shortcut hint (replaced by mobile buttons on touch devices). */
+  hideControlsHint() { this.controls.setVisible(false) }
+
+  /** Show the boss HP bar at the top of the screen. Pass null name to hide it. */
+  setBossBar(name: string | null, hp: number, maxHp: number, phase = 1) {
+    if (!name) {
+      this.bossName = ''
+      this.bossNameText.setVisible(false)
+      return
+    }
+    this.bossName  = name
+    this.bossHp    = hp
+    this.bossMaxHp = maxHp
+    this.bossPhase = phase
+    this.bossNameText.setText(name).setVisible(true)
+  }
+
+  /** Update boss HP each frame (called from GameScene while boss is alive). */
+  tickBossBar(hp: number, phase: number) {
+    this.bossHp   = hp
+    this.bossPhase = phase
+  }
 
   /** Flash a ring red — used when player tries to cast while it's on cooldown. */
   notifyCastFailed(spellIndex: number) {
@@ -100,6 +135,20 @@ export class HUD {
     g.clear()
 
     const effMaxMana = player.effectiveMaxMana
+
+    // ── Boss HP bar (top center, hidden when no boss) ─────────────────────
+    if (this.bossName) {
+      const bw  = 480
+      const bx  = (W - bw) / 2
+      const pct = this.bossMaxHp > 0 ? this.bossHp / this.bossMaxHp : 0
+      const fill = this.bossPhase === 3 ? 0xff2200 : this.bossPhase === 2 ? 0xff8800 : 0xdd3333
+      this.bar(g, bx, 20, bw, 16, pct, fill, 0x220000)
+      // Phase pips
+      g.fillStyle(this.bossPhase >= 2 ? 0xff8800 : 0x440000)
+      g.fillCircle(bx + bw + 8, 28, 4)
+      g.fillStyle(this.bossPhase >= 3 ? 0xff2200 : 0x440000)
+      g.fillCircle(bx + bw + 18, 28, 4)
+    }
 
     // ── Stat bars ─────────────────────────────────────────────────────────
     this.bar(g, 10, 10, 160, 12, stats.hp   / stats.maxHp,    0xdd2222, 0x440000)
