@@ -17,14 +17,15 @@ const RINGS = [
 ] as const
 
 export class HUD {
-  private bars:       Phaser.GameObjects.Graphics
-  private levelLabel: Phaser.GameObjects.Text
-  private hpText:     Phaser.GameObjects.Text
-  private manaText:   Phaser.GameObjects.Text
-  private oomLabel:   Phaser.GameObjects.Text
-  private goldText:   Phaser.GameObjects.Text
-  private controls:   Phaser.GameObjects.Text
-  private ringLabels: Phaser.GameObjects.Text[]
+  private bars:        Phaser.GameObjects.Graphics
+  private levelLabel:  Phaser.GameObjects.Text
+  private hpText:      Phaser.GameObjects.Text
+  private manaText:    Phaser.GameObjects.Text
+  private oomLabel:    Phaser.GameObjects.Text
+  private goldText:    Phaser.GameObjects.Text
+  private talentBadge: Phaser.GameObjects.Text
+  private controls:    Phaser.GameObjects.Text
+  private ringLabels:  Phaser.GameObjects.Text[]
 
   // Timestamps for transient feedback effects
   private failedCastAt = [-Infinity, -Infinity, -Infinity, -Infinity]
@@ -57,8 +58,12 @@ export class HUD {
       fontSize: '12px', color: '#ffdd00', fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(d)
 
+    this.talentBadge = scene.add.text(10, 88, '', {
+      fontSize: '11px', color: '#cc88ff', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d)
+
     this.controls = scene.add.text(W - 10, 10,
-      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory', {
+      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents', {
         fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
@@ -106,6 +111,14 @@ export class HUD {
     this.hpText.setText(`${stats.hp}/${stats.maxHp}`)
     this.manaText.setText(`${Math.floor(stats.mana)}/${effMaxMana}`)
     this.goldText.setText(`${player.inventory.gold} g`)
+
+    const pts = player.talents.points
+    if (pts > 0) {
+      const pulse = 0.75 + 0.25 * Math.sin(now * 0.004)
+      this.talentBadge.setText(`T  ${pts} talent pt${pts > 1 ? 's' : ''}!`).setAlpha(pulse)
+    } else {
+      this.talentBadge.setText('').setAlpha(1)
+    }
 
     // OOM label fades in then out
     this.oomLabel.setAlpha(oomAge < 600 ? Math.max(0, 1 - oomAge / 600) : 0)

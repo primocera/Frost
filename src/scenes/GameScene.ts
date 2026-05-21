@@ -13,6 +13,7 @@ import Balance from '../config/Balance'
 import { generateItem, generateGold } from '../items/ItemGen'
 import { LootDrop } from '../world/LootDrop'
 import { InventoryUI } from '../ui/InventoryUI'
+import { TalentUI } from '../ui/TalentUI'
 import { RARITY_COLOR } from '../items/ItemTypes'
 
 const WORLD       = 3600
@@ -27,12 +28,15 @@ export class GameScene extends Phaser.Scene {
   private hud!:        HUD
   private sfx!:        SoundManager
   private lootDrops:     LootDrop[] = []
+  private burnTimers:    Map<Enemy, Phaser.Time.TimerEvent> = new Map()
   private inventoryUI!:  InventoryUI
+  private talentUI!:     TalentUI
   private fKey!: Phaser.Input.Keyboard.Key
   private qKey!: Phaser.Input.Keyboard.Key
   private eKey!: Phaser.Input.Keyboard.Key
   private rKey!: Phaser.Input.Keyboard.Key
   private iKey!: Phaser.Input.Keyboard.Key
+  private tKey!: Phaser.Input.Keyboard.Key
   private zoneCounts!: Map<SpawnZone, number>
   private lastFullWarnAt = 0
   private dead = false
@@ -61,11 +65,14 @@ export class GameScene extends Phaser.Scene {
     this.eKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     this.rKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     this.iKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I)
+    this.tKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.T)
 
     this.inventoryUI = new InventoryUI(this, this.player.inventory)
+    this.talentUI    = new TalentUI(this, this.player.talents)
 
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      if (ptr.leftButtonDown() && !this.inventoryUI.isOpen()) this.castFirebolt(ptr.worldX, ptr.worldY)
+      if (ptr.leftButtonDown() && !this.inventoryUI.isOpen() && !this.talentUI.isOpen())
+        this.castFirebolt(ptr.worldX, ptr.worldY)
     })
 
     // Collision: player and enemies push against obstacles
@@ -90,8 +97,12 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.shake(70, 0.004)
       this.sfx.onFireboltImpact()
 
+      // Permafrost: frozen enemies take bonus damage
+      if (this.player.talents.permafrostEnabled && enemy.isFrozen)
+        dmg = Math.round(dmg * 1.25)
+
       const isCrit = Math.random() < this.player.critChance
-      if (isCrit) dmg = Math.round(dmg * 1.5)
+      if (isCrit) dmg = Math.round(dmg * this.player.talents.bonusCritMult)
 
       const sz    = dmg >= 80 ? 28 : dmg >= 40 ? 22 : 18
       const label = isCrit ? `CRIT! -${dmg}` : `-${dmg}`
@@ -104,6 +115,13 @@ export class GameScene extends Phaser.Scene {
         const d = Phaser.Math.Distance.Between(hitX, hitY, nearby.x, nearby.y)
         if (d <= Balance.aggro.chainRadius) nearby.forceAggro()
       }
+
+      // Chilling Touch: slow enemy on bolt hit
+      const { chillSlowMult, chillDurationMs } = this.player.talents
+      if (chillSlowMult > 0 && !enemy.dying) enemy.slow(chillSlowMult, chillDurationMs)
+
+      // Ignite: apply burn DoT on hit
+      if (this.player.talents.igniteRank > 0 && !enemy.dying) this.applyBurn(enemy)
 
       if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
     })
@@ -139,9 +157,17 @@ export class GameScene extends Phaser.Scene {
       Phaser.Math.Angle.Between(this.player.x, this.player.y, ptr.worldX, ptr.worldY)
     )
 
-    if (Phaser.Input.Keyboard.JustDown(this.iKey)) this.inventoryUI.toggle()
+    if (Phaser.Input.Keyboard.JustDown(this.iKey)) {
+      if (this.talentUI.isOpen()) this.talentUI.hide()
+      this.inventoryUI.toggle()
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.tKey)) {
+      if (this.inventoryUI.isOpen()) this.inventoryUI.hide()
+      this.talentUI.toggle()
+    }
 
-    if (!this.inventoryUI.isOpen()) {
+    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen()
+    if (!anyUIOpen) {
       if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castFirebolt(ptr.worldX, ptr.worldY)
       if (Phaser.Input.Keyboard.JustDown(this.qKey)) this.castArcaneExplosion()
       if (Phaser.Input.Keyboard.JustDown(this.eKey)) this.castFrostNova()
@@ -192,19 +218,22 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.spendArcaneExplosionCost()
 
-    const { radius, baseDamage } = Balance.spells.arcaneExplosion
+    const t      = this.player.talents
+    const radius = Math.round(Balance.spells.arcaneExplosion.radius * t.bonusAoEMult)
     castArcaneExplosion(this, this.player.x, this.player.y, radius)
     this.cameras.main.shake(90, 0.007)
     this.sfx.onArcaneExplosion()
 
-    const baseArcDmg = Math.round(baseDamage + this.player.effectiveSpellDamage * 0.5)
-    // Snapshot array so splicing inside killEnemy doesn't skip entries
+    const baseArcDmg = Math.round(
+      Balance.spells.arcaneExplosion.baseDamage + t.bonusArcExDamage
+      + this.player.effectiveSpellDamage * 0.5
+    )
     for (const enemy of [...this.enemies]) {
       if (!enemy.active || enemy.dying) continue
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
       if (d > radius) continue
       const isCrit = Math.random() < this.player.critChance
-      const dmg    = isCrit ? Math.round(baseArcDmg * 1.5) : baseArcDmg
+      const dmg    = isCrit ? Math.round(baseArcDmg * t.bonusCritMult) : baseArcDmg
       const label  = isCrit ? `CRIT! -${dmg}` : `-${dmg}`
       const col    = isCrit ? '#ffff44' : '#cc44ff'
       this.hud.showFloatingText(enemy.x, enemy.y - 20, label, col)
@@ -220,7 +249,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.spendFrostNovaCost()
 
-    const { radius, freezeMs } = Balance.spells.frostNova
+    const radius   = Math.round(Balance.spells.frostNova.radius * this.player.talents.bonusAoEMult)
+    const freezeMs = Balance.spells.frostNova.freezeMs + this.player.talents.bonusFreezeMs
     castFrostNova(this, this.player.x, this.player.y, radius)
     this.cameras.main.shake(80, 0.005)
     this.sfx.onFrostNova()
@@ -242,7 +272,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.spendBlizzardCost()
 
-    const { radius, tickDamage, slowMult, slowDurationMs } = Balance.spells.blizzard
+    const { tickDamage, slowMult, slowDurationMs } = Balance.spells.blizzard
+    const radius   = Math.round(Balance.spells.blizzard.radius * this.player.talents.bonusAoEMult)
     const spellDmg = this.player.effectiveSpellDamage
     this.sfx.onBlizzardCast()
 
@@ -287,6 +318,17 @@ export class GameScene extends Phaser.Scene {
       this.spawnLevelUpFanfare()
     }
 
+    // Flashpoint: killing a burning enemy resets Firebolt cooldown
+    if (this.player.talents.flashpointEnabled && enemy.burning) {
+      this.player.fireboltCooldown = 0
+      this.hud.showFloatingText(enemy.x, enemy.y - 48, 'FLASHPOINT!', '#ff8844', 16)
+    }
+
+    // Clear burn timer for this enemy
+    const bt = this.burnTimers.get(enemy)
+    if (bt) { bt.remove(false); this.burnTimers.delete(enemy) }
+    enemy.burning = false
+
     this.tryDropLoot(enemy)
     enemy.die()
 
@@ -299,6 +341,37 @@ export class GameScene extends Phaser.Scene {
         }
       })
     }
+  }
+
+  // ── Talent effects ────────────────────────────────────────────────────────
+
+  private applyBurn(enemy: Enemy) {
+    // Cancel any existing burn timer so it refreshes cleanly
+    const existing = this.burnTimers.get(enemy)
+    if (existing) { existing.remove(false); this.burnTimers.delete(enemy) }
+
+    enemy.burning = true
+    const dmg     = this.player.talents.igniteDamagePerTick
+    let ticks      = 0
+    const timer = this.time.addEvent({
+      delay:    500,
+      repeat:   3,
+      callback: () => {
+        if (!enemy.active || enemy.dying) {
+          enemy.burning = false
+          this.burnTimers.delete(enemy)
+          return
+        }
+        ticks++
+        this.hud.showFloatingText(enemy.x, enemy.y - 14, `-${dmg}`, '#ff6622', 13)
+        if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
+        if (ticks >= 4) {
+          enemy.burning = false
+          this.burnTimers.delete(enemy)
+        }
+      },
+    })
+    this.burnTimers.set(enemy, timer)
   }
 
   // ── Loot ──────────────────────────────────────────────────────────────────

@@ -7,8 +7,9 @@ type AIState = 'wander' | 'chase'
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   readonly cfg: EnemyConfig
-  hp:    number
-  dying = false
+  hp:      number
+  dying   = false
+  burning = false    // set by GameScene when Ignite is active
 
   private aiState:      AIState = 'wander'
   private attackCd     = 0

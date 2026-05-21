@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import Balance from '../config/Balance'
 import { Inventory } from '../systems/Inventory'
+import { TalentSystem } from '../systems/TalentSystem'
 
 export interface Stats {
   hp: number
@@ -17,6 +18,7 @@ export interface Stats {
 export class Player extends Phaser.Physics.Arcade.Sprite {
   stats: Stats
   readonly inventory = new Inventory()
+  readonly talents   = new TalentSystem()
 
   fireboltCooldown        = 0
   arcaneExplosionCooldown = 0
@@ -26,7 +28,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // ── Effective stats (base + gear) ─────────────────────────────────────────
 
   get effectiveSpellDamage(): number {
-    return this.stats.spellDamage + (this.inventory.gearStats.spellPower ?? 0)
+    return this.stats.spellDamage
+      + (this.inventory.gearStats.spellPower ?? 0)
+      + this.talents.bonusSpellDamage
   }
 
   get effectiveMaxMana(): number {
@@ -34,12 +38,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get effectiveSpeed(): number {
-    return this.stats.speed + (this.inventory.gearStats.speed ?? 0)
+    return this.stats.speed
+      + (this.inventory.gearStats.speed ?? 0)
+      + this.talents.bonusSpeed
   }
 
-  /** Crit chance from gear (0–0.50 hard cap). */
+  /** Crit chance from gear + talents (0–0.50 hard cap). */
   get critChance(): number {
-    return Math.min(0.50, this.inventory.gearStats.critChance ?? 0)
+    return Math.min(0.50, (this.inventory.gearStats.critChance ?? 0) + this.talents.bonusCritChance)
   }
 
   // ── Cooldowns with level scaling + gear CDR ───────────────────────────────
@@ -55,23 +61,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get blizzardCooldownMax()        { return this.applyCDR(Balance.spells.blizzard.cooldownMs) }
 
   private applyCDR(baseMs: number): number {
-    const cdr = Math.min(0.40, this.inventory.gearStats.cooldownReduction ?? 0)
+    const cdr = Math.min(0.40, (this.inventory.gearStats.cooldownReduction ?? 0) + this.talents.bonusCDR)
     return Math.round(baseMs * (1 - cdr))
   }
 
   // ── Mana costs ────────────────────────────────────────────────────────────
 
-  readonly fireboltManaCost = Balance.player.fireboltManaCost
+  private effectiveCost(base: number): number {
+    return Math.max(1, Math.round(base * this.talents.bonusManaCostMult))
+  }
 
-  canCastFirebolt()        { return this.fireboltCooldown <= 0        && this.stats.mana >= Balance.player.fireboltManaCost }
-  canCastArcaneExplosion() { return this.arcaneExplosionCooldown <= 0 && this.stats.mana >= Balance.spells.arcaneExplosion.manaCost }
-  canCastFrostNova()       { return this.frostNovaCooldown <= 0       && this.stats.mana >= Balance.spells.frostNova.manaCost }
-  canCastBlizzard()        { return this.blizzardCooldown <= 0        && this.stats.mana >= Balance.spells.blizzard.manaCost }
+  get fireboltCost()        { return this.effectiveCost(Balance.player.fireboltManaCost) }
+  get arcaneExplosionCost() { return this.effectiveCost(Balance.spells.arcaneExplosion.manaCost) }
+  get frostNovaCost()       { return this.effectiveCost(Balance.spells.frostNova.manaCost) }
+  get blizzardCost()        { return this.effectiveCost(Balance.spells.blizzard.manaCost) }
 
-  spendFireboltCost()       { this.stats.mana -= Balance.player.fireboltManaCost;          this.fireboltCooldown        = this.fireboltCooldownMax }
-  spendArcaneExplosionCost(){ this.stats.mana -= Balance.spells.arcaneExplosion.manaCost;  this.arcaneExplosionCooldown = this.arcaneExplosionCooldownMax }
-  spendFrostNovaCost()      { this.stats.mana -= Balance.spells.frostNova.manaCost;        this.frostNovaCooldown       = this.frostNovaCooldownMax }
-  spendBlizzardCost()       { this.stats.mana -= Balance.spells.blizzard.manaCost;         this.blizzardCooldown        = this.blizzardCooldownMax }
+  canCastFirebolt()        { return this.fireboltCooldown <= 0        && this.stats.mana >= this.fireboltCost }
+  canCastArcaneExplosion() { return this.arcaneExplosionCooldown <= 0 && this.stats.mana >= this.arcaneExplosionCost }
+  canCastFrostNova()       { return this.frostNovaCooldown <= 0       && this.stats.mana >= this.frostNovaCost }
+  canCastBlizzard()        { return this.blizzardCooldown <= 0        && this.stats.mana >= this.blizzardCost }
+
+  spendFireboltCost()        { this.stats.mana -= this.fireboltCost;        this.fireboltCooldown        = this.fireboltCooldownMax }
+  spendArcaneExplosionCost() { this.stats.mana -= this.arcaneExplosionCost; this.arcaneExplosionCooldown = this.arcaneExplosionCooldownMax }
+  spendFrostNovaCost()       { this.stats.mana -= this.frostNovaCost;       this.frostNovaCooldown       = this.frostNovaCooldownMax }
+  spendBlizzardCost()        { this.stats.mana -= this.blizzardCost;        this.blizzardCooldown        = this.blizzardCooldownMax }
 
   private wasd: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
   private manaRegenAccum = 0
@@ -129,6 +142,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const regenPerSec = Balance.player.manaRegenBase
       + (this.stats.level - 1) * Balance.player.manaRegenPerLevel
       + (this.inventory.gearStats.manaRegen ?? 0)
+      + this.talents.bonusManaRegen
     this.manaRegenAccum += delta
     const ticks = Math.floor(this.manaRegenAccum / 200)
     if (ticks > 0) {
@@ -138,7 +152,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount: number) {
-    this.stats.hp = Math.max(0, this.stats.hp - amount)
+    const reduced = Math.round(amount * (1 - this.talents.bonusDamageReduction))
+    this.stats.hp = Math.max(0, this.stats.hp - reduced)
     this.setTint(0xff3333)
     this.scene.time.delayedCall(120, () => this.clearTint())
   }
@@ -153,6 +168,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const B = Balance.player
     this.stats.xp       -= this.stats.xpToNext
     this.stats.level++
+    this.talents.points++
     this.stats.xpToNext   = Math.floor(this.stats.xpToNext * Balance.xp.levelScaling)
     this.stats.maxHp     += B.hpPerLevel
     this.stats.hp         = this.stats.maxHp
