@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { EnemyConfig, Slime, Ghoul } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite } from '../entities/EnemyTypes'
 
 export interface SpawnZone {
   cx: number
@@ -209,21 +209,42 @@ export class World {
   private buildSpawnZones() {
     const h = this.size / 2
 
-    // Cardinal mid zones — medium difficulty
-    const mid: [number, number][] = [
-      [h + 720, h], [h - 720, h], [h, h + 720], [h, h - 720],
+    // Near cardinal zones — Slimes + fast Imps
+    const near: [number, number][] = [
+      [h + 680, h], [h - 680, h], [h, h + 680], [h, h - 680],
     ]
-    for (const [cx, cy] of mid) {
-      this.spawnZones.push({ cx, cy, radius: 380, table: [Slime, Slime, Ghoul], maxEnemies: 3 })
+    for (const [cx, cy] of near) {
+      this.spawnZones.push({
+        cx, cy, radius: 360,
+        table: [Slime, Slime, Imp, Imp, Ghoul],
+        maxEnemies: 5,
+      })
     }
 
-    // Corner zones — harder
+    // Mid diagonal zones — Ghouls + casters + Brutes
+    const diag: [number, number][] = [
+      [h + 820, h + 820], [h - 820, h + 820],
+      [h + 820, h - 820], [h - 820, h - 820],
+    ]
+    for (const [cx, cy] of diag) {
+      this.spawnZones.push({
+        cx, cy, radius: 380,
+        table: [Ghoul, Ghoul, Imp, Wraith, Brute],
+        maxEnemies: 4,
+      })
+    }
+
+    // Far corner zones — dangerous mix with elites
     const corners: [number, number][] = [
-      [h + 1150, h + 1150], [h - 1150, h + 1150],
-      [h + 1150, h - 1150], [h - 1150, h - 1150],
+      [h + 1200, h + 1200], [h - 1200, h + 1200],
+      [h + 1200, h - 1200], [h - 1200, h - 1200],
     ]
     for (const [cx, cy] of corners) {
-      this.spawnZones.push({ cx, cy, radius: 420, table: [Ghoul, Ghoul, Slime], maxEnemies: 5 })
+      this.spawnZones.push({
+        cx, cy, radius: 420,
+        table: [Brute, Wraith, Wraith, Ghoul, Elite],
+        maxEnemies: 4,
+      })
     }
   }
 }

@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
-import { EnemyConfig, Slime, Ghoul } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite } from '../entities/EnemyTypes'
 import { World, SpawnZone } from '../world/World'
 import { spawnFirebolt, destroyBolt, spawnImpact, spawnCastEffect } from '../spells/Firebolt'
 import { castArcaneExplosion } from '../spells/ArcaneExplosion'
@@ -25,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private enemies:     Enemy[] = []
   private enemyGroup!: Phaser.Physics.Arcade.Group
   private bolts!:      Phaser.Physics.Arcade.Group
+  private wraithBolts!: Phaser.Physics.Arcade.Group
   private hud!:        HUD
   private sfx!:        SoundManager
   private lootDrops:     LootDrop[] = []
@@ -46,12 +47,13 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.buildPlayerTexture()
 
-    this.world      = new World(this, WORLD)
-    this.player     = new Player(this, WORLD / 2, WORLD / 2)
-    this.enemyGroup = this.physics.add.group()
-    this.bolts      = this.physics.add.group()
-    this.hud        = new HUD(this)
-    this.sfx        = new SoundManager(this)
+    this.world       = new World(this, WORLD)
+    this.player      = new Player(this, WORLD / 2, WORLD / 2)
+    this.enemyGroup  = this.physics.add.group()
+    this.bolts       = this.physics.add.group()
+    this.wraithBolts = this.physics.add.group()
+    this.hud         = new HUD(this)
+    this.sfx         = new SoundManager(this)
 
     // Camera: smooth lerp + deadzone so minor movements don't pan the view
     this.cameras.main
@@ -78,6 +80,10 @@ export class GameScene extends Phaser.Scene {
     // Collision: player and enemies push against obstacles
     this.physics.add.collider(this.player, this.world.obstacles)
     this.physics.add.collider(this.enemyGroup, this.world.obstacles)
+    this.physics.add.collider(this.wraithBolts, this.world.obstacles, (boltObj) => {
+      const bolt = boltObj as unknown as Phaser.Physics.Arcade.Sprite
+      if (bolt.active) bolt.destroy()
+    })
 
     // Bolt hits enemy
     this.physics.add.overlap(this.bolts, this.enemyGroup, (boltObj, enemyObj) => {
@@ -124,6 +130,39 @@ export class GameScene extends Phaser.Scene {
       if (this.player.talents.igniteRank > 0 && !enemy.dying) this.applyBurn(enemy)
 
       if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
+    })
+
+    // Wraith bolt hits player
+    this.physics.add.overlap(this.player, this.wraithBolts, (_p, boltObj) => {
+      const bolt = boltObj as unknown as Phaser.Physics.Arcade.Sprite
+      if (!bolt.active) return
+      const dmg = bolt.getData('damage') as number
+      bolt.destroy()
+      this.player.takeDamage(dmg)
+      this.sfx.onPlayerHit()
+      this.cameras.main.shake(130, 0.006)
+      this.screenFlash(0xff0000, 0.18, 280)
+      this.hud.showFloatingText(this.player.x, this.player.y - 20, `-${dmg}`, '#ff4444', 20)
+    })
+
+    // Enemy emits this when a melee or telegraph hit lands
+    this.events.on('enemy-hit-player', (_dmg: number) => {
+      if (this.dead) return
+      this.sfx.onPlayerHit()
+      this.cameras.main.shake(160, 0.009)
+      this.screenFlash(0xff0000, 0.20, 300)
+      this.hud.showFloatingText(this.player.x, this.player.y - 20, `-${_dmg}`, '#ff4444', 22)
+    })
+
+    // Enemy (Wraith) fires a projectile
+    this.events.on('enemy-shoot', (d: { x: number; y: number; vx: number; vy: number; damage: number }) => {
+      if (this.dead) return
+      const bolt = this.wraithBolts.create(d.x, d.y, 'wraith_bolt') as Phaser.Physics.Arcade.Sprite
+      bolt.setData('damage', d.damage)
+      ;(bolt.body as Phaser.Physics.Arcade.Body).setCircle(5, 1, 1)
+      bolt.setDepth(6)
+      bolt.setVelocity(d.vx, d.vy)
+      this.time.delayedCall(3000, () => { if (bolt.active) bolt.destroy() })
     })
 
     // Populate every spawn zone
@@ -184,13 +223,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const enemy of this.enemies) {
       if (!enemy.active) continue
-      const dmg = enemy.update(delta, this.player, this.enemies)
-      if (dmg > 0) {
-        this.sfx.onPlayerHit()
-        this.cameras.main.shake(160, 0.009)
-        this.screenFlash(0xff0000, 0.20, 300)
-        this.hud.showFloatingText(this.player.x, this.player.y - 20, `-${dmg}`, '#ff4444', 22)
-      }
+      enemy.update(delta, this.player, this.enemies)
     }
 
     this.hud.update(this.player)
@@ -377,16 +410,26 @@ export class GameScene extends Phaser.Scene {
   // ── Loot ──────────────────────────────────────────────────────────────────
 
   private tryDropLoot(enemy: Enemy) {
-    const B = Balance.loot
+    const B   = Balance.loot
+    const lvl = this.player.stats.level
+
+    if (enemy.cfg.guaranteedDrop) {
+      // Elite: always drops a rare+ item and double gold
+      const rarity = Math.random() < 0.30 ? 'epic' : 'rare'
+      this.lootDrops.push(new LootDrop(this, enemy.x - 14, enemy.y, generateItem(lvl, rarity)))
+      this.lootDrops.push(new LootDrop(this, enemy.x + 14, enemy.y, undefined, generateGold(lvl) * 2))
+      return
+    }
+
     if (Math.random() < B.itemDropChance) {
       const x = enemy.x + Phaser.Math.Between(-18, 18)
       const y = enemy.y + Phaser.Math.Between(-18, 18)
-      this.lootDrops.push(new LootDrop(this, x, y, generateItem(this.player.stats.level)))
+      this.lootDrops.push(new LootDrop(this, x, y, generateItem(lvl)))
     }
     if (Math.random() < B.goldDropChance) {
       const x = enemy.x + Phaser.Math.Between(-18, 18)
       const y = enemy.y + Phaser.Math.Between(-18, 18)
-      this.lootDrops.push(new LootDrop(this, x, y, undefined, generateGold(this.player.stats.level)))
+      this.lootDrops.push(new LootDrop(this, x, y, undefined, generateGold(lvl)))
     }
   }
 
@@ -496,17 +539,48 @@ export class GameScene extends Phaser.Scene {
     g.generateTexture('player', 32, 32)
     g.clear()
 
-    // Enemies
-    for (const cfg of [Slime, Ghoul] as EnemyConfig[]) {
-      const size   = cfg.radius * 2 + 4
-      const center = size / 2
+    // Enemies — base pass for all types
+    for (const cfg of [Slime, Ghoul, Imp, Brute, Wraith, Elite] as EnemyConfig[]) {
+      const size = cfg.radius * 2 + 4
+      const c    = size / 2
+      const r    = cfg.radius
+
+      // Elite: outer gold aura ring
+      if (cfg.aiType === 'elite') {
+        g.lineStyle(4, 0xffdd00, 0.45)
+        g.strokeCircle(c, c, r + 3)
+      }
+
+      // Wraith: outer glow ring
+      if (cfg.aiType === 'ranged') {
+        g.lineStyle(2, cfg.color, 0.35)
+        g.strokeCircle(c, c, r + 4)
+      }
+
       g.fillStyle(cfg.color)
-      g.fillCircle(center, center, cfg.radius)
+      g.fillCircle(c, c, r)
+
+      // Brute: dark inner mass to convey heaviness
+      if (cfg.aiType === 'tank') {
+        g.fillStyle(0x000000, 0.30)
+        g.fillCircle(c, c, r * 0.55)
+      }
+
+      // Glint highlight
       g.fillStyle(0xffffff, 0.25)
-      g.fillCircle(center - cfg.radius * 0.2, center - cfg.radius * 0.3, cfg.radius * 0.38)
+      g.fillCircle(c - r * 0.2, c - r * 0.3, r * 0.38)
+
       g.generateTexture(cfg.key, size, size)
       g.clear()
     }
+
+    // Wraith bolt: small purple orb
+    g.fillStyle(0xbb44ee)
+    g.fillCircle(6, 6, 6)
+    g.fillStyle(0xffffff, 0.5)
+    g.fillCircle(4, 4, 2)
+    g.generateTexture('wraith_bolt', 12, 12)
+    g.clear()
 
     // Firebolt
     g.fillStyle(0xff6600)

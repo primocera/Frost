@@ -9,7 +9,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   readonly cfg: EnemyConfig
   hp:      number
   dying   = false
-  burning = false    // set by GameScene when Ignite is active
+  burning = false
 
   private aiState:      AIState = 'wander'
   private attackCd     = 0
@@ -22,9 +22,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private hpBar: Phaser.GameObjects.Graphics
 
   // Status effects
-  private frozenMs = 0     // ms remaining; enemy can't move or attack
-  private slowMs   = 0     // ms remaining
-  private slowMult = 1     // speed multiplier while slowed (< 1 = slower)
+  private frozenMs = 0
+  private slowMs   = 0
+  private slowMult = 1
+
+  // Ranged AI
+  private rangedCooldown = 0
+
+  // Elite charge
+  private chargeActive   = false
+  private chargeCooldown = 0
+
+  // Tank telegraph
+  private telegraphing = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, cfg: EnemyConfig) {
     super(scene, x, y, cfg.key)
@@ -42,6 +52,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.redrawHPBar()
 
     this.wanderIdleMs = Phaser.Math.Between(0, cfg.idleTime[1])
+
+    // Stagger charge cooldown so elites don't charge immediately on spawn
+    if (cfg.chargeCooldownMs) this.chargeCooldown = cfg.chargeCooldownMs * 0.55
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -54,7 +67,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   get isChasing(): boolean { return this.aiState === 'chase' }
   get isFrozen():  boolean { return this.frozenMs > 0 }
 
-  /** Root this enemy in place for the given duration. */
   freeze(ms: number) {
     const wasAlreadyFrozen = this.frozenMs > 0
     this.frozenMs = Math.max(this.frozenMs, ms)
@@ -62,7 +74,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(0, 0)
     this.updateStatusTint()
 
-    // Ice shard burst only on initial freeze — communicates the hit clearly
     if (!wasAlreadyFrozen) {
       const burst = this.scene.add.particles(this.x, this.y, 'particle', {
         speed:     { min: 30, max: 90 },
@@ -79,40 +90,40 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  /** Reduce movement speed for the given duration. Refreshes if already slowed. */
   slow(mult: number, ms: number) {
-    this.slowMult = Math.min(this.slowMult, mult)   // take the worse (slower) value
+    this.slowMult = Math.min(this.slowMult, mult)
     this.slowMs   = Math.max(this.slowMs, ms)
     this.updateStatusTint()
   }
 
   // ── Main update ───────────────────────────────────────────────────────────
 
-  update(delta: number, player: Player, allies: Enemy[]): number {
-    if (this.dying) return 0
-    if (this.attackCd > 0) this.attackCd -= delta
+  update(delta: number, player: Player, allies: Enemy[]): void {
+    if (this.dying) return
+    if (this.attackCd     > 0) this.attackCd     -= delta
+    if (this.rangedCooldown > 0) this.rangedCooldown -= delta
 
     this.hpBar.setPosition(this.x, this.y)
 
-    // Frozen: skip all movement and attacks
+    // These states block all other logic
+    if (this.telegraphing) return
+    if (this.chargeActive) return
+
+    // Charge cooldown only ticks while the elite is free to act
+    if (this.cfg.chargeCooldownMs && this.chargeCooldown > 0 && this.frozenMs <= 0) {
+      this.chargeCooldown -= delta
+    }
+
     if (this.frozenMs > 0) {
       this.frozenMs -= delta
       this.setVelocity(0, 0)
-      if (this.frozenMs <= 0) {
-        this.frozenMs = 0
-        this.updateStatusTint()
-      }
-      return 0
+      if (this.frozenMs <= 0) { this.frozenMs = 0; this.updateStatusTint() }
+      return
     }
 
-    // Slow timer decay
     if (this.slowMs > 0) {
       this.slowMs -= delta
-      if (this.slowMs <= 0) {
-        this.slowMs  = 0
-        this.slowMult = 1
-        this.updateStatusTint()
-      }
+      if (this.slowMs <= 0) { this.slowMs = 0; this.slowMult = 1; this.updateStatusTint() }
     }
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
@@ -124,30 +135,36 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.wanderTarget = null
     }
 
-    if (this.aiState === 'chase') return this.doChase(dist, player, allies)
+    if (this.aiState === 'chase') { this.doChase(dist, player, allies); return }
     this.doWander(delta)
-    return 0
   }
 
-  // ── Combat ────────────────────────────────────────────────────────────────
+  // ── AI: Chase dispatch ────────────────────────────────────────────────────
 
-  private doChase(dist: number, player: Player, allies: Enemy[]): number {
+  private doChase(dist: number, player: Player, allies: Enemy[]): void {
+    if (this.cfg.aiType === 'ranged') { this.doChaseRanged(dist, player); return }
+
+    // Elite: trigger charge when cooldown expires
+    if (this.cfg.aiType === 'elite' && this.chargeCooldown <= 0 && !this.chargeActive) {
+      this.startCharge(player.x, player.y)
+    }
+
     const speed = this.cfg.speed * this.slowMult
 
     if (dist > this.cfg.attackRange) {
-      let vx: number, vy: number
+      // ── Movement ───────────────────────────────────────────────────────────
       const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
-      vx = Math.cos(angle) * speed
-      vy = Math.sin(angle) * speed
+      let vx = Math.cos(angle) * speed
+      let vy = Math.sin(angle) * speed
 
-      // Subtle weave: sine-wave perpendicular drift unique per enemy (avoids robotic lines)
+      // Sine-wave weave (unique per enemy, avoids robotic straight lines)
       const weavePhase = (this.homeX + this.homeY) * 0.003
       const perpDrift  = Math.sin(this.scene.time.now * 0.0015 + weavePhase) * 0.22
       const perpAngle  = angle + Math.PI / 2
       vx += Math.cos(perpAngle) * speed * perpDrift
       vy += Math.sin(perpAngle) * speed * perpDrift
 
-      // Soft flocking: nudge velocity toward nearby chasing allies
+      // Soft flocking toward nearby chasing allies
       const { flockRadius, flockWeight } = Balance.mob
       let cx = 0, cy = 0, count = 0
       for (const ally of allies) {
@@ -166,19 +183,127 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.setVelocity(0, 0)
       if (this.attackCd <= 0) {
-        this.attackCd = this.cfg.attackRate
-        player.takeDamage(this.cfg.damage)
-        return this.cfg.damage
+        if (this.cfg.aiType === 'tank' && this.cfg.telegraphMs) {
+          this.startTelegraphAttack(player)
+        } else {
+          this.attackCd = this.cfg.attackRate
+          player.takeDamage(this.cfg.damage)
+          this.scene.events.emit('enemy-hit-player', this.cfg.damage)
+        }
       }
     }
-    return 0
   }
+
+  // ── AI: Ranged kiting ─────────────────────────────────────────────────────
+
+  private doChaseRanged(dist: number, player: Player): void {
+    const preferred  = this.cfg.projectileRange ?? 260
+    const backstep   = 110
+    const speed      = this.cfg.speed * this.slowMult
+
+    if (dist < backstep) {
+      // Too close — back away
+      const angle = Phaser.Math.Angle.Between(player.x, player.y, this.x, this.y)
+      this.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed)
+    } else if (dist > preferred * 1.15) {
+      // Too far — close in slowly
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
+      this.setVelocity(Math.cos(angle) * speed * 0.65, Math.sin(angle) * speed * 0.65)
+    } else {
+      // Sweet spot — strafe perpendicular and shoot
+      const toPlayerAngle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
+      const strafeSign    = Math.sin(this.scene.time.now * 0.0008 + (this.homeX + this.homeY) * 0.002) > 0 ? 1 : -1
+      const perpAngle     = toPlayerAngle + (Math.PI / 2) * strafeSign
+      this.setVelocity(Math.cos(perpAngle) * speed * 0.5, Math.sin(perpAngle) * speed * 0.5)
+
+      if (this.rangedCooldown <= 0) {
+        this.rangedCooldown = 2400
+        this.doShoot(player)
+      }
+    }
+  }
+
+  private doShoot(player: Player) {
+    const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
+    const spd   = this.cfg.projectileSpeed ?? 230
+
+    // Brief cast pulse
+    this.setTint(0xdd88ff)
+    this.scene.tweens.add({
+      targets: this, scaleX: 0.82, scaleY: 0.82,
+      duration: 170, yoyo: true,
+      onComplete: () => { if (!this.dying) this.updateStatusTint() },
+    })
+
+    this.scene.events.emit('enemy-shoot', {
+      x: this.x, y: this.y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      damage: this.cfg.projectileDamage ?? 12,
+    })
+  }
+
+  // ── AI: Elite charge ──────────────────────────────────────────────────────
+
+  private startCharge(targetX: number, targetY: number) {
+    this.chargeActive   = true
+    this.chargeCooldown = Infinity   // prevent re-trigger during charge
+
+    // Orange telegraph squash
+    this.setTint(0xff5500)
+    this.scene.tweens.add({
+      targets: this, scaleX: 1.5, scaleY: 0.65,
+      duration: 260, yoyo: true, ease: 'Power2',
+    })
+
+    this.scene.time.delayedCall(520, () => {
+      if (this.dying || !this.active) return
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY)
+      const spd   = this.cfg.speed * (this.cfg.chargeMult ?? 3.5)
+      this.setVelocity(Math.cos(angle) * spd, Math.sin(angle) * spd)
+      this.setTint(0xff9900)
+
+      this.scene.time.delayedCall(this.cfg.chargeMs ?? 650, () => {
+        if (this.dying || !this.active) return
+        this.chargeActive   = false
+        this.chargeCooldown = this.cfg.chargeCooldownMs ?? 6000
+        this.updateStatusTint()
+      })
+    })
+  }
+
+  // ── AI: Brute telegraph attack ────────────────────────────────────────────
+
+  private startTelegraphAttack(player: Player) {
+    this.telegraphing = true
+    this.attackCd     = this.cfg.attackRate
+
+    // Red warning — player has telegraphMs to react
+    this.setTint(0xff2200)
+    this.scene.tweens.add({
+      targets: this, scaleX: 1.6, scaleY: 0.55,
+      duration: (this.cfg.telegraphMs! / 2), yoyo: true, ease: 'Power2',
+    })
+
+    this.scene.time.delayedCall(this.cfg.telegraphMs!, () => {
+      if (this.dying || !this.active) return
+      this.telegraphing = false
+      this.updateStatusTint()
+      // Slightly forgiving reach — rewards staying out of range but not by a pixel
+      const d = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
+      if (d <= this.cfg.attackRange * 1.8 && !player.isDead) {
+        player.takeDamage(this.cfg.damage)
+        this.scene.events.emit('enemy-hit-player', this.cfg.damage)
+      }
+    })
+  }
+
+  // ── Combat ────────────────────────────────────────────────────────────────
 
   takeDamage(amount: number): boolean {
     this.hp = Math.max(0, this.hp - amount)
     this.redrawHPBar()
 
-    // Hit flash: white tint, then restore status tint
     this.setTint(0xffffff)
     this.setScale(1.6, 0.5)
     this.scene.tweens.add({
@@ -198,7 +323,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     ;(this.body as Phaser.Physics.Arcade.Body).enable = false
     this.hpBar.setVisible(false)
 
-    // Color-matched death burst — reads as satisfying kill confirmation
     const burst = this.scene.add.particles(this.x, this.y, 'particle', {
       speed:     { min: 55, max: 200 },
       scale:     { start: 1.2, end: 0 },
@@ -257,13 +381,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   private updateStatusTint() {
     if (this.dying) return
-    if (this.frozenMs > 0) {
-      this.setTint(0x88ddff)   // bright ice blue = frozen
-    } else if (this.slowMs > 0) {
-      this.setTint(0xbbddff)   // pale blue = slowed
-    } else {
-      this.clearTint()
-    }
+    if (this.frozenMs > 0)   { this.setTint(0x88ddff); return }
+    if (this.slowMs   > 0)   { this.setTint(0xbbddff); return }
+    this.clearTint()
   }
 
   private redrawHPBar() {
