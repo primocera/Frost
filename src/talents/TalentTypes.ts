@@ -33,6 +33,13 @@ export const TREE_HEX: Record<TreeId, number> = {
 
 export const TALENT_TREES: TreeId[] = ['frost', 'fire', 'arcane']
 
+/** Minimum player level required to spend points in each tree. */
+export const TREE_UNLOCK_LEVEL: Record<TreeId, number> = {
+  frost:  2,
+  fire:   5,
+  arcane: 9,
+}
+
 export const TALENT_DEFS: TalentDef[] = [
   // ── Frost ──────────────────────────────────────────────────────────────────
   {

@@ -1,17 +1,23 @@
-import { TALENT_DEFS, TalentId } from '../talents/TalentTypes'
+import { TALENT_DEFS, TalentId, TreeId, TREE_UNLOCK_LEVEL } from '../talents/TalentTypes'
 
 export class TalentSystem {
   private _ranks: Partial<Record<TalentId, number>> = {}
-  points = 0
+  points      = 0
+  playerLevel = 1
 
   /** Set by TalentUI so the panel redraws after a purchase. */
   onChange?: () => void
 
   getRank(id: TalentId): number { return this._ranks[id] ?? 0 }
 
+  treeUnlocked(tree: TreeId): boolean {
+    return this.playerLevel >= TREE_UNLOCK_LEVEL[tree]
+  }
+
   canBuy(id: TalentId): boolean {
     if (this.points <= 0) return false
     const def = TALENT_DEFS.find(d => d.id === id)!
+    if (!this.treeUnlocked(def.tree)) return false
     return this.getRank(id) < def.maxRank
   }
 

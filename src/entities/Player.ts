@@ -168,6 +168,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const B = Balance.player
     this.stats.xp       -= this.stats.xpToNext
     this.stats.level++
+    this.talents.playerLevel = this.stats.level
     this.talents.points++
     this.stats.xpToNext   = Math.floor(this.stats.xpToNext * Balance.xp.levelScaling)
     this.stats.maxHp     += B.hpPerLevel

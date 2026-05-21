@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { TALENT_DEFS, TALENT_TREES, TREE_COLOR, TREE_HEX, TREE_LABEL, TalentId, talentsForTree } from '../talents/TalentTypes'
+import { TALENT_DEFS, TALENT_TREES, TREE_COLOR, TREE_HEX, TREE_LABEL, TREE_UNLOCK_LEVEL, TalentId, talentsForTree } from '../talents/TalentTypes'
 import { TalentSystem } from '../systems/TalentSystem'
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ export class TalentUI {
   private titleText:   Phaser.GameObjects.Text
   private pointsText:  Phaser.GameObjects.Text
   private treeHeaders: Phaser.GameObjects.Text[]
+  private lockLabels:  Phaser.GameObjects.Text[]   // one per tree column
   private rows:        TalentRow[]
   private allObjects:  Phaser.GameObjects.GameObject[]
 
@@ -56,6 +57,18 @@ export class TalentUI {
       scene.add.text(colX(col) + COL_W / 2, PY + HDR_H / 2, TREE_LABEL[tree], {
         fontSize: '13px', fontFamily: 'monospace', color: TREE_COLOR[tree],
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0.5)
+    )
+
+    // Lock overlay label shown in the middle of each locked column
+    this.lockLabels = TALENT_TREES.map((tree, col) =>
+      scene.add.text(
+        colX(col) + COL_W / 2,
+        PY + HDR_H + (PH - HDR_H - FTR_H) / 2,
+        `Unlocks at\nlevel ${TREE_UNLOCK_LEVEL[tree]}`, {
+          fontSize: '13px', fontFamily: 'monospace', color: '#446666',
+          align: 'center',
+        }
+      ).setScrollFactor(0).setDepth(d + 1).setOrigin(0.5, 0.5)
     )
 
     // Build one row per talent (3 trees × 5 talents = 15)
@@ -90,6 +103,7 @@ export class TalentUI {
     this.allObjects = [
       this.panelGfx, this.titleText, this.pointsText,
       ...this.treeHeaders,
+      ...this.lockLabels,
       ...this.rows.flatMap(r => [r.nameText, r.rankText, r.descText, r.buyText]),
     ]
 
@@ -127,14 +141,33 @@ export class TalentUI {
       pts > 0 ? `${pts} talent point${pts > 1 ? 's' : ''} available` : 'No talent points — earn more by leveling up'
     ).setColor(pts > 0 ? '#ffdd44' : '#555555')
 
+    // Show/hide lock overlays per tree
+    TALENT_TREES.forEach((tree, col) => {
+      const unlocked = this.talents.treeUnlocked(tree)
+      this.lockLabels[col].setVisible(!unlocked)
+      this.treeHeaders[col].setColor(unlocked ? TREE_COLOR[tree] : '#334444')
+    })
+
     TALENT_DEFS.forEach((def, i) => {
-      const rank    = this.talents.getRank(def.id)
-      const maxRank = def.maxRank
-      const canBuy  = this.talents.canBuy(def.id)
-      const row     = this.rows[i]
+      const unlocked = this.talents.treeUnlocked(def.tree)
+      const rank     = this.talents.getRank(def.id)
+      const maxRank  = def.maxRank
+      const canBuy   = this.talents.canBuy(def.id)
+      const row      = this.rows[i]
+
+      if (!unlocked) {
+        // Dim everything in locked columns
+        row.nameText.setColor('#334444')
+        row.rankText.setText('○'.repeat(maxRank)).setColor('#334444')
+        row.descText.setText(def.desc).setColor('#223333')
+        row.buyText.setVisible(false)
+        return
+      }
+
+      row.nameText.setColor(TREE_COLOR[def.tree])
 
       // Rank dots: ● filled, ○ empty
-      row.rankText.setText('●'.repeat(rank) + '○'.repeat(maxRank - rank))
+      row.rankText.setText('●'.repeat(rank) + '○'.repeat(maxRank - rank)).setColor(TREE_COLOR[def.tree])
 
       // Description: show next-rank effect or "MAX" if complete
       if (rank < maxRank) {
@@ -191,6 +224,14 @@ export class TalentUI {
       // Column title (drawn as graphics text via scene.add already created — we re-draw
       // the accent line here; the actual text sits in separate Text objects below)
       void cx
+    })
+
+    // Dark overlay for locked columns
+    TALENT_TREES.forEach((tree, col) => {
+      if (!this.talents.treeUnlocked(tree)) {
+        g.fillStyle(0x000000, 0.55)
+        g.fillRect(colX(col) + 1, PY + HDR_H, COL_W - 1, PH - HDR_H - FTR_H)
+      }
     })
 
     // Per-row slot backgrounds
