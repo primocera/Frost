@@ -84,6 +84,17 @@ export class MobileControls {
   /** True if canvas-x is inside the joystick zone (don't fire Firebolt here). */
   isJoystickZone(x: number): boolean { return x < JX + BASE_R + 28 }
 
+  /** True if the tap lands on any control button (spell or menu) — block Firebolt. */
+  isControlTap(x: number, y: number): boolean {
+    for (const s of SPELL_DEFS) {
+      if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= SPELL_R + 10) return true
+    }
+    for (const m of MENU_DEFS) {
+      if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= MENU_R + 10) return true
+    }
+    return false
+  }
+
   /** Update spell cooldown data — call once per frame before update(). */
   setCooldowns(data: SpellCooldown[]) { this.cooldowns = data }
 

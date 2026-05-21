@@ -164,10 +164,6 @@ export class GameScene extends Phaser.Scene {
         },
       )
 
-      // Double the gap between ambient particle emissions to reduce GPU load on mobile
-      this.snowEmitter.setFrequency(720)
-      this.emberEmitter.setFrequency(600)
-      this.moteEmitter.setFrequency(880)
     }
 
     // ── Social systems ────────────────────────────────────────────────────
@@ -201,6 +197,7 @@ export class GameScene extends Phaser.Scene {
       // Ignore joystick touches and presses inside the joystick zone
       if (this.mobileControls?.isJoystickPtr(ptr.id)) return
       if (this.mobileControls?.isJoystickZone(ptr.x)) return
+      if (this.mobileControls?.isControlTap(ptr.x, ptr.y)) return
       if (!ptr.leftButtonDown()) return
       if (this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen()) return
       this.castFirebolt(ptr.worldX, ptr.worldY)
@@ -355,6 +352,13 @@ export class GameScene extends Phaser.Scene {
       quantity: 1,
     }).setScrollFactor(0).setDepth(2)
     this.moteEmitter.pause()
+
+    // Reduce particle emission rate on mobile to ease GPU load
+    if (Device.isMobile) {
+      this.snowEmitter.setFrequency(720)
+      this.emberEmitter.setFrequency(600)
+      this.moteEmitter.setFrequency(880)
+    }
 
     // ── Boss system ───────────────────────────────────────────────────────
     this.bossGroup      = this.physics.add.group()
