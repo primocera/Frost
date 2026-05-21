@@ -1,0 +1,219 @@
+import Phaser from 'phaser'
+import { Player } from '../entities/Player'
+
+const W = 960
+const H = 640
+
+const RING_CY   = H - 44
+const RING_R    = 16
+const RING_STEP = 56
+const RING_X0   = W / 2 - RING_STEP * 1.5
+
+const RINGS = [
+  { key: 'Q', name: 'ArcEx',    color: 0xcc44ff },
+  { key: 'E', name: 'FrNova',   color: 0x44aaff },
+  { key: 'R', name: 'Blizzard', color: 0x0088dd },
+  { key: 'F', name: 'Firebolt', color: 0xff8800 },
+] as const
+
+export class HUD {
+  private bars:       Phaser.GameObjects.Graphics
+  private levelLabel: Phaser.GameObjects.Text
+  private hpText:     Phaser.GameObjects.Text
+  private manaText:   Phaser.GameObjects.Text
+  private oomLabel:   Phaser.GameObjects.Text
+  private goldText:   Phaser.GameObjects.Text
+  private controls:   Phaser.GameObjects.Text
+  private ringLabels: Phaser.GameObjects.Text[]
+
+  // Timestamps for transient feedback effects
+  private failedCastAt = [-Infinity, -Infinity, -Infinity, -Infinity]
+  private oomAt        = -Infinity
+
+  constructor(private scene: Phaser.Scene) {
+    const d = 20
+
+    this.bars = scene.add.graphics().setScrollFactor(0).setDepth(d)
+
+    // HP / mana / XP labels
+    this.levelLabel = scene.add.text(10, 56, '', {
+      fontSize: '13px', color: '#dddddd', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d)
+
+    this.hpText = scene.add.text(176, 10, '', {
+      fontSize: '10px', color: '#ff8888', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
+
+    this.manaText = scene.add.text(176, 28, '', {
+      fontSize: '10px', color: '#8888ff', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
+
+    // "OOM" label fades in when trying to cast without mana
+    this.oomLabel = scene.add.text(176, 28, 'OOM', {
+      fontSize: '11px', color: '#ff4444', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d + 1).setOrigin(1, 0).setAlpha(0)
+
+    this.goldText = scene.add.text(10, 72, '', {
+      fontSize: '12px', color: '#ffdd00', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d)
+
+    this.controls = scene.add.text(W - 10, 10,
+      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory', {
+        fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
+      }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
+
+    // Ring labels: show key + name when ready, countdown when cooling
+    this.ringLabels = RINGS.map((r, i) =>
+      scene.add.text(RING_X0 + i * RING_STEP, RING_CY + RING_R + 7, `${r.key} ${r.name}`, {
+        fontSize: '10px', color: '#888888', fontFamily: 'monospace',
+      }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
+    )
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  /** Flash a ring red — used when player tries to cast while it's on cooldown. */
+  notifyCastFailed(spellIndex: number) {
+    this.failedCastAt[spellIndex] = this.scene.time.now
+  }
+
+  /** Flash the mana bar — used when player can't afford a spell. */
+  notifyOOM() {
+    this.oomAt = this.scene.time.now
+  }
+
+  update(player: Player) {
+    const { stats } = player
+    const now = this.scene.time.now
+    const g   = this.bars
+    g.clear()
+
+    const effMaxMana = player.effectiveMaxMana
+
+    // ── Stat bars ─────────────────────────────────────────────────────────
+    this.bar(g, 10, 10, 160, 12, stats.hp   / stats.maxHp,    0xdd2222, 0x440000)
+    this.bar(g, 10, 28, 160, 12, stats.mana / effMaxMana,     0x2255ee, 0x001144)
+    this.bar(g, 10, 46, 160, 12, stats.xp   / stats.xpToNext, 0xddaa00, 0x332200)
+
+    // Red overlay on mana bar when OOM
+    const oomAge = now - this.oomAt
+    if (oomAge < 500) {
+      g.fillStyle(0xff2222, 0.40 * (1 - oomAge / 500))
+      g.fillRect(10, 28, 160, 12)
+    }
+
+    this.levelLabel.setText(`Lv ${stats.level}   ${stats.xp} / ${stats.xpToNext} XP`)
+    this.hpText.setText(`${stats.hp}/${stats.maxHp}`)
+    this.manaText.setText(`${Math.floor(stats.mana)}/${effMaxMana}`)
+    this.goldText.setText(`${player.inventory.gold} g`)
+
+    // OOM label fades in then out
+    this.oomLabel.setAlpha(oomAge < 600 ? Math.max(0, 1 - oomAge / 600) : 0)
+
+    // ── Low health vignette (pulsing red frame at screen edges) ──────────
+    const hpFrac = stats.hp / stats.maxHp
+    if (hpFrac < 0.30) {
+      // Pulse rate doubles at very low HP for urgency
+      const pulse    = hpFrac < 0.15 ? 0.006 : 0.003
+      const vigAlpha = (0.12 + 0.10 * Math.sin(now * pulse)) * (1 - hpFrac / 0.30)
+      g.fillStyle(0xff0000, vigAlpha)
+      g.fillRect(0, 0,     W, 52)          // top
+      g.fillRect(0, H - 52, W, 52)         // bottom
+      g.fillRect(0, 52,    52, H - 104)    // left
+      g.fillRect(W - 52, 52, 52, H - 104) // right
+    }
+
+    // ── Spell rings ───────────────────────────────────────────────────────
+    const cooldowns = [
+      { cd: player.arcaneExplosionCooldown, max: player.arcaneExplosionCooldownMax },
+      { cd: player.frostNovaCooldown,       max: player.frostNovaCooldownMax },
+      { cd: player.blizzardCooldown,        max: player.blizzardCooldownMax },
+      { cd: player.fireboltCooldown,        max: player.fireboltCooldownMax },
+    ]
+
+    for (let i = 0; i < RINGS.length; i++) {
+      const cx  = RING_X0 + i * RING_STEP
+      const rng = RINGS[i]
+      const { cd, max } = cooldowns[i]
+      const ready = cd <= 0
+
+      this.drawRing(g, cx, RING_CY, RING_R, cd, max, rng.color)
+
+      // Red flash border on failed cast attempt
+      const failAge = now - this.failedCastAt[i]
+      if (failAge < 380) {
+        g.lineStyle(3, 0xff2222, 0.75 * (1 - failAge / 380))
+        g.strokeCircle(cx, RING_CY, RING_R + 3)
+      }
+
+      // Label: show countdown when cooling, key+name when ready
+      if (ready) {
+        this.ringLabels[i].setText(`${rng.key} ${rng.name}`).setColor('#cccccc')
+      } else {
+        const secs = (cd / 1000).toFixed(1)
+        this.ringLabels[i].setText(secs + 's').setColor('#555555')
+      }
+    }
+  }
+
+  /** Floating combat text. Pops in then drifts upward and fades. fontSize defaults to 20. */
+  showFloatingText(x: number, y: number, text: string, color = '#ff4444', fontSize = 20) {
+    const xOff = Phaser.Math.Between(-14, 14)
+    const t = this.scene.add.text(x + xOff, y - 8, text, {
+      fontSize: `${fontSize}px`, color,
+      fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: Math.max(3, Math.round(fontSize / 5)),
+    }).setDepth(30).setOrigin(0.5).setScale(0.4)
+
+    this.scene.tweens.add({
+      targets: t, scaleX: 1.1, scaleY: 1.1,
+      duration: 90, ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: t, y: y - 65, alpha: 0,
+          duration: 680, ease: 'Power2', delay: 60,
+          onComplete: () => t.destroy(),
+        })
+      },
+    })
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  private drawRing(
+    g:     Phaser.GameObjects.Graphics,
+    cx:    number, cy: number, r: number,
+    cd:    number, cdMax: number,
+    color: number,
+  ) {
+    g.fillStyle(0x111111, 0.85)
+    g.fillCircle(cx, cy, r + 3)
+
+    if (cd <= 0) {
+      g.fillStyle(color)
+      g.fillCircle(cx, cy, r)
+      g.fillStyle(0xffffff, 0.30)
+      g.fillCircle(cx - 4, cy - 4, 4)
+    } else {
+      g.fillStyle(0x0d0d0d)
+      g.fillCircle(cx, cy, r)
+      const pct = 1 - cd / cdMax
+      if (pct > 0.01) {
+        g.fillStyle(color, 0.65)
+        g.slice(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2, false)
+        g.fillPath()
+      }
+    }
+  }
+
+  private bar(
+    g: Phaser.GameObjects.Graphics,
+    x: number, y: number, w: number, h: number,
+    pct: number, fill: number, bg: number,
+  ) {
+    g.fillStyle(bg)
+    g.fillRect(x, y, w, h)
+    g.fillStyle(fill)
+    g.fillRect(x, y, Math.max(0, w * Math.min(1, pct)), h)
+  }
+}
