@@ -40,7 +40,9 @@ export class GameScene extends Phaser.Scene {
   private tKey!: Phaser.Input.Keyboard.Key
   private zoneCounts!: Map<SpawnZone, number>
   private lastFullWarnAt = 0
-  private dead = false
+  private dead           = false
+  private killStreak     = 0
+  private lastKillTime   = 0
 
   constructor() { super('GameScene') }
 
@@ -80,6 +82,8 @@ export class GameScene extends Phaser.Scene {
     // Collision: player and enemies push against obstacles
     this.physics.add.collider(this.player, this.world.obstacles)
     this.physics.add.collider(this.enemyGroup, this.world.obstacles)
+    // Enemies push each other apart — prevents the classic "zerg stack" problem
+    this.physics.add.collider(this.enemyGroup, this.enemyGroup)
     this.physics.add.collider(this.wraithBolts, this.world.obstacles, (boltObj) => {
       const bolt = boltObj as unknown as Phaser.Physics.Arcade.Sprite
       if (bolt.active) bolt.destroy()
@@ -157,6 +161,8 @@ export class GameScene extends Phaser.Scene {
     // Enemy (Wraith) fires a projectile
     this.events.on('enemy-shoot', (d: { x: number; y: number; vx: number; vy: number; damage: number }) => {
       if (this.dead) return
+      // Cap active bolts so a pack of Wraithes can't fill the screen
+      if (this.wraithBolts.getLength() >= 8) return
       const bolt = this.wraithBolts.create(d.x, d.y, 'wraith_bolt') as Phaser.Physics.Arcade.Sprite
       bolt.setData('damage', d.damage)
       ;(bolt.body as Phaser.Physics.Arcade.Body).setCircle(5, 1, 1)
@@ -226,7 +232,8 @@ export class GameScene extends Phaser.Scene {
       enemy.update(delta, this.player, this.enemies)
     }
 
-    this.hud.update(this.player)
+    const aggroCount = this.enemies.filter(e => e.active && !e.dying && e.isChasing).length
+    this.hud.update(this.player, aggroCount)
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -265,10 +272,11 @@ export class GameScene extends Phaser.Scene {
       if (!enemy.active || enemy.dying) continue
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
       if (d > radius) continue
-      const isCrit = Math.random() < this.player.critChance
-      const dmg    = isCrit ? Math.round(baseArcDmg * t.bonusCritMult) : baseArcDmg
-      const label  = isCrit ? `CRIT! -${dmg}` : `-${dmg}`
-      const col    = isCrit ? '#ffff44' : '#cc44ff'
+      const wasFrozen = enemy.isFrozen
+      const isCrit    = Math.random() < this.player.critChance
+      const dmg       = isCrit ? Math.round(baseArcDmg * t.bonusCritMult) : baseArcDmg
+      const label     = isCrit ? `CRIT! -${dmg}` : wasFrozen ? `SHATTER -${dmg}` : `-${dmg}`
+      const col       = isCrit ? '#ffff44' : wasFrozen ? '#aaffff' : '#cc44ff'
       this.hud.showFloatingText(enemy.x, enemy.y - 20, label, col)
       if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
     }
@@ -316,9 +324,12 @@ export class GameScene extends Phaser.Scene {
         if (!enemy.active || enemy.dying) continue
         const d = Phaser.Math.Distance.Between(cx, cy, enemy.x, enemy.y)
         if (d > radius) continue
+        const wasFrozen = enemy.isFrozen
         enemy.slow(slowMult, slowDurationMs)
-        const dmg = Math.round(tickDamage + spellDmg * 0.4)
-        this.hud.showFloatingText(enemy.x, enemy.y - 20, `-${dmg}`, '#44aaff')
+        const dmg   = Math.round(tickDamage + spellDmg * 0.4)
+        const label = wasFrozen ? `SHATTER -${dmg}` : `-${dmg}`
+        const col   = wasFrozen ? '#aaffff' : '#44aaff'
+        this.hud.showFloatingText(enemy.x, enemy.y - 20, label, col)
         if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
       }
     })
@@ -364,6 +375,7 @@ export class GameScene extends Phaser.Scene {
 
     this.tryDropLoot(enemy)
     enemy.die()
+    this.registerKill(enemy.x, enemy.y)
 
     if (zone) {
       const prev = this.zoneCounts.get(zone) ?? 1
@@ -452,6 +464,47 @@ export class GameScene extends Phaser.Scene {
     const i = this.lootDrops.indexOf(drop)
     if (i !== -1) this.lootDrops.splice(i, 1)
     drop.destroy()
+  }
+
+  // ── Kill streak ───────────────────────────────────────────────────────────
+
+  private registerKill(x: number, y: number) {
+    const now = this.time.now
+    if (now - this.lastKillTime < 2500) {
+      this.killStreak++
+    } else {
+      this.killStreak = 1
+    }
+    this.lastKillTime = now
+
+    if (this.killStreak === 3) {
+      this.hud.showStreakText('TRIPLE KILL', '#ff9900', 28)
+    } else if (this.killStreak === 5) {
+      this.hud.showStreakText('RAMPAGE!', '#ff5500', 32)
+      this.cameras.main.shake(180, 0.010)
+    } else if (this.killStreak === 8) {
+      this.hud.showStreakText('MASSACRE!', '#ff2200', 36)
+      this.cameras.main.shake(240, 0.013)
+      this.screenFlash(0xff2200, 0.10, 400)
+    } else if (this.killStreak >= 12 && (this.killStreak - 12) % 4 === 0) {
+      this.hud.showStreakText('UNSTOPPABLE!', '#ffdd00', 40)
+      this.cameras.main.shake(300, 0.016)
+      this.screenFlash(0xffdd00, 0.12, 500)
+    }
+
+    // Pull nearby loot toward the player when on a hot streak
+    if (this.killStreak >= 4) {
+      this.lootPulse(x, y, this.killStreak >= 6 ? 350 : 220)
+    }
+  }
+
+  private lootPulse(originX: number, originY: number, radius: number) {
+    for (let i = this.lootDrops.length - 1; i >= 0; i--) {
+      const drop = this.lootDrops[i]
+      if (!drop.active) continue
+      const d = Phaser.Math.Distance.Between(originX, originY, drop.x, drop.y)
+      if (d <= radius) this.pickupDrop(drop)
+    }
   }
 
   // ── Screen effects ────────────────────────────────────────────────────────

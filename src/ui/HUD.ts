@@ -24,12 +24,14 @@ export class HUD {
   private oomLabel:    Phaser.GameObjects.Text
   private goldText:    Phaser.GameObjects.Text
   private talentBadge: Phaser.GameObjects.Text
+  private aggroText:   Phaser.GameObjects.Text
   private controls:    Phaser.GameObjects.Text
   private ringLabels:  Phaser.GameObjects.Text[]
 
   // Timestamps for transient feedback effects
-  private failedCastAt = [-Infinity, -Infinity, -Infinity, -Infinity]
-  private oomAt        = -Infinity
+  private failedCastAt   = [-Infinity, -Infinity, -Infinity, -Infinity]
+  private oomAt          = -Infinity
+  private activeTextCount = 0
 
   constructor(private scene: Phaser.Scene) {
     const d = 20
@@ -62,6 +64,10 @@ export class HUD {
       fontSize: '11px', color: '#cc88ff', fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(d)
 
+    this.aggroText = scene.add.text(10, 104, '', {
+      fontSize: '11px', color: '#888888', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d)
+
     this.controls = scene.add.text(W - 10, 10,
       'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents', {
         fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
@@ -87,7 +93,7 @@ export class HUD {
     this.oomAt = this.scene.time.now
   }
 
-  update(player: Player) {
+  update(player: Player, aggroCount = 0) {
     const { stats } = player
     const now = this.scene.time.now
     const g   = this.bars
@@ -119,6 +125,9 @@ export class HUD {
     } else {
       this.talentBadge.setText('').setAlpha(1)
     }
+
+    const aggroCol = aggroCount >= 10 ? '#ff3300' : aggroCount >= 6 ? '#ff8800' : aggroCount >= 3 ? '#ffaa00' : '#888888'
+    this.aggroText.setText(aggroCount > 0 ? `▲ ${aggroCount} chasing` : '').setColor(aggroCol)
 
     // OOM label fades in then out
     this.oomLabel.setAlpha(oomAge < 600 ? Math.max(0, 1 - oomAge / 600) : 0)
@@ -171,6 +180,10 @@ export class HUD {
 
   /** Floating combat text. Pops in then drifts upward and fades. fontSize defaults to 20. */
   showFloatingText(x: number, y: number, text: string, color = '#ff4444', fontSize = 20) {
+    // During AoE chaos, skip minor damage numbers to prevent visual overload
+    if (this.activeTextCount > 10 && fontSize < 16) return
+
+    this.activeTextCount++
     const xOff = Phaser.Math.Between(-14, 14)
     const t = this.scene.add.text(x + xOff, y - 8, text, {
       fontSize: `${fontSize}px`, color,
@@ -185,6 +198,26 @@ export class HUD {
         this.scene.tweens.add({
           targets: t, y: y - 65, alpha: 0,
           duration: 680, ease: 'Power2', delay: 60,
+          onComplete: () => { this.activeTextCount--; t.destroy() },
+        })
+      },
+    })
+  }
+
+  /** Large centered kill-streak announcement — pops in and floats up. */
+  showStreakText(text: string, color: string, fontSize = 32) {
+    const t = this.scene.add.text(W / 2, 110, text, {
+      fontSize: `${fontSize}px`, fontFamily: 'monospace', color,
+      stroke: '#000000', strokeThickness: 6,
+    }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0).setScale(0.3)
+
+    this.scene.tweens.add({
+      targets: t, scaleX: 1, scaleY: 1, alpha: 1,
+      duration: 200, ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: t, y: 70, alpha: 0,
+          duration: 900, delay: 400, ease: 'Power2',
           onComplete: () => t.destroy(),
         })
       },
