@@ -14,6 +14,8 @@ import { generateItem, generateGold } from '../items/ItemGen'
 import { LootDrop } from '../world/LootDrop'
 import { InventoryUI } from '../ui/InventoryUI'
 import { TalentUI } from '../ui/TalentUI'
+import { ProgressionUI } from '../ui/ProgressionUI'
+import { ProgressionSystem, COSMETICS } from '../systems/ProgressionSystem'
 import { RARITY_COLOR } from '../items/ItemTypes'
 
 const WORLD       = 3600
@@ -30,14 +32,17 @@ export class GameScene extends Phaser.Scene {
   private sfx!:        SoundManager
   private lootDrops:     LootDrop[] = []
   private burnTimers:    Map<Enemy, Phaser.Time.TimerEvent> = new Map()
-  private inventoryUI!:  InventoryUI
-  private talentUI!:     TalentUI
+  private inventoryUI!:   InventoryUI
+  private talentUI!:      TalentUI
+  private progressionUI!: ProgressionUI
+  private progression!:   ProgressionSystem
   private fKey!: Phaser.Input.Keyboard.Key
   private qKey!: Phaser.Input.Keyboard.Key
   private eKey!: Phaser.Input.Keyboard.Key
   private rKey!: Phaser.Input.Keyboard.Key
   private iKey!: Phaser.Input.Keyboard.Key
   private tKey!: Phaser.Input.Keyboard.Key
+  private pKey!: Phaser.Input.Keyboard.Key
   private zoneCounts!: Map<SpawnZone, number>
   private lastFullWarnAt = 0
   private dead           = false
@@ -70,9 +75,25 @@ export class GameScene extends Phaser.Scene {
     this.rKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     this.iKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I)
     this.tKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.T)
+    this.pKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P)
 
-    this.inventoryUI = new InventoryUI(this, this.player.inventory)
-    this.talentUI    = new TalentUI(this, this.player.talents)
+    this.inventoryUI  = new InventoryUI(this, this.player.inventory)
+    this.talentUI     = new TalentUI(this, this.player.talents)
+    this.progression  = new ProgressionSystem()
+    this.progressionUI = new ProgressionUI(this, this.progression)
+
+    this.progression.onAchievementUnlocked = (def) => {
+      const cosName = def.cosmetic ? COSMETICS[def.cosmetic].name : undefined
+      this.hud.showAchievementUnlock(def.name, cosName)
+      this.applyCosmetic()
+    }
+    this.progression.onChallengeCompleted = (ch, xpReward) => {
+      this.hud.showChallengeComplete(ch.desc, xpReward)
+      this.player.gainXP(xpReward)
+    }
+
+    this.progression.startSession()
+    this.applyCosmetic()
 
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.leftButtonDown() && !this.inventoryUI.isOpen() && !this.talentUI.isOpen())
@@ -203,15 +224,22 @@ export class GameScene extends Phaser.Scene {
     )
 
     if (Phaser.Input.Keyboard.JustDown(this.iKey)) {
-      if (this.talentUI.isOpen()) this.talentUI.hide()
+      this.talentUI.isOpen() && this.talentUI.hide()
+      this.progressionUI.isOpen() && this.progressionUI.hide()
       this.inventoryUI.toggle()
     }
     if (Phaser.Input.Keyboard.JustDown(this.tKey)) {
-      if (this.inventoryUI.isOpen()) this.inventoryUI.hide()
+      this.inventoryUI.isOpen() && this.inventoryUI.hide()
+      this.progressionUI.isOpen() && this.progressionUI.hide()
       this.talentUI.toggle()
     }
+    if (Phaser.Input.Keyboard.JustDown(this.pKey)) {
+      this.inventoryUI.isOpen() && this.inventoryUI.hide()
+      this.talentUI.isOpen() && this.talentUI.hide()
+      this.progressionUI.toggle()
+    }
 
-    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen()
+    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen()
     if (!anyUIOpen) {
       if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castFirebolt(ptr.worldX, ptr.worldY)
       if (Phaser.Input.Keyboard.JustDown(this.qKey)) this.castArcaneExplosion()
@@ -360,6 +388,7 @@ export class GameScene extends Phaser.Scene {
     if (leveled) {
       this.sfx.onLevelUp()
       this.spawnLevelUpFanfare()
+      this.progression.onLevelReached(this.player.stats.level)
     }
 
     // Flashpoint: killing a burning enemy resets Firebolt cooldown
@@ -373,6 +402,7 @@ export class GameScene extends Phaser.Scene {
     if (bt) { bt.remove(false); this.burnTimers.delete(enemy) }
     enemy.burning = false
 
+    this.progression.onKill(enemy.cfg.aiType === 'elite')
     this.tryDropLoot(enemy)
     enemy.die()
     this.registerKill(enemy.x, enemy.y)
@@ -459,6 +489,7 @@ export class GameScene extends Phaser.Scene {
       this.hud.showFloatingText(drop.x, drop.y - 20, drop.item.name, RARITY_COLOR[drop.item.rarity], 13)
     } else if (drop.gold !== undefined) {
       this.player.inventory.gold += drop.gold
+      this.progression.onGoldCollected(drop.gold)
       this.hud.showFloatingText(drop.x, drop.y - 20, `+${drop.gold}g`, '#ffdd00', 13)
     }
     const i = this.lootDrops.indexOf(drop)
@@ -476,6 +507,8 @@ export class GameScene extends Phaser.Scene {
       this.killStreak = 1
     }
     this.lastKillTime = now
+
+    this.progression.onStreakReached(this.killStreak)
 
     if (this.killStreak === 3) {
       this.hud.showStreakText('TRIPLE KILL', '#ff9900', 28)
@@ -505,6 +538,12 @@ export class GameScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(originX, originY, drop.x, drop.y)
       if (d <= radius) this.pickupDrop(drop)
     }
+  }
+
+  private applyCosmetic() {
+    const tint = COSMETICS[this.progression.equippedCosmetic].tint
+    if (tint === 0xffffff) this.player.clearTint()
+    else this.player.setTint(tint)
   }
 
   // ── Screen effects ────────────────────────────────────────────────────────

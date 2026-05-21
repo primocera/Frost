@@ -69,7 +69,7 @@ export class HUD {
     }).setScrollFactor(0).setDepth(d)
 
     this.controls = scene.add.text(W - 10, 10,
-      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents', {
+      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
         fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
@@ -199,6 +199,47 @@ export class HUD {
           targets: t, y: y - 65, alpha: 0,
           duration: 680, ease: 'Power2', delay: 60,
           onComplete: () => { this.activeTextCount--; t.destroy() },
+        })
+      },
+    })
+  }
+
+  /** Achievement unlock banner — appears below any streak text. */
+  showAchievementUnlock(name: string, cosmeticName?: string) {
+    const body = cosmeticName ? `Achievement: ${name}\nUnlocked ${cosmeticName} cosmetic!` : `Achievement: ${name}`
+    const t = this.scene.add.text(W / 2, 170, body, {
+      fontSize: '15px', fontFamily: 'monospace', color: '#ffdd44',
+      stroke: '#000000', strokeThickness: 5, align: 'center',
+    }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+
+    this.scene.tweens.add({
+      targets: t, alpha: 1,
+      duration: 280, ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: t, y: 120, alpha: 0,
+          duration: 1100, delay: 2200, ease: 'Power2',
+          onComplete: () => t.destroy(),
+        })
+      },
+    })
+  }
+
+  /** Daily challenge completion banner. */
+  showChallengeComplete(desc: string, xpReward: number) {
+    const t = this.scene.add.text(W / 2, 200, `Challenge complete!\n${desc}\n+${xpReward} XP bonus`, {
+      fontSize: '14px', fontFamily: 'monospace', color: '#44ff88',
+      stroke: '#000000', strokeThickness: 4, align: 'center',
+    }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+
+    this.scene.tweens.add({
+      targets: t, alpha: 1,
+      duration: 260, ease: 'Power2',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: t, y: 155, alpha: 0,
+          duration: 1000, delay: 2500, ease: 'Power2',
+          onComplete: () => t.destroy(),
         })
       },
     })
