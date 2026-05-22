@@ -1,13 +1,8 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 
-const W = 960
-const H = 640
-
-const RING_CY   = H - 44
 const RING_R    = 16
 const RING_STEP = 56
-const RING_X0   = W / 2 - RING_STEP * 1.5
 
 const RINGS = [
   { key: 'Q', name: 'ArcEx',    color: 0xcc44ff },
@@ -17,17 +12,19 @@ const RINGS = [
 ] as const
 
 export class HUD {
-  private bars:        Phaser.GameObjects.Graphics
-  private levelLabel:  Phaser.GameObjects.Text
-  private hpText:      Phaser.GameObjects.Text
-  private manaText:    Phaser.GameObjects.Text
-  private oomLabel:    Phaser.GameObjects.Text
-  private goldText:    Phaser.GameObjects.Text
-  private talentBadge: Phaser.GameObjects.Text
-  private aggroText:   Phaser.GameObjects.Text
-  private controls:    Phaser.GameObjects.Text
-  private ringLabels:  Phaser.GameObjects.Text[]
-  private bossNameText: Phaser.GameObjects.Text
+  private bars:           Phaser.GameObjects.Graphics
+  private levelLabel:     Phaser.GameObjects.Text
+  private hpText:         Phaser.GameObjects.Text
+  private manaText:       Phaser.GameObjects.Text
+  private oomLabel:       Phaser.GameObjects.Text
+  private goldText:       Phaser.GameObjects.Text
+  private talentBadge:    Phaser.GameObjects.Text
+  private aggroText:      Phaser.GameObjects.Text
+  private controls:       Phaser.GameObjects.Text
+  private ringLabels:     Phaser.GameObjects.Text[]
+  private bossNameText:   Phaser.GameObjects.Text
+  private playerNameText: Phaser.GameObjects.Text
+  private questText:      Phaser.GameObjects.Text
 
   // Timestamps for transient feedback effects
   private failedCastAt   = [-Infinity, -Infinity, -Infinity, -Infinity]
@@ -39,6 +36,11 @@ export class HUD {
   private bossHp     = 0
   private bossMaxHp  = 0
   private bossPhase  = 1
+
+  private get W()       { return this.scene.scale.width }
+  private get H()       { return this.scene.scale.height }
+  private get RING_CY() { return this.H - 44 }
+  private get RING_X0() { return this.W / 2 - RING_STEP * 1.5 }
 
   constructor(private scene: Phaser.Scene) {
     const d = 20
@@ -75,28 +77,61 @@ export class HUD {
       fontSize: '11px', color: '#888888', fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(d)
 
-    this.controls = scene.add.text(W - 10, 10,
+    this.controls = scene.add.text(0, 10,
       'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
         fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
     // Ring labels: show key + name when ready, countdown when cooling
     this.ringLabels = RINGS.map((r, i) =>
-      scene.add.text(RING_X0 + i * RING_STEP, RING_CY + RING_R + 7, `${r.key} ${r.name}`, {
+      scene.add.text(0, 0, `${r.key} ${r.name}`, {
         fontSize: '10px', color: '#888888', fontFamily: 'monospace',
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
     )
 
     // Boss name label — hidden until a boss spawns
-    this.bossNameText = scene.add.text(W / 2, 4, '', {
+    this.bossNameText = scene.add.text(0, 4, '', {
       fontSize: '11px', color: '#ff8888', fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0).setVisible(false)
+
+    // Player name
+    this.playerNameText = scene.add.text(10, 120, '', {
+      fontSize: '11px', color: '#556677', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d)
+
+    // Quest tracker
+    this.questText = scene.add.text(10, 134, '', {
+      fontSize: '11px', color: '#aabb66', fontFamily: 'monospace',
+      wordWrap: { width: 220 },
+    }).setScrollFactor(0).setDepth(d)
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
 
   /** Hide the keyboard shortcut hint (replaced by mobile buttons on touch devices). */
   hideControlsHint() { this.controls.setVisible(false) }
+
+  setPlayerName(name: string) { this.playerNameText.setText(name) }
+  setQuestText(text: string)  { this.questText.setText(text) }
+
+  /** Animated banner for quest updates, spell unlocks, etc. */
+  showQuestUpdate(text: string, color = '#aadd44') {
+    const t = this.scene.add.text(this.W / 2, this.H * 0.75, text, {
+      fontSize: '16px', fontFamily: 'monospace', color,
+      stroke: '#000000', strokeThickness: 4, align: 'center',
+    }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+    this.scene.tweens.add({
+      targets: t, alpha: 1, y: 468,
+      duration: 260, ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: t, y: this.H * 0.69, alpha: 0,
+          duration: 800, delay: 2200, ease: 'Power2',
+          onComplete: () => t.destroy(),
+        })
+      },
+    })
+  }
 
   /** Show the boss HP bar at the top of the screen. Pass null name to hide it. */
   setBossBar(name: string | null, hp: number, maxHp: number, phase = 1) {
@@ -134,12 +169,19 @@ export class HUD {
     const g   = this.bars
     g.clear()
 
+    // Reposition elements that depend on current screen size
+    this.controls.setX(this.W - 10)
+    this.bossNameText.setX(this.W / 2)
+    for (let i = 0; i < RINGS.length; i++) {
+      this.ringLabels[i].setPosition(this.RING_X0 + i * RING_STEP, this.RING_CY + RING_R + 7)
+    }
+
     const effMaxMana = player.effectiveMaxMana
 
     // ── Boss HP bar (top center, hidden when no boss) ─────────────────────
     if (this.bossName) {
       const bw  = 480
-      const bx  = (W - bw) / 2
+      const bx  = (this.W - bw) / 2
       const pct = this.bossMaxHp > 0 ? this.bossHp / this.bossMaxHp : 0
       const fill = this.bossPhase === 3 ? 0xff2200 : this.bossPhase === 2 ? 0xff8800 : 0xdd3333
       this.bar(g, bx, 20, bw, 16, pct, fill, 0x220000)
@@ -184,14 +226,13 @@ export class HUD {
     // ── Low health vignette (pulsing red frame at screen edges) ──────────
     const hpFrac = stats.hp / stats.maxHp
     if (hpFrac < 0.30) {
-      // Pulse rate doubles at very low HP for urgency
       const pulse    = hpFrac < 0.15 ? 0.006 : 0.003
       const vigAlpha = (0.12 + 0.10 * Math.sin(now * pulse)) * (1 - hpFrac / 0.30)
       g.fillStyle(0xff0000, vigAlpha)
-      g.fillRect(0, 0,     W, 52)          // top
-      g.fillRect(0, H - 52, W, 52)         // bottom
-      g.fillRect(0, 52,    52, H - 104)    // left
-      g.fillRect(W - 52, 52, 52, H - 104) // right
+      g.fillRect(0, 0,           this.W, 52)
+      g.fillRect(0, this.H - 52, this.W, 52)
+      g.fillRect(0, 52,          52, this.H - 104)
+      g.fillRect(this.W - 52, 52, 52, this.H - 104)
     }
 
     // ── Spell rings ───────────────────────────────────────────────────────
@@ -202,27 +243,35 @@ export class HUD {
       { cd: player.fireboltCooldown,        max: player.fireboltCooldownMax },
     ]
 
+    // Unlock level per ring [ArcEx, FrostNova, Blizzard, Firebolt]
+    const UNLOCK_LVL = [4, 8, 14, 1]
+
     for (let i = 0; i < RINGS.length; i++) {
-      const cx  = RING_X0 + i * RING_STEP
+      const cx  = this.RING_X0 + i * RING_STEP
       const rng = RINGS[i]
       const { cd, max } = cooldowns[i]
-      const ready = cd <= 0
+      const locked = stats.level < UNLOCK_LVL[i]
 
-      this.drawRing(g, cx, RING_CY, RING_R, cd, max, rng.color)
-
-      // Red flash border on failed cast attempt
-      const failAge = now - this.failedCastAt[i]
-      if (failAge < 380) {
-        g.lineStyle(3, 0xff2222, 0.75 * (1 - failAge / 380))
-        g.strokeCircle(cx, RING_CY, RING_R + 3)
-      }
-
-      // Label: show countdown when cooling, key+name when ready
-      if (ready) {
-        this.ringLabels[i].setText(`${rng.key} ${rng.name}`).setColor('#cccccc')
+      if (locked) {
+        g.fillStyle(0x111111, 0.55)
+        g.fillRect(cx - RING_R - 3, this.RING_CY - RING_R - 3, (RING_R + 3) * 2, (RING_R + 3) * 2)
+        g.fillStyle(0x1a1a1a)
+        g.fillRect(cx - RING_R, this.RING_CY - RING_R, RING_R * 2, RING_R * 2)
+        this.ringLabels[i].setText(`Lv ${UNLOCK_LVL[i]}`).setColor('#333344')
       } else {
-        const secs = (cd / 1000).toFixed(1)
-        this.ringLabels[i].setText(secs + 's').setColor('#555555')
+        this.drawSlot(g, cx, this.RING_CY, RING_R, cd, max, rng.color)
+        // Red flash border on failed cast attempt
+        const failAge = now - this.failedCastAt[i]
+        if (failAge < 380) {
+          g.lineStyle(3, 0xff2222, 0.75 * (1 - failAge / 380))
+          g.strokeRect(cx - RING_R - 3, this.RING_CY - RING_R - 3, (RING_R + 3) * 2, (RING_R + 3) * 2)
+        }
+        if (cd <= 0) {
+          this.ringLabels[i].setText(`${rng.key} ${rng.name}`).setColor('#cccccc')
+        } else {
+          const secs = (cd / 1000).toFixed(1)
+          this.ringLabels[i].setText(secs + 's').setColor('#555555')
+        }
       }
     }
   }
@@ -256,7 +305,7 @@ export class HUD {
   /** Achievement unlock banner — appears below any streak text. */
   showAchievementUnlock(name: string, cosmeticName?: string) {
     const body = cosmeticName ? `Achievement: ${name}\nUnlocked ${cosmeticName} cosmetic!` : `Achievement: ${name}`
-    const t = this.scene.add.text(W / 2, 170, body, {
+    const t = this.scene.add.text(this.W / 2, this.H * 0.266, body, {
       fontSize: '15px', fontFamily: 'monospace', color: '#ffdd44',
       stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
@@ -276,7 +325,7 @@ export class HUD {
 
   /** Daily challenge completion banner. */
   showChallengeComplete(desc: string, xpReward: number) {
-    const t = this.scene.add.text(W / 2, 200, `Challenge complete!\n${desc}\n+${xpReward} XP bonus`, {
+    const t = this.scene.add.text(this.W / 2, this.H * 0.3125, `Challenge complete!\n${desc}\n+${xpReward} XP bonus`, {
       fontSize: '14px', fontFamily: 'monospace', color: '#44ff88',
       stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
@@ -296,7 +345,7 @@ export class HUD {
 
   /** Large centered kill-streak announcement — pops in and floats up. */
   showStreakText(text: string, color: string, fontSize = 32) {
-    const t = this.scene.add.text(W / 2, 110, text, {
+    const t = this.scene.add.text(this.W / 2, this.H * 0.172, text, {
       fontSize: `${fontSize}px`, fontFamily: 'monospace', color,
       stroke: '#000000', strokeThickness: 6,
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0).setScale(0.3)
@@ -316,28 +365,33 @@ export class HUD {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private drawRing(
+  private drawSlot(
     g:     Phaser.GameObjects.Graphics,
     cx:    number, cy: number, r: number,
     cd:    number, cdMax: number,
     color: number,
   ) {
+    const x = cx - r, y = cy - r, size = r * 2
+    // Dark border
     g.fillStyle(0x111111, 0.85)
-    g.fillCircle(cx, cy, r + 3)
+    g.fillRect(x - 3, y - 3, size + 6, size + 6)
 
     if (cd <= 0) {
       g.fillStyle(color)
-      g.fillCircle(cx, cy, r)
-      g.fillStyle(0xffffff, 0.30)
-      g.fillCircle(cx - 4, cy - 4, 4)
+      g.fillRect(x, y, size, size)
+      // Glint highlight (top-left corner)
+      g.fillStyle(0xffffff, 0.22)
+      g.fillRect(x + 2, y + 2, size / 2 - 2, size / 3 - 1)
     } else {
-      g.fillStyle(0x0d0d0d)
-      g.fillCircle(cx, cy, r)
-      const pct = 1 - cd / cdMax
-      if (pct > 0.01) {
-        g.fillStyle(color, 0.65)
-        g.slice(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2, false)
-        g.fillPath()
+      // Dark base
+      g.fillStyle(0x1a1a1a)
+      g.fillRect(x, y, size, size)
+      // Colored fill sweeps upward from bottom as spell recovers
+      const recoveredPct = 1 - cd / cdMax
+      if (recoveredPct > 0.01) {
+        const fillH = size * recoveredPct
+        g.fillStyle(color, 0.55)
+        g.fillRect(x, y + size - fillH, size, fillH)
       }
     }
   }

@@ -15,7 +15,15 @@ export interface Stats {
   spellDamage: number
 }
 
+/** Levels at which non-Firebolt spells become available. */
+const SPELL_UNLOCK: Record<string, number> = {
+  arcaneExplosion: 4,
+  frostNova:       8,
+  blizzard:        14,
+}
+
 export class Player extends Phaser.Physics.Arcade.Sprite {
+  playerName: string
   stats: Stats
   readonly inventory = new Inventory()
   readonly talents   = new TalentSystem()
@@ -24,6 +32,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   arcaneExplosionCooldown = 0
   frostNovaCooldown       = 0
   blizzardCooldown        = 0
+
+  /** True when the free-tier level cap (5) has been hit. Read by GameScene. */
+  premiumGateReached = false
+
+  /** Returns true when the player has unlocked the named spell. */
+  hasSpell(name: string): boolean { return this.stats.level >= (SPELL_UNLOCK[name] ?? 1) }
 
   // ── Effective stats (base + gear) ─────────────────────────────────────────
 
@@ -92,8 +106,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private wasd: Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>
   private manaRegenAccum = 0
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, playerName = 'Apprentice') {
     super(scene, x, y, 'player')
+    this.playerName = playerName
     scene.add.existing(this)
     scene.physics.add.existing(this)
     ;(this.body as Phaser.Physics.Arcade.Body).setCircle(14, 2, 2)
@@ -183,6 +198,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private levelUp() {
+    // Free version: cap at level 10
+    if (this.stats.level >= 10) {
+      this.premiumGateReached = true
+      this.stats.xp = this.stats.xpToNext - 1 // clamp just below threshold
+      return
+    }
     const B = Balance.player
     this.stats.xp       -= this.stats.xpToNext
     this.stats.level++

@@ -56,12 +56,20 @@ const SAFE_RADIUS = 360
 
 // ── World ──────────────────────────────────────────────────────────────────────
 
+export interface DungeonEntrance {
+  x:      number
+  y:      number
+  zoneId: string
+}
+
 export class World {
   readonly size: number
   readonly cx:   number
   readonly cy:   number
-  readonly obstacles:  Phaser.Physics.Arcade.StaticGroup
-  readonly spawnZones: SpawnZone[] = []
+  readonly obstacles:        Phaser.Physics.Arcade.StaticGroup
+  readonly spawnZones:       SpawnZone[] = []
+  readonly dungeonEntrances: DungeonEntrance[] = []
+  readonly stashChestPos:    { x: number; y: number } = { x: 0, y: 0 }
 
   constructor(private scene: Phaser.Scene, size: number) {
     this.size = size
@@ -74,6 +82,7 @@ export class World {
     this.buildDecor()
     this.buildBoundary()
     this.buildObstacles()
+    this.buildDungeonEntrances()
     this.buildSpawnZones()
     scene.physics.world.setBounds(0, 0, size, size)
   }
@@ -132,6 +141,49 @@ export class World {
     g.generateTexture('rock_obs', 44, 34)
     g.clear()
 
+    // ── Campfire ──────────────────────────────────────────────────────────────
+    g.fillStyle(0x4a2a0a)
+    g.fillEllipse(16, 30, 24, 8)           // log shadow
+    g.fillStyle(0x6b3a10)
+    g.fillRect(8, 22, 5, 12)               // log left
+    g.fillRect(19, 22, 5, 12)              // log right
+    g.fillStyle(0xff2200, 0.9)
+    g.fillTriangle(16, 8, 8, 26, 24, 26)   // flame outer
+    g.fillStyle(0xff7700, 0.85)
+    g.fillTriangle(16, 12, 11, 24, 21, 24) // flame mid
+    g.fillStyle(0xffee00, 0.8)
+    g.fillTriangle(16, 16, 13, 23, 19, 23) // flame tip
+    g.fillStyle(0xffffff, 0.55)
+    g.fillCircle(16, 19, 3)                // hot core
+    g.generateTexture('campfire', 32, 36)
+    g.clear()
+
+    // ── NPC: Quest Giver ─────────────────────────────────────────────────────
+    g.fillStyle(0x5533aa)
+    g.fillEllipse(14, 20, 20, 24)          // robe
+    g.fillStyle(0xffcc88)
+    g.fillCircle(14, 9, 7)                 // face
+    g.fillStyle(0x3322aa)
+    g.fillEllipse(14, 7, 18, 10)           // hood
+    g.fillStyle(0xffd700, 0.8)
+    g.fillRect(24, 5, 3, 26)               // staff
+    g.fillCircle(25, 4, 4)
+    g.generateTexture('npc_quest', 30, 36)
+    g.clear()
+
+    // ── NPC: Merchant ────────────────────────────────────────────────────────
+    g.fillStyle(0x886622)
+    g.fillEllipse(14, 20, 20, 24)          // tunic
+    g.fillStyle(0xffcc88)
+    g.fillCircle(14, 9, 7)                 // face
+    g.fillStyle(0x553300)
+    g.fillEllipse(14, 6, 22, 8)            // hat brim
+    g.fillRect(8, 4, 12, 7)               // hat crown
+    g.fillStyle(0xffdd00, 0.7)
+    g.fillCircle(20, 22, 4)                // coin glint
+    g.generateTexture('npc_merchant', 30, 36)
+    g.clear()
+
     // ── Ice crystal (frozen ruins) ────────────────────────────────────────────
     g.fillStyle(0x88bbdd, 0.92)
     g.fillTriangle(9, 0, 0, 36, 17, 36)     // main spike
@@ -155,6 +207,38 @@ export class World {
     g.lineStyle(1, 0xcc66ff, 0.28)
     g.strokeRect(5, 5, 12, 32)
     g.generateTexture('pillar_obs', 22, 42)
+    g.clear()
+
+    // ── Stash chest ───────────────────────────────────────────────────────────
+    g.fillStyle(0x8b5e1a)
+    g.fillRect(2, 10, 36, 28)          // chest body
+    g.fillStyle(0x6b3e0a)
+    g.fillRect(2, 10, 36, 12)          // lid
+    g.fillStyle(0xddaa33)
+    g.fillRect(15, 20, 10, 7)          // latch plate
+    g.fillStyle(0xffcc55)
+    g.fillCircle(20, 24, 3)            // latch knob
+    g.lineStyle(2, 0x5a3008, 0.9)
+    g.strokeRect(2, 10, 36, 28)
+    g.lineStyle(1, 0xcc8822, 0.6)
+    g.strokeRect(2, 10, 36, 12)
+    g.generateTexture('stash_chest', 40, 38)
+    g.clear()
+
+    // ── Dungeon portal ────────────────────────────────────────────────────────
+    g.fillStyle(0x3a3a44)
+    g.fillRect(0, 8, 8, 40)           // left pillar
+    g.fillRect(32, 8, 8, 40)          // right pillar
+    g.fillRect(0, 0, 40, 12)          // arch top
+    g.fillStyle(0x0d0a1a)
+    g.fillRect(8, 8, 24, 40)          // portal interior
+    g.fillStyle(0x3311aa, 0.6)
+    g.fillRect(10, 12, 20, 32)        // inner glow
+    g.fillStyle(0x8844ff, 0.35)
+    g.fillRect(14, 18, 12, 20)        // bright core
+    g.lineStyle(2, 0x6644cc, 0.9)
+    g.strokeRect(0, 0, 40, 48)
+    g.generateTexture('dungeon_portal', 40, 48)
     g.clear()
 
     g.destroy()
@@ -255,6 +339,15 @@ export class World {
     // ── Central — dirt path leading south toward beginner forest ──────────────
     g.fillStyle(0x2a3a1a, 0.3)
     g.fillRect(this.cx - 18, this.cy, 36, S * 0.5)
+
+    // ── Town square — cobblestone circle ──────────────────────────────────────
+    g.fillStyle(0x2c2c28, 0.5)
+    g.fillCircle(this.cx, this.cy, 220)
+    g.lineStyle(2, 0x3a3a34, 0.35)
+    g.strokeCircle(this.cx, this.cy, 220)
+    g.strokeCircle(this.cx, this.cy, 140)
+    g.lineBetween(this.cx - 220, this.cy, this.cx + 220, this.cy)
+    g.lineBetween(this.cx, this.cy - 220, this.cx, this.cy + 220)
   }
 
   // ── Hard boundary ─────────────────────────────────────────────────────────
@@ -295,6 +388,23 @@ export class World {
     // Central clearing — sparse so player can orient on spawn
     this.scatter('tree',     1300, 1100, 1000, 1400, 12)
     this.scatter('rock_obs', 1300, 1100, 1000, 1400,  6)
+
+    // Campfire at town center (decorative, no collision)
+    this.scene.add.image(this.cx, this.cy - 40, 'campfire').setDepth(2).setOrigin(0.5, 1)
+
+    // Stash chest — right of campfire
+    const chestX = this.cx + 100, chestY = this.cy - 30
+    ;(this.stashChestPos as { x: number; y: number }).x = chestX
+    ;(this.stashChestPos as { x: number; y: number }).y = chestY
+    this.scene.add.image(chestX, chestY, 'stash_chest').setDepth(3).setOrigin(0.5, 1)
+    this.scene.add.text(chestX, chestY - 44, 'Town Stash', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#ddaa33',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+    // Glow under campfire
+    const glow = this.scene.add.graphics().setDepth(1.5)
+    glow.fillStyle(0xff4400, 0.07)
+    glow.fillCircle(this.cx, this.cy - 40, 65)
   }
 
   private scatter(
@@ -331,18 +441,46 @@ export class World {
     }
   }
 
+  // ── Dungeon entrances ─────────────────────────────────────────────────────
+
+  private buildDungeonEntrances() {
+    const entries: { x: number; y: number; zoneId: string; label: string; col: string }[] = [
+      { x: 1800, y: 3050, zoneId: 'Beginner Forest',  label: "Thornback's Lair",  col: '#44cc44' },
+      { x: 1800, y:  580, zoneId: 'Frozen Ruins',     label: "Frostlord's Tomb",  col: '#88ccff' },
+      { x:  750, y: 1800, zoneId: 'Corrupted Fields', label: "Corruptor's Pit",   col: '#cc4444' },
+      { x: 2850, y: 1800, zoneId: 'Arcane Caves',     label: "Warden's Sanctum",  col: '#aa44ff' },
+    ]
+
+    for (const e of entries) {
+      this.dungeonEntrances.push({ x: e.x, y: e.y, zoneId: e.zoneId })
+
+      this.scene.add.image(e.x, e.y, 'dungeon_portal').setDepth(3).setOrigin(0.5, 1)
+
+      // Boss dungeon label above portal
+      this.scene.add.text(e.x, e.y - 60, e.label, {
+        fontSize: '12px', fontFamily: 'monospace', color: e.col,
+        stroke: '#000', strokeThickness: 3,
+      }).setDepth(4).setOrigin(0.5)
+
+      this.scene.add.text(e.x, e.y - 46, '⚔ Boss Dungeon', {
+        fontSize: '10px', fontFamily: 'monospace', color: '#888888',
+        stroke: '#000', strokeThickness: 2,
+      }).setDepth(4).setOrigin(0.5)
+    }
+  }
+
   // ── Spawn zones ───────────────────────────────────────────────────────────
 
   private buildSpawnZones() {
-    // ── Beginner Forest (y: 2500–3600) — danger 1 ─────────────────────────
+    // ── Beginner Forest (y: 2500–3600) — danger 1, sparse ────────────────
     for (const [cx, cy] of [
-      [500, 2800], [1200, 2700], [1800, 3050],
-      [2400, 2700], [3100, 2850], [1800, 3380],
+      [500, 2900], [1200, 2800], [1800, 3100],
+      [2400, 2850], [3100, 2950], [1800, 3450],
     ] as [number, number][]) {
       this.spawnZones.push({
-        cx, cy, radius: 320,
-        table: [Slime, Slime, Slime, Ghoul, Ghoul],
-        maxEnemies: 6,
+        cx, cy, radius: 260,
+        table: [Slime, Slime, Slime, Ghoul],
+        maxEnemies: 3,
       })
     }
 
@@ -380,14 +518,14 @@ export class World {
       })
     }
 
-    // ── Central transition (around spawn) — light intro difficulty ────────
+    // ── Central transition — pushed away from town, safe starter zone ────
     for (const [cx, cy] of [
-      [1200, 1720], [2400, 1720], [1400, 2200], [2200, 2200],
+      [1050, 1650], [2550, 1650], [1150, 2350], [2450, 2350],
     ] as [number, number][]) {
       this.spawnZones.push({
-        cx, cy, radius: 280,
-        table: [Slime, Slime, Ghoul, Imp],
-        maxEnemies: 4,
+        cx, cy, radius: 220,
+        table: [Slime, Slime, Ghoul],
+        maxEnemies: 3,
       })
     }
   }

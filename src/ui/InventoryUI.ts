@@ -57,6 +57,9 @@ function statLines(stats: ItemStats): string[] {
 export class InventoryUI {
   private visible = false
 
+  /** Called with the slot index when the player right-clicks an inventory item. */
+  onDropItem?: (idx: number) => void
+
   // Main panel
   private panelGfx:  Phaser.GameObjects.Graphics
   private titleText: Phaser.GameObjects.Text
@@ -242,7 +245,7 @@ export class InventoryUI {
       '─────────────────',
       ...lines,
       '─────────────────',
-      'Click to equip / unequip',
+      'Left-click: equip/unequip  •  Right-click: drop',
     ].join('\n')
 
     this.tipText.setText(body)
@@ -285,23 +288,30 @@ export class InventoryUI {
   }
 
   private onClick = (ptr: Phaser.Input.Pointer) => {
-    if (!ptr.leftButtonDown()) return
-
-    // Check equipment slots first
-    for (let i = 0; i < EQUIP_SLOTS.length; i++) {
-      const { x, y, w, h } = equipSlotRect(i)
-      if (ptr.x >= x && ptr.x <= x + w && ptr.y >= y && ptr.y <= y + h) {
-        this.inv.unequip(EQUIP_SLOTS[i])
-        return
+    if (ptr.leftButtonDown()) {
+      // Check equipment slots
+      for (let i = 0; i < EQUIP_SLOTS.length; i++) {
+        const { x, y, w, h } = equipSlotRect(i)
+        if (ptr.x >= x && ptr.x <= x + w && ptr.y >= y && ptr.y <= y + h) {
+          this.inv.unequip(EQUIP_SLOTS[i]); return
+        }
+      }
+      // Check inventory slots
+      for (let idx = 0; idx < ROWS * COLS; idx++) {
+        const { x, y, w, h } = invSlotRect(idx)
+        if (ptr.x >= x && ptr.x <= x + w && ptr.y >= y && ptr.y <= y + h) {
+          if (this.inv.items[idx]) this.inv.equip(idx); return
+        }
       }
     }
 
-    // Check inventory slots
-    for (let idx = 0; idx < ROWS * COLS; idx++) {
-      const { x, y, w, h } = invSlotRect(idx)
-      if (ptr.x >= x && ptr.x <= x + w && ptr.y >= y && ptr.y <= y + h) {
-        if (this.inv.items[idx]) this.inv.equip(idx)
-        return
+    // Right-click inventory slot → drop
+    if (ptr.rightButtonDown()) {
+      for (let idx = 0; idx < ROWS * COLS; idx++) {
+        const { x, y, w, h } = invSlotRect(idx)
+        if (ptr.x >= x && ptr.x <= x + w && ptr.y >= y && ptr.y <= y + h) {
+          if (this.inv.items[idx]) this.onDropItem?.(idx); return
+        }
       }
     }
   }

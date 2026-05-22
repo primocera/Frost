@@ -136,6 +136,25 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.wanderTarget = null
     }
 
+    // Leash: give up chase if we've wandered too far from spawn point
+    if (this.aiState === 'chase') {
+      const leashDist = Phaser.Math.Distance.Between(this.x, this.y, this.homeX, this.homeY)
+      if (leashDist > 850) {
+        this.aiState      = 'wander'
+        this.wanderTarget = null
+      }
+    }
+
+    // Safe zone: town center at world mid-point — enemies cannot pursue there
+    if (this.aiState === 'chase') {
+      const townCX = 1800, townCY = 1800, safeR = 420
+      const playerToTown = Phaser.Math.Distance.Between(player.x, player.y, townCX, townCY)
+      if (playerToTown < safeR) {
+        this.aiState      = 'wander'
+        this.wanderTarget = null
+      }
+    }
+
     if (this.aiState === 'chase') { this.doChase(dist, player, allies); return }
     this.doWander(delta)
   }

@@ -4,7 +4,7 @@ import { Enemy } from '../entities/Enemy'
 import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite } from '../entities/EnemyTypes'
 import { Boss } from '../entities/Boss'
 import { BossConfig, ALL_BOSSES } from '../entities/BossTypes'
-import { World, SpawnZone, ZoneDef, getZoneAt, ZONE_DEFS } from '../world/World'
+import { World, SpawnZone, ZoneDef, DungeonEntrance, getZoneAt, ZONE_DEFS } from '../world/World'
 import { spawnFirebolt, destroyBolt, spawnImpact, spawnCastEffect } from '../spells/Firebolt'
 import { castArcaneExplosion } from '../spells/ArcaneExplosion'
 import { castFrostNova } from '../spells/FrostNova'
@@ -15,6 +15,8 @@ import Balance from '../config/Balance'
 import { generateItem, generateGold } from '../items/ItemGen'
 import { LootDrop } from '../world/LootDrop'
 import { InventoryUI } from '../ui/InventoryUI'
+import { StashUI } from '../ui/StashUI'
+import { Stash } from '../systems/Stash'
 import { TalentUI } from '../ui/TalentUI'
 import { ProgressionUI } from '../ui/ProgressionUI'
 import { MobileControls } from '../ui/MobileControls'
@@ -43,6 +45,10 @@ export class GameScene extends Phaser.Scene {
   private inventoryUI!:   InventoryUI
   private talentUI!:      TalentUI
   private progressionUI!: ProgressionUI
+  private stash!:         Stash
+  private stashUI!:       StashUI
+  private nearStash       = false
+  private stashPrompt!:   Phaser.GameObjects.Text
   private progression!:   ProgressionSystem
   private fKey!: Phaser.Input.Keyboard.Key
   private qKey!: Phaser.Input.Keyboard.Key
@@ -64,30 +70,52 @@ export class GameScene extends Phaser.Scene {
   private killStreak     = 0
   private lastKillTime   = 0
   // Boss system
-  private activeBoss:   Boss | null = null
-  private bossGroup!:   Phaser.Physics.Arcade.Group
-  private bossProjectiles!: Phaser.Physics.Arcade.Group
-  private bossKills     = new Map<string, number>()   // kills per zone name
-  private bossDefeated  = new Set<string>()            // zone names where boss died
+  private activeBoss:        Boss | null = null
+  private bossGroup!:        Phaser.Physics.Arcade.Group
+  private bossProjectiles!:  Phaser.Physics.Arcade.Group
+  private bossDefeated       = new Set<string>()       // zone names where boss died
+  // Dungeon entrances
+  private dungeonEntrances:  { entrance: DungeonEntrance; cfg: BossConfig }[] = []
+  private nearDungeon:       BossConfig | null = null
+  private dungeonPrompt!:    Phaser.GameObjects.Text
   // Zone atmosphere
   private currentZone:   ZoneDef | null = null
   private atmoGraphics!: Phaser.GameObjects.Graphics
   private snowEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter
   private emberEmitter!: Phaser.GameObjects.Particles.ParticleEmitter
   private moteEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter
+  // NPCs
+  private npcQuest!:    Phaser.GameObjects.Image
+  private npcMerchant!: Phaser.GameObjects.Image
+  private npcPrompt!:   Phaser.GameObjects.Text
+  private nearNPC:      'quest' | 'merchant' | null = null
+  private dialogOpen    = false
+  private dialogContainer: Phaser.GameObjects.Container | null = null
+  private questDialogAction = false
+  // Quest system
+  private questDefs:     { title: string; desc: string; target: number; xp: number; gold: number }[] = []
+  private activeQuestIdx = -1
+  private questKills     = 0
+  // Premium gate
+  private premiumGateShown = false
 
   constructor() { super('GameScene') }
 
-  create() {
+  create(data?: { playerName?: string }) {
+    const playerName = data?.playerName ?? 'Apprentice'
     this.buildPlayerTexture()
 
     this.world       = new World(this, WORLD)
-    this.player      = new Player(this, WORLD / 2, WORLD / 2)
+    this.player      = new Player(this, WORLD / 2, WORLD / 2, playerName)
     this.enemyGroup  = this.physics.add.group()
     this.bolts       = this.physics.add.group()
     this.wraithBolts = this.physics.add.group()
     this.hud         = new HUD(this)
     this.sfx         = new SoundManager(this)
+    this.hud.setPlayerName(playerName)
+    this.createNPCs()
+    this.initDungeonEntrances()
+    this.initQuests()
 
     // Camera: smooth lerp + deadzone so minor movements don't pan the view
     this.cameras.main
@@ -106,6 +134,21 @@ export class GameScene extends Phaser.Scene {
     this.tabKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB)
 
     this.inventoryUI  = new InventoryUI(this, this.player.inventory)
+    this.inventoryUI.onDropItem = (idx) => this.dropInventoryItem(idx)
+
+    this.stash   = new Stash()
+    this.stashUI = new StashUI(this, this.stash, this.player.inventory)
+    this.stashUI.onDropInventoryItem = (idx) => this.dropInventoryItem(idx)
+
+    this.stashPrompt = this.add.text(
+      this.world.stashChestPos.x, this.world.stashChestPos.y - 56,
+      '[E] Open stash', {
+        fontSize: '11px', fontFamily: 'monospace', color: '#ddaa33',
+        stroke: '#000', strokeThickness: 3,
+        backgroundColor: '#00000088', padding: { x: 4, y: 2 },
+      }
+    ).setDepth(10).setOrigin(0.5).setVisible(false)
+
     this.talentUI     = new TalentUI(this, this.player.talents)
     this.progression  = new ProgressionSystem()
     this.progressionUI = new ProgressionUI(this, this.progression)
@@ -308,7 +351,7 @@ export class GameScene extends Phaser.Scene {
     // ── Ambient particle emitters (screen-space) ──────────────────────────
     // Snow: falls from top of screen (Frozen Ruins)
     this.snowEmitter = this.add.particles(0, 0, 'particle', {
-      x:       { min: -20, max: 980 },
+      x:       { min: -20, max: this.scale.width + 20 },
       y:       { min: -30, max: -5 },
       speedY:  { min: 35, max: 80 },
       speedX:  { min: -18, max: 18 },
@@ -323,7 +366,7 @@ export class GameScene extends Phaser.Scene {
 
     // Embers: float up from bottom (Corrupted Fields)
     this.emberEmitter = this.add.particles(0, 0, 'particle', {
-      x:       { min: 0, max: 960 },
+      x:       { min: 0, max: this.scale.width },
       y:       { min: 650, max: 670 },
       speedY:  { min: -100, max: -35 },
       speedX:  { min: -30, max: 30 },
@@ -339,7 +382,7 @@ export class GameScene extends Phaser.Scene {
 
     // Arcane motes: drift upward (Arcane Caves)
     this.moteEmitter = this.add.particles(0, 0, 'particle', {
-      x:       { min: 0, max: 960 },
+      x:       { min: 0, max: this.scale.width },
       y:       { min: 580, max: 660 },
       speedY:  { min: -65, max: -18 },
       speedX:  { min: -28, max: 28 },
@@ -438,7 +481,7 @@ export class GameScene extends Phaser.Scene {
     if (this.player.isDead) {
       this.dead = true
       this.physics.pause()
-      this.add.text(480, 320, `YOU DIED\n${this.social.profile.name}\n\nRefresh to restart`, {
+      this.add.text(this.scale.width / 2, this.scale.height / 2, `YOU DIED\n${this.social.profile.name}\n\nRefresh to restart`, {
         fontSize: '32px', color: '#ff4444',
         fontFamily: 'monospace', align: 'center',
         stroke: '#000000', strokeThickness: 5,
@@ -485,11 +528,34 @@ export class GameScene extends Phaser.Scene {
       this.progressionUI.toggle()
     }
 
-    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen()
+    // NPC / stash / dungeon proximity and E-key interaction
+    this.updateNPCProximity()
+    this.updateDungeonProximity()
+    this.updateStashProximity()
+
+    if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
+      if (this.nearNPC) {
+        if (this.dialogOpen) this.dismissDialog()
+        else if (this.nearNPC === 'quest') this.openQuestDialog()
+        else this.openMerchantDialog()
+      } else if (this.nearStash) {
+        if (this.stashUI.isOpen()) this.stashUI.hide()
+        else {
+          this.inventoryUI.isOpen() && this.inventoryUI.hide()
+          this.talentUI.isOpen()    && this.talentUI.hide()
+          this.progressionUI.isOpen() && this.progressionUI.hide()
+          this.stashUI.show()
+        }
+      } else if (this.nearDungeon && !this.dialogOpen && !this.activeBoss) {
+        this.enterDungeon(this.nearDungeon)
+      }
+    }
+
+    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.dialogOpen || this.stashUI.isOpen()
     if (!anyUIOpen) {
       if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castFirebolt(ptr.worldX, ptr.worldY)
       if (Phaser.Input.Keyboard.JustDown(this.qKey)) this.castArcaneExplosion()
-      if (Phaser.Input.Keyboard.JustDown(this.eKey)) this.castFrostNova()
+      if (!this.nearNPC && !this.nearStash && !this.nearDungeon && Phaser.Input.Keyboard.JustDown(this.eKey)) this.castFrostNova()
       if (Phaser.Input.Keyboard.JustDown(this.rKey)) this.castBlizzard(ptr.worldX, ptr.worldY)
     }
 
@@ -540,6 +606,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private castArcaneExplosion() {
+    if (!this.player.hasSpell('arcaneExplosion')) {
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Arcane Explosion — unlocks at level 4', '#8866aa', 13)
+      return
+    }
     if (!this.player.canCastArcaneExplosion()) {
       if (this.player.arcaneExplosionCooldown > 0) this.hud.notifyCastFailed(0)
       else this.hud.notifyOOM()
@@ -583,6 +653,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private castFrostNova() {
+    if (!this.player.hasSpell('frostNova')) {
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Frost Nova — unlocks at level 8', '#4488cc', 13)
+      return
+    }
     if (!this.player.canCastFrostNova()) {
       if (this.player.frostNovaCooldown > 0) this.hud.notifyCastFailed(1)
       else this.hud.notifyOOM()
@@ -615,6 +689,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private castBlizzard(worldX: number, worldY: number) {
+    if (!this.player.hasSpell('blizzard')) {
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Blizzard — unlocks at level 14', '#44aadd', 13)
+      return
+    }
     if (!this.player.canCastBlizzard()) {
       if (this.player.blizzardCooldown > 0) this.hud.notifyCastFailed(2)
       else this.hud.notifyOOM()
@@ -753,7 +831,10 @@ export class GameScene extends Phaser.Scene {
       this.sfx.onLevelUp()
       this.spawnLevelUpFanfare()
       this.progression.onLevelReached(this.player.stats.level)
+      this.onSpellUnlock(this.player.stats.level)
     }
+    if (this.player.premiumGateReached && !this.premiumGateShown) this.showPremiumGate()
+    if (this.activeQuestIdx >= 0) this.trackQuestKill()
 
     // Flashpoint: killing a burning enemy resets Firebolt cooldown
     if (this.player.talents.flashpointEnabled && enemy.burning) {
@@ -772,20 +853,6 @@ export class GameScene extends Phaser.Scene {
     this.tryDropLoot(enemy)
     enemy.die()
     this.registerKill(enemy.x, enemy.y)
-
-    // Track kills per zone for boss spawn threshold
-    const zoneName = enemy.getData('zoneName') as string | undefined
-    if (zoneName && !this.bossDefeated.has(zoneName) && !this.activeBoss) {
-      const count    = (this.bossKills.get(zoneName) ?? 0) + 1
-      this.bossKills.set(zoneName, count)
-      const bossCfg  = ALL_BOSSES.find(b => b.zoneId === zoneName)
-      if (bossCfg && count >= bossCfg.killThreshold) {
-        this.time.delayedCall(1800, () => {
-          if (!this.dead && !this.activeBoss && !this.bossDefeated.has(zoneName))
-            this.spawnBoss(bossCfg)
-        })
-      }
-    }
 
     if (zone) {
       const prev = this.zoneCounts.get(zone) ?? 1
@@ -937,7 +1004,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.setBossBar(cfg.name, cfg.maxHp, cfg.maxHp, 1)
 
     // Arrival announcement
-    const t = this.add.text(480, 295, `⚔  ${cfg.name}  ⚔\nBOSS ENCOUNTER`, {
+    const t = this.add.text(this.scale.width / 2, this.scale.height / 2 - 25, `⚔  ${cfg.name}  ⚔\nBOSS ENCOUNTER`, {
       fontSize: '22px', fontFamily: 'monospace', color: '#ff5555',
       stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
@@ -1013,7 +1080,7 @@ export class GameScene extends Phaser.Scene {
     if (zone) {
       this.atmoGraphics.clear()
       this.atmoGraphics.fillStyle(zone.atmosphere, 1)
-      this.atmoGraphics.fillRect(0, 0, 960, 640)
+      this.atmoGraphics.fillRect(0, 0, this.scale.width, this.scale.height)
       this.tweens.add({ targets: this.atmoGraphics, alpha: zone.atmoAlpha, duration: 1800, ease: 'Power1' })
       this.announceZone(zone)
     } else {
@@ -1023,7 +1090,7 @@ export class GameScene extends Phaser.Scene {
 
   private announceZone(zone: ZoneDef) {
     const stars = '★'.repeat(zone.danger) + '☆'.repeat(4 - zone.danger)
-    const t = this.add.text(480, 440, `${zone.name}   ${stars}`, {
+    const t = this.add.text(this.scale.width / 2, this.scale.height * 0.69, `${zone.name}   ${stars}`, {
       fontSize:        '18px',
       fontFamily:      'monospace',
       color:           zone.labelColor,
@@ -1056,7 +1123,7 @@ export class GameScene extends Phaser.Scene {
   private screenFlash(color: number, alpha: number, duration: number) {
     const g = this.add.graphics()
     g.fillStyle(color, alpha)
-    g.fillRect(0, 0, 960, 640)
+    g.fillRect(0, 0, this.scale.width, this.scale.height)
     g.setScrollFactor(0).setDepth(98)
     this.tweens.add({
       targets: g, alpha: 0,
@@ -1070,7 +1137,7 @@ export class GameScene extends Phaser.Scene {
     this.screenFlash(0xffdd00, 0.35, 700)
 
     // Big animated "LEVEL X" text
-    const lvText = this.add.text(480, 300, `LEVEL  ${this.player.stats.level}`, {
+    const lvText = this.add.text(this.scale.width / 2, this.scale.height / 2, `LEVEL  ${this.player.stats.level}`, {
       fontSize:        '58px',
       color:           '#ffdd00',
       fontFamily:      'monospace',
@@ -1229,5 +1296,345 @@ export class GameScene extends Phaser.Scene {
     g.fillCircle(4, 4, 4)
     g.generateTexture('particle', 8, 8)
     g.destroy()
+  }
+
+  // ── Stash ─────────────────────────────────────────────────────────────────
+
+  private updateStashProximity() {
+    const d = Phaser.Math.Distance.Between(
+      this.player.x, this.player.y,
+      this.world.stashChestPos.x, this.world.stashChestPos.y,
+    )
+    this.nearStash = d < 100
+    this.stashPrompt.setVisible(this.nearStash && !this.stashUI.isOpen())
+  }
+
+  private dropInventoryItem(idx: number) {
+    const item = this.player.inventory.items[idx]
+    if (!item) return
+    this.player.inventory.items[idx] = null
+    this.player.inventory.onChange?.()
+    this.lootDrops.push(new LootDrop(this, this.player.x + Phaser.Math.Between(-20, 20), this.player.y + 16, item))
+    this.hud.showFloatingText(this.player.x, this.player.y - 30, `Dropped ${item.name}`, '#888888', 13)
+  }
+
+  // ── Dungeon entrances ─────────────────────────────────────────────────────
+
+  private initDungeonEntrances() {
+    for (const entrance of this.world.dungeonEntrances) {
+      const cfg = ALL_BOSSES.find(b => b.zoneId === entrance.zoneId)
+      if (cfg) this.dungeonEntrances.push({ entrance, cfg })
+    }
+
+    this.dungeonPrompt = this.add.text(0, 0, '', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#cc88ff',
+      stroke: '#000000', strokeThickness: 3,
+      backgroundColor: '#00000088', padding: { x: 4, y: 2 },
+    }).setDepth(10).setOrigin(0.5).setVisible(false)
+  }
+
+  private updateDungeonProximity() {
+    const px = this.player.x, py = this.player.y
+    this.nearDungeon = null
+    this.dungeonPrompt.setVisible(false)
+
+    for (const { entrance, cfg } of this.dungeonEntrances) {
+      const d = Phaser.Math.Distance.Between(px, py, entrance.x, entrance.y)
+      if (d < 110 && !this.bossDefeated.has(cfg.zoneId)) {
+        this.nearDungeon = cfg
+        this.dungeonPrompt
+          .setText(`[E] Enter ${cfg.name}'s dungeon`)
+          .setPosition(entrance.x, entrance.y - 72)
+          .setVisible(true)
+        break
+      }
+    }
+  }
+
+  private enterDungeon(cfg: BossConfig) {
+    this.dungeonPrompt.setVisible(false)
+    this.screenFlash(0x220033, 0.28, 600)
+    this.cameras.main.shake(200, 0.009)
+    this.time.delayedCall(600, () => {
+      if (!this.dead && !this.activeBoss && !this.bossDefeated.has(cfg.zoneId))
+        this.spawnBoss(cfg)
+    })
+  }
+
+  // ── NPCs ──────────────────────────────────────────────────────────────────
+
+  private createNPCs() {
+    const cx = WORLD / 2
+    const cy = WORLD / 2
+
+    // Quest NPC
+    this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_quest').setDepth(4).setOrigin(0.5, 1)
+    this.add.text(cx - 180, cy - 62, 'Elder Mirwen', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#cc88ff',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+    this.add.text(cx - 180, cy - 50, '! Quest', {
+      fontSize: '10px', fontFamily: 'monospace', color: '#ffdd44',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+
+    // Merchant NPC
+    this.npcMerchant = this.add.image(cx + 180, cy - 20, 'npc_merchant').setDepth(4).setOrigin(0.5, 1)
+    this.add.text(cx + 180, cy - 62, 'Trader Brom', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#ddbb44',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+    this.add.text(cx + 180, cy - 50, '$ Shop', {
+      fontSize: '10px', fontFamily: 'monospace', color: '#aaffaa',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+
+    // Direction signs
+    const sty = (col: string) => ({ fontSize: '12px', fontFamily: 'monospace', color: col, stroke: '#000', strokeThickness: 4 })
+    this.add.text(cx, cy + 260, '▼  Beginner Forest',        sty('#44cc44')).setDepth(4).setOrigin(0.5)
+    this.add.text(cx, cy - 260, '▲  Frozen Ruins (Danger)',  sty('#88ccff')).setDepth(4).setOrigin(0.5)
+    this.add.text(cx - 290, cy, '◄  Corrupted Fields',       sty('#cc4444')).setDepth(4).setOrigin(0.5)
+    this.add.text(cx + 290, cy, 'Arcane Caves  ►',           sty('#aa44ff')).setDepth(4).setOrigin(0.5)
+
+    // Proximity prompt (world-space, follows camera)
+    this.npcPrompt = this.add.text(0, 0, 'Press E to talk', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#ffffcc',
+      stroke: '#000000', strokeThickness: 3,
+      backgroundColor: '#00000088', padding: { x: 4, y: 2 },
+    }).setDepth(10).setOrigin(0.5).setVisible(false)
+  }
+
+  private updateNPCProximity() {
+    const px = this.player.x, py = this.player.y
+    const dQ = Phaser.Math.Distance.Between(px, py, this.npcQuest.x,    this.npcQuest.y)
+    const dM = Phaser.Math.Distance.Between(px, py, this.npcMerchant.x, this.npcMerchant.y)
+    if (dQ < 90) {
+      this.nearNPC = 'quest'
+      this.npcPrompt.setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
+    } else if (dM < 90) {
+      this.nearNPC = 'merchant'
+      this.npcPrompt.setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
+    } else {
+      this.nearNPC = null
+      if (!this.dialogOpen) this.npcPrompt.setVisible(false)
+    }
+  }
+
+  private openQuestDialog() {
+    if (this.dialogOpen) return
+    const q = this.questDefs[this.activeQuestIdx]
+    let lines: string[]
+    if (this.activeQuestIdx < 0) {
+      lines = [
+        'Elder Mirwen:',
+        '',
+        '"A new mage arrives in Millhaven."',
+        '"The Beginner Forest to the south"',
+        '"is teeming with slimes and ghouls."',
+        '"Prove your worth — then return."',
+        '',
+        '[E] Accept first quest',
+      ]
+      this.questDialogAction = true
+    } else if (q && this.questKills >= q.target) {
+      lines = [
+        'Elder Mirwen:',
+        '',
+        `"Well done! You have completed:"`,
+        `"${q.title}"`,
+        '',
+        `Reward: +${q.xp} XP  +${q.gold} gold`,
+        '',
+        '[E] Collect reward',
+      ]
+      this.questDialogAction = true
+    } else if (q) {
+      const left = q.target - this.questKills
+      lines = [
+        'Elder Mirwen:',
+        '',
+        `Quest: ${q.title}`,
+        q.desc,
+        '',
+        `Progress: ${this.questKills} / ${q.target}  (${left} left)`,
+        '',
+        '[E] Close',
+      ]
+      this.questDialogAction = false
+    } else {
+      lines = [
+        'Elder Mirwen:',
+        '',
+        '"You have proven yourself."',
+        '"The full adventure continues"',
+        '"in the premium version!"',
+        '',
+        '[E] Close',
+      ]
+      this.questDialogAction = false
+    }
+    this.showDialog(lines)
+    this.dialogOpen = true
+  }
+
+  private openMerchantDialog() {
+    if (this.dialogOpen) return
+    const lines = [
+      'Trader Brom:',
+      '',
+      '"Welcome, weary mage!"',
+      '"My wares are being restocked."',
+      '"A full shop arrives in the"',
+      '"premium version of Frost!"',
+      '',
+      `Gold: ${this.player.inventory.gold} g`,
+      '',
+      '[E] Close',
+    ]
+    this.showDialog(lines)
+    this.dialogOpen = true
+    this.questDialogAction = false
+  }
+
+  private showDialog(lines: string[]) {
+    const bW = 380, bH = lines.length * 18 + 32
+    const bX = this.scale.width / 2 - bW / 2, bY = this.scale.height / 2 - bH / 2
+    const container = this.add.container(0, 0).setScrollFactor(0).setDepth(60)
+    const bg = this.add.graphics()
+    bg.fillStyle(0x04080f, 0.93)
+    bg.fillRoundedRect(bX, bY, bW, bH, 8)
+    bg.lineStyle(1, 0x334466, 0.8)
+    bg.strokeRoundedRect(bX, bY, bW, bH, 8)
+    container.add(bg)
+    lines.forEach((line, i) => {
+      const isTitle  = i === 0
+      const isAction = line.startsWith('[E]')
+      const col  = isTitle ? '#cc88ff' : isAction ? '#ffdd44' : '#ccccdd'
+      const size = isTitle ? '13px' : '12px'
+      container.add(this.add.text(bX + 16, bY + 12 + i * 18, line, {
+        fontSize: size, fontFamily: 'monospace', color: col,
+      }).setScrollFactor(0).setDepth(61))
+    })
+    this.dialogContainer = container
+  }
+
+  private dismissDialog() {
+    if (this.dialogContainer) { this.dialogContainer.destroy(true); this.dialogContainer = null }
+    const hadAction = this.questDialogAction
+    this.questDialogAction = false
+    this.dialogOpen = false
+    this.npcPrompt.setVisible(false)
+
+    if (!hadAction) return
+
+    const q = this.questDefs[this.activeQuestIdx]
+    if (this.activeQuestIdx < 0) {
+      // Accept first quest
+      this.activeQuestIdx = 0
+      this.questKills = 0
+      this.updateQuestHUD()
+      this.hud.showQuestUpdate('Quest accepted!\n' + this.questDefs[0].title, '#aadd44')
+    } else if (q && this.questKills >= q.target) {
+      // Collect reward
+      this.player.gainXP(q.xp)
+      this.player.inventory.gold += q.gold
+      this.hud.showQuestUpdate(`Quest complete!\n+${q.xp} XP  +${q.gold} gold`, '#ffdd44')
+      const next = this.activeQuestIdx + 1
+      if (next < this.questDefs.length) {
+        this.activeQuestIdx = next
+        this.questKills = 0
+        this.updateQuestHUD()
+        this.time.delayedCall(2800, () => {
+          this.hud.showQuestUpdate('New quest!\n' + this.questDefs[next].title, '#aadd44')
+        })
+      } else {
+        this.activeQuestIdx = -2
+        this.hud.setQuestText('All quests complete!')
+      }
+    }
+  }
+
+  // ── Quests ────────────────────────────────────────────────────────────────
+
+  private initQuests() {
+    this.questDefs = [
+      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',          target: 5,  xp: 80,  gold: 15 },
+      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.',   target: 12, xp: 160, gold: 35 },
+      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies total.',          target: 25, xp: 300, gold: 70 },
+    ]
+    this.updateQuestHUD()
+  }
+
+  private trackQuestKill() {
+    const q = this.questDefs[this.activeQuestIdx]
+    if (!q) return
+    this.questKills++
+    this.updateQuestHUD()
+    if (this.questKills >= q.target)
+      this.hud.showQuestUpdate('Quest complete!\nReturn to Elder Mirwen.', '#ffdd44')
+  }
+
+  private updateQuestHUD() {
+    if (this.activeQuestIdx < 0) {
+      this.hud.setQuestText('Talk to Elder Mirwen\nfor your first quest.')
+      return
+    }
+    const q = this.questDefs[this.activeQuestIdx]
+    if (!q) { this.hud.setQuestText(''); return }
+    const prefix = this.questKills >= q.target ? '★ ' : ''
+    this.hud.setQuestText(`${prefix}${q.title}\n${this.questKills}/${q.target}`)
+  }
+
+  // ── Spell unlock announcements ────────────────────────────────────────────
+
+  private onSpellUnlock(level: number) {
+    const msgs: Record<number, string> = {
+      4:  'New Spell: Arcane Explosion (Q)\nInstant AoE burst around you!',
+      8:  'New Spell: Frost Nova (E)\nFreeze nearby enemies solid!',
+      14: 'New Spell: Blizzard (R)\nSummon a sustained ice storm!',
+    }
+    if (msgs[level]) this.hud.showQuestUpdate(msgs[level], '#88ddff')
+  }
+
+  // ── Premium gate ──────────────────────────────────────────────────────────
+
+  private showPremiumGate() {
+    this.premiumGateShown = true
+    const SW = this.scale.width, SH = this.scale.height
+    const bW = 500, bH = 290
+    const bX = SW / 2 - bW / 2, bY = SH / 2 - bH / 2
+    const over = this.add.graphics().setScrollFactor(0).setDepth(80)
+    over.fillStyle(0x000000, 0.72)
+    over.fillRect(0, 0, SW, SH)
+    over.fillStyle(0x08101e, 0.98)
+    over.fillRoundedRect(bX, bY, bW, bH, 10)
+    over.lineStyle(2, 0x4466aa, 0.9)
+    over.strokeRoundedRect(bX, bY, bW, bH, 10)
+
+    this.add.text(SW / 2, bY + 36, '✦  Your Journey Continues  ✦', {
+      fontSize: '20px', fontFamily: 'monospace', color: '#88ccff',
+      stroke: '#001133', strokeThickness: 6,
+    }).setScrollFactor(0).setDepth(81).setOrigin(0.5)
+
+    this.add.text(SW / 2, bY + 76, [
+      'You have reached Level 10 — end of the free chapter.',
+      '',
+      'The full version unlocks:',
+      '  ◆ Levels 11–20 & true archmage power',
+      '  ◆ Blizzard — sustained AoE ice storm (Lv 14)',
+      '  ◆ Deep talent trees & item crafting',
+      '  ◆ Endless boss lairs & epic rewards',
+      '',
+      'Thank you for playing Frost!',
+    ].join('\n'), {
+      fontSize: '13px', fontFamily: 'monospace', color: '#aabbcc',
+      lineSpacing: 4, align: 'center',
+    }).setScrollFactor(0).setDepth(81).setOrigin(0.5, 0)
+
+    this.add.text(SW / 2, bY + bH - 22, 'You may keep exploring — XP is capped at level 10.', {
+      fontSize: '10px', fontFamily: 'monospace', color: '#445566',
+    }).setScrollFactor(0).setDepth(81).setOrigin(0.5)
+
+    this.screenFlash(0x4466aa, 0.18, 1200)
   }
 }
