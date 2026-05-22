@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "WebFetch(domain:kenney.nl)",
+      "Bash(cp 'C:\\\\Users\\\\primo\\\\AppData\\\\Local\\\\Temp\\\\kenney_dl/interface-sounds/Audio/maximize_001.ogg' 'C:\\\\Users\\\\primo\\\\Frost\\\\public\\\\assets\\\\audio/snd_cast.ogg')",
+      "Bash(cp 'C:\\\\Users\\\\primo\\\\AppData\\\\Local\\\\Temp\\\\kenney_dl/impact-sounds/Audio/impactMetal_heavy_000.ogg' 'C:\\\\Users\\\\primo\\\\Frost\\\\public\\\\assets\\\\audio/snd_impact.ogg')",
+      "Bash(cp 'C:\\\\Users\\\\primo\\\\AppData\\\\Local\\\\Temp\\\\kenney_dl/impact-sounds/Audio/impactPunch_heavy_000.ogg' 'C:\\\\Users\\\\primo\\\\Frost\\\\public\\\\assets\\\\audio/snd_hit.ogg')",
+      "Bash(cp 'C:\\\\Users\\\\primo\\\\AppData\\\\Local\\\\Temp\\\\kenney_dl/impact-sounds/Audio/impactSoft_heavy_000.ogg' 'C:\\\\Users\\\\primo\\\\Frost\\\\public\\\\assets\\\\audio/snd_death.ogg')",
+      "Bash(cp 'C:\\\\Users\\\\primo\\\\AppData\\\\Local\\\\Temp\\\\kenney_dl/interface-sounds/Audio/confirmation_001.ogg' 'C:\\\\Users\\\\primo\\\\Frost\\\\public\\\\assets\\\\audio/snd_levelup.ogg')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const p = require\\('./node_modules/phaser/dist/phaser.js'\\); const em = p.GameObjects?.Particles?.ParticleEmitter?.prototype; console.log\\(Object.getOwnPropertyNames\\(em || {}\\).filter\\(n => n.includes\\('onfig'\\) || n.includes\\('requency'\\)\\)\\)\")",
+      "Bash(node *)",
+      "Bash(git commit *)",
+      "Bash(dir \"C:\\\\\\\\Users\\\\\\\\primo\\\\\\\\Frost\\\\\\\\\")",
+      "Bash(dir \"C:\\\\\\\\Users\\\\\\\\primo\\\\\\\\Frost\\\\\\\\*4407*\")",
+      "Bash(dir /b \"C:\\\\Users\\\\primo\\\\Frost\")",
+      "Bash(findstr /i \".png .jpg .jpeg .gif .webp\")"
+    ]
+  }
+}
