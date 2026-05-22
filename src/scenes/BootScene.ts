@@ -16,6 +16,7 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     const playerName = this.registry.get('playerName') || 'Apprentice'
-    this.scene.start('GameScene', { playerName })
+    const hardcore   = this.registry.get('hardcore')   ?? false
+    this.scene.start('GameScene', { playerName, hardcore })
   }
 }

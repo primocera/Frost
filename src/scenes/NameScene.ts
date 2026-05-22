@@ -1,11 +1,14 @@
 import Phaser from 'phaser'
 
 export class NameScene extends Phaser.Scene {
-  private nameStr     = ''
-  private nameDisplay!: Phaser.GameObjects.Text
-  private cursorVisible = true
-  private cursorTimer   = 0
-  private ready         = false
+  private nameStr       = ''
+  private nameDisplay!:   Phaser.GameObjects.Text
+  private cursorVisible   = true
+  private cursorTimer     = 0
+  private ready           = false
+  private hardcore        = false
+  private normalBtn!:     Phaser.GameObjects.Text
+  private hardcoreBtn!:   Phaser.GameObjects.Text
 
   constructor() { super('NameScene') }
 
@@ -64,8 +67,25 @@ export class NameScene extends Phaser.Scene {
       fontSize: '10px', fontFamily: 'monospace', color: '#2a3d55',
     }).setOrigin(0.5)
 
+    // Mode selection
+    this.add.text(W / 2, 424, 'GAME MODE', {
+      fontSize: '11px', fontFamily: 'monospace', color: '#334466',
+    }).setOrigin(0.5)
+
+    this.normalBtn = this.add.text(W / 2 - 70, 448, '[ NORMAL ]', {
+      fontSize: '14px', fontFamily: 'monospace', color: '#44aaff',
+      stroke: '#001133', strokeThickness: 3,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.setMode(false))
+
+    this.hardcoreBtn = this.add.text(W / 2 + 70, 448, '[ HARDCORE ]', {
+      fontSize: '14px', fontFamily: 'monospace', color: '#445566',
+      stroke: '#001133', strokeThickness: 3,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.setMode(true))
+
     // Tap to start
-    this.add.text(W / 2, 440, '— or tap / click here to start —', {
+    this.add.text(W / 2, 484, '— or tap / click here to start —', {
       fontSize: '12px', fontFamily: 'monospace', color: '#334455',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.startGame())
@@ -121,13 +141,19 @@ export class NameScene extends Phaser.Scene {
     this.nameDisplay.setText(this.nameStr + (this.cursorVisible ? '_' : ' '))
   }
 
+  private setMode(hc: boolean) {
+    this.hardcore = hc
+    this.normalBtn.setColor(hc ? '#445566' : '#44aaff')
+    this.hardcoreBtn.setColor(hc ? '#ff4444' : '#445566')
+  }
+
   private startGame() {
     if (this.ready) return
     this.ready = true
     if (this.nameStr.trim().length === 0) this.nameStr = 'Apprentice'
     this.cameras.main.fadeOut(400, 8, 14, 24)
     this.time.delayedCall(420, () => {
-      this.scene.start('GameScene', { playerName: this.nameStr })
+      this.scene.start('GameScene', { playerName: this.nameStr, hardcore: this.hardcore })
     })
   }
 }

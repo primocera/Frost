@@ -72,8 +72,11 @@ export class GameScene extends Phaser.Scene {
   private inspect!:  InspectPanel
   private tabKey!:   Phaser.Input.Keyboard.Key
   private zoneCounts!: Map<SpawnZone, number>
-  private lastFullWarnAt = 0
+  private lastFullWarnAt  = 0
+  private lastGateWarnAt  = 0
   private dead           = false
+  private hardcore       = false
+  private deathText:     Phaser.GameObjects.Text | null = null
   private killStreak     = 0
   private lastKillTime   = 0
   // Boss system
@@ -99,7 +102,22 @@ export class GameScene extends Phaser.Scene {
   private dialogOpen    = false
   private questDialogAction = false
   // Quest system
-  private questDefs:     { title: string; desc: string; target: number; xp: number; gold: number }[] = []
+  private questDefs:     {
+    type?:        'kill' | 'travel'
+    title:        string
+    desc:         string
+    target:       number
+    zone?:        string
+    travelZone?:  string
+    markerX?:     number
+    markerY?:     number
+    markerLabel?: string
+    giver?:       string
+    arriveLines?: string[]
+    xp:           number
+    gold:         number
+    autoCollect?: boolean
+  }[] = []
   private activeQuestIdx = -1
   private questKills     = 0
   // Quest objective marker (world-space)
@@ -110,8 +128,9 @@ export class GameScene extends Phaser.Scene {
 
   constructor() { super('GameScene') }
 
-  create(data?: { playerName?: string }) {
+  create(data?: { playerName?: string; hardcore?: boolean }) {
     const playerName = data?.playerName ?? 'Apprentice'
+    this.hardcore    = data?.hardcore   ?? false
     this.buildPlayerTexture()
 
     this.world       = new World(this, WORLD)
@@ -517,11 +536,22 @@ export class GameScene extends Phaser.Scene {
     if (this.player.isDead) {
       this.dead = true
       this.physics.pause()
-      this.add.text(this.scale.width / 2, this.scale.height / 2, `YOU DIED\n${this.social.profile.name}\n\nRefresh to restart`, {
-        fontSize: '32px', color: '#ff4444',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'center',
-        stroke: '#000000', strokeThickness: 5,
-      }).setScrollFactor(0).setDepth(50).setOrigin(0.5)
+      if (this.hardcore) {
+        this.add.text(this.scale.width / 2, this.scale.height / 2,
+          `YOU DIED\n${this.social.profile.name}\n\n☠  Hardcore — your journey ends here\n\nRefresh to restart`, {
+          fontSize: '28px', color: '#ff4444',
+          fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'center',
+          stroke: '#000000', strokeThickness: 5,
+        }).setScrollFactor(0).setDepth(50).setOrigin(0.5)
+      } else {
+        this.time.delayedCall(1800, () => this.respawn())
+        this.deathText = this.add.text(this.scale.width / 2, this.scale.height / 2,
+          `YOU DIED\nRespawning…`, {
+          fontSize: '32px', color: '#ff4444',
+          fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'center',
+          stroke: '#000000', strokeThickness: 5,
+        }).setScrollFactor(0).setDepth(50).setOrigin(0.5)
+      }
       return
     }
 
@@ -627,7 +657,17 @@ export class GameScene extends Phaser.Scene {
 
     // Zone detection — triggers atmosphere + ambient effects on entry
     const zone = getZoneAt(this.player.x, this.player.y)
-    if (zone !== this.currentZone) this.enterZone(zone)
+    if (zone && this.isZoneLocked(zone.name)) {
+      this.pushOutOfZone(zone)
+    } else {
+      if (zone !== this.currentZone) this.enterZone(zone)
+      // Travel quest completion — check if player entered the target zone
+      if (this.activeQuestIdx >= 0) {
+        const tq = this.questDefs[this.activeQuestIdx]
+        if (tq?.type === 'travel' && tq.travelZone && zone?.name === tq.travelZone)
+          this.completeTravelQuest()
+      }
+    }
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
@@ -936,6 +976,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ── Talent effects ────────────────────────────────────────────────────────
+
+  private respawn() {
+    this.deathText?.destroy()
+    this.deathText = null
+    // Heal to full and teleport back to the starting town centre
+    this.player.stats.hp   = this.player.stats.maxHp
+    this.player.stats.mana = this.player.effectiveMaxMana
+    ;(this.player.body as Phaser.Physics.Arcade.Body).reset(WORLD / 2, WORLD / 2)
+
+    // Clear all existing enemies so they don't instantly re-kill the player
+    for (const e of [...this.enemies]) e.die()
+
+    this.dead = false
+    this.physics.resume()
+
+    // Brief screen flash to signal respawn
+    this.cameras.main.flash(400, 100, 160, 255, false)
+    this.hud.showFloatingText(this.player.x, this.player.y - 40, 'Respawned', '#88aaff', 18)
+  }
 
   private applyBurn(enemy: Enemy) {
     // Cancel any existing burn timer so it refreshes cleanly
@@ -1974,7 +2033,9 @@ export class GameScene extends Phaser.Scene {
     if (this.dialogOpen) return
     const q = this.questDefs[this.activeQuestIdx]
     let lines: string[]
+
     if (this.activeQuestIdx < 0) {
+      // No quest yet — offer first quest
       lines = [
         'Elder Mirwen:',
         '',
@@ -1986,11 +2047,27 @@ export class GameScene extends Phaser.Scene {
         '[E] Accept first quest',
       ]
       this.questDialogAction = true
-    } else if (q && this.questKills >= q.target) {
+
+    } else if (q?.type === 'travel') {
+      // On a travel quest — Mirwen reminds player where to go
       lines = [
         'Elder Mirwen:',
         '',
-        `"Well done! You have completed:"`,
+        `"${q.title}"`,
+        `"${q.desc}"`,
+        '',
+        `Head to: ${q.travelZone}`,
+        '',
+        '[E] Close',
+      ]
+      this.questDialogAction = false
+
+    } else if (q && this.questKills >= q.target) {
+      // Kill quest complete — collect reward
+      lines = [
+        'Elder Mirwen:',
+        '',
+        '"Well done! You have completed:"',
         `"${q.title}"`,
         '',
         `Reward: +${q.xp} XP  +${formatCopper(q.gold)}`,
@@ -1998,7 +2075,9 @@ export class GameScene extends Phaser.Scene {
         '[E] Collect reward',
       ]
       this.questDialogAction = true
+
     } else if (q) {
+      // Kill quest in progress
       const left = q.target - this.questKills
       lines = [
         'Elder Mirwen:',
@@ -2011,13 +2090,14 @@ export class GameScene extends Phaser.Scene {
         '[E] Close',
       ]
       this.questDialogAction = false
+
     } else {
+      // All done
       lines = [
         'Elder Mirwen:',
         '',
-        '"You have proven yourself."',
-        '"The full adventure continues"',
-        '"in the premium version!"',
+        '"You have cleared all the lands."',
+        '"The title of Archmage is yours."',
         '',
         '[E] Close',
       ]
@@ -2077,7 +2157,7 @@ export class GameScene extends Phaser.Scene {
       this.updateQuestHUD()
       this.hud.showQuestUpdate('Quest accepted!\n' + this.questDefs[0].title, '#aadd44')
     } else if (q && this.questKills >= q.target) {
-      // Collect reward
+      // Collect reward from Elder Mirwen
       this.player.gainXP(q.xp)
       this.player.inventory.gold += q.gold
       this.player.inventory.notifyChange()
@@ -2088,14 +2168,21 @@ export class GameScene extends Phaser.Scene {
         this.activeQuestIdx = next
         this.questKills = 0
         this.updateQuestHUD()
-        // Quest 1: explore other zones; show a broader marker
-        if (next === 1) this.showQuestObjectiveMarker(900, 1760, '▼ Explore Zones')
-        this.time.delayedCall(2800, () => {
-          this.hud.showQuestUpdate('New quest!\n' + this.questDefs[next].title, '#aadd44')
-        })
+        const nq = this.questDefs[next]
+        if (nq.type === 'travel') {
+          // Show marker for the travel destination and Mirwen's send-off
+          this.showQuestObjectiveMarker(nq.markerX!, nq.markerY!, nq.markerLabel!)
+          this.time.delayedCall(2000, () => {
+            this.hud.showQuestUpdate(`New quest!\n${nq.title}\n${nq.desc}`, '#aadd44')
+          })
+        } else {
+          this.time.delayedCall(2400, () => {
+            this.hud.showQuestUpdate('New quest!\n' + nq.title, '#aadd44')
+          })
+        }
       } else {
         this.activeQuestIdx = -2
-        this.hud.setQuestText('All quests complete!')
+        this.hud.setQuestText('All zones cleared!\nYou are the Archmage.')
         this.hideQuestObjectiveMarker()
       }
     }
@@ -2170,20 +2257,191 @@ export class GameScene extends Phaser.Scene {
 
   private initQuests() {
     this.questDefs = [
-      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',          target: 5,  xp: 80,  gold: 1500  },
-      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.',   target: 12, xp: 160, gold: 3500  },
-      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies total.',          target: 25, xp: 300, gold: 7000  },
+      // ── Phase 1: Elder Mirwen — Town ──────────────────────────────────────
+      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',        target: 5,  xp: 80,  gold: 1500  },
+      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.', target: 12, xp: 160, gold: 3500  },
+      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies in the wilds.', target: 25, xp: 300, gold: 7000  },
+
+      // ── Travel 1: Town → Frozen Ruins ─────────────────────────────────────
+      {
+        type: 'travel', title: 'A Frozen Lead',
+        desc: 'Travel north and find Mage Solvara in the Frozen Ruins.',
+        target: 0, xp: 60, gold: 1200,
+        travelZone: 'Frozen Ruins', markerX: 1800, markerY: 550, markerLabel: '▲ Frozen Ruins',
+        giver: 'Mage Solvara',
+        arriveLines: [
+          '"You braved the cold to find me — good."',
+          '"This city was great once. Undead now haunt every corner."',
+          '"Thin their numbers. Show them we still fight back."',
+          '',
+          'Quest: Ice Cleansing',
+          'Slay 20 enemies in the Frozen Ruins.',
+        ],
+      },
+
+      // ── Phase 2: Frozen Ruins — auto-collect ──────────────────────────────
+      { title: 'Ice Cleansing', desc: 'Slay 20 enemies in the Frozen Ruins.',    target: 20, zone: 'Frozen Ruins', xp: 280,  gold: 6000,  autoCollect: true },
+      { title: 'Frozen Menace', desc: 'Defeat 40 enemies in the Frozen Ruins.',  target: 40, zone: 'Frozen Ruins', xp: 520,  gold: 12000, autoCollect: true },
+
+      // ── Travel 2: Frozen Ruins → Corrupted Fields ─────────────────────────
+      {
+        type: 'travel', title: 'The Tainted West',
+        desc: 'Head west and find Ranger Aldric in the Corrupted Fields.',
+        target: 0, xp: 60, gold: 1200,
+        travelZone: 'Corrupted Fields', markerX: 750, markerY: 1800, markerLabel: '◄ Corrupted Fields',
+        giver: 'Ranger Aldric',
+        arriveLines: [
+          '"Finally! A mage. This blight has spread too long."',
+          '"Demons twisted these fields beyond recognition."',
+          '"No mercy. Purge them all."',
+          '',
+          'Quest: Purge the Corruption',
+          'Slay 25 enemies in the Corrupted Fields.',
+        ],
+      },
+
+      // ── Phase 3: Corrupted Fields — auto-collect ──────────────────────────
+      { title: 'Purge the Corruption', desc: 'Slay 25 enemies in the Corrupted Fields.', target: 25, zone: 'Corrupted Fields', xp: 450, gold: 10000, autoCollect: true },
+      { title: 'Root of Evil',         desc: 'Defeat 50 enemies in the Corrupted Fields.',target: 50, zone: 'Corrupted Fields', xp: 800, gold: 20000, autoCollect: true },
+
+      // ── Travel 3: Corrupted Fields → Arcane Caves ─────────────────────────
+      {
+        type: 'travel', title: 'Into the Depths',
+        desc: 'Travel east and find Hermit Zethkar in the Arcane Caves.',
+        target: 0, xp: 60, gold: 1200,
+        travelZone: 'Arcane Caves', markerX: 2850, markerY: 1800, markerLabel: '► Arcane Caves',
+        giver: 'Hermit Zethkar',
+        arriveLines: [
+          '"...you dare enter my sanctuary? Bold."',
+          '"Raw arcane energy warps everything it touches here."',
+          '"Survive this, and the title of Archmage is yours."',
+          '',
+          'Quest: Cave Delver',
+          'Slay 30 enemies in the Arcane Caves.',
+        ],
+      },
+
+      // ── Phase 4: Arcane Caves — auto-collect ──────────────────────────────
+      { title: 'Cave Delver',  desc: 'Slay 30 enemies in the Arcane Caves.',   target: 30, zone: 'Arcane Caves', xp: 700,  gold: 18000, autoCollect: true },
+      { title: 'Arcane Purge', desc: 'Defeat 60 enemies in the Arcane Caves.', target: 60, zone: 'Arcane Caves', xp: 1200, gold: 35000, autoCollect: true },
     ]
     this.updateQuestHUD()
   }
 
   private trackQuestKill() {
     const q = this.questDefs[this.activeQuestIdx]
-    if (!q) return
+    if (!q || q.type === 'travel') return
+    if (q.zone && getZoneAt(this.player.x, this.player.y)?.name !== q.zone) return
     this.questKills++
     this.updateQuestHUD()
-    if (this.questKills >= q.target)
-      this.hud.showQuestUpdate('Quest complete!\nReturn to Elder Mirwen.', '#ffdd44')
+    if (this.questKills >= q.target) {
+      if (q.autoCollect) {
+        this.hud.showQuestUpdate(`Quest complete!\n${q.title}`, '#ffdd44')
+        this.time.delayedCall(2000, () => this.autoCompleteQuest())
+      } else {
+        this.hud.showQuestUpdate('Quest complete!\nReturn to Elder Mirwen.', '#ffdd44')
+      }
+    }
+  }
+
+  private autoCompleteQuest() {
+    const q = this.questDefs[this.activeQuestIdx]
+    if (!q) return
+    this.player.gainXP(q.xp)
+    this.player.inventory.gold += q.gold
+    this.player.inventory.notifyChange()
+    this.hud.showQuestUpdate(`+${q.xp} XP  +${formatCopper(q.gold)}`, '#ffdd44')
+    this.hideQuestObjectiveMarker()
+    const next = this.activeQuestIdx + 1
+    if (next < this.questDefs.length) {
+      this.activeQuestIdx = next
+      this.questKills = 0
+      this.updateQuestHUD()
+      const nq = this.questDefs[next]
+      if (nq.type === 'travel') {
+        this.showQuestObjectiveMarker(nq.markerX!, nq.markerY!, nq.markerLabel!)
+        this.time.delayedCall(1800, () =>
+          this.hud.showQuestUpdate(`New quest!\n${nq.title}\n${nq.desc}`, '#aadd44'))
+      } else {
+        this.time.delayedCall(1200, () =>
+          this.hud.showQuestUpdate(`New quest!\n${nq.title}`, '#aadd44'))
+      }
+    } else {
+      this.activeQuestIdx = -2
+      this.hud.setQuestText('All zones cleared!\nYou are the Archmage.')
+    }
+  }
+
+  // ── Zone gating ───────────────────────────────────────────────────────────
+
+  /** Minimum quest index needed to enter each zone. */
+  private readonly ZONE_UNLOCK: Record<string, number> = {
+    'Frozen Ruins':     3,   // unlocked when "A Frozen Lead" travel quest is active
+    'Corrupted Fields': 6,   // unlocked when "The Tainted West" travel quest is active
+    'Arcane Caves':     9,   // unlocked when "Into the Depths" travel quest is active
+  }
+
+  private isZoneLocked(zoneName: string): boolean {
+    const required = this.ZONE_UNLOCK[zoneName]
+    return required !== undefined && this.activeQuestIdx < required
+  }
+
+  private pushOutOfZone(zone: ZoneDef) {
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    // Push back to just outside the zone boundary
+    switch (zone.name) {
+      case 'Frozen Ruins':
+        body.reset(this.player.x, zone.y + zone.h + 12)
+        break
+      case 'Corrupted Fields':
+        body.reset(zone.x + zone.w + 12, this.player.y)
+        break
+      case 'Arcane Caves':
+        body.reset(zone.x - 12, this.player.y)
+        break
+    }
+    // Throttle warning message to once every 3 seconds
+    if (this.time.now - this.lastGateWarnAt < 3000) return
+    this.lastGateWarnAt = this.time.now
+    const hint = this.getZoneGateHint(zone.name)
+    this.hud.showQuestUpdate(hint, '#ff8844')
+  }
+
+  private getZoneGateHint(zoneName: string): string {
+    switch (zoneName) {
+      case 'Frozen Ruins':
+        return '🔒 Frozen Ruins\nComplete Elder Mirwen\'s quests first.'
+      case 'Corrupted Fields':
+        return '🔒 Corrupted Fields\nClear the Frozen Ruins first.'
+      case 'Arcane Caves':
+        return '🔒 Arcane Caves\nClear the Corrupted Fields first.'
+      default:
+        return '🔒 Zone locked.'
+    }
+  }
+
+  private completeTravelQuest() {
+    const q = this.questDefs[this.activeQuestIdx]
+    if (!q || q.type !== 'travel') return
+    this.player.gainXP(q.xp)
+    this.player.inventory.gold += q.gold
+    this.player.inventory.notifyChange()
+    this.hideQuestObjectiveMarker()
+    const frostModal = (window as any).__frostModal
+    if (frostModal && q.arriveLines) {
+      frostModal.show({
+        title: q.giver ?? 'Stranger',
+        lines: q.arriveLines,
+        buttons: [{ label: "Let's do it!", primary: true, onClick: () => {} }],
+        onClose: () => {},
+      })
+    }
+    const next = this.activeQuestIdx + 1
+    if (next < this.questDefs.length) {
+      this.activeQuestIdx = next
+      this.questKills = 0
+      this.updateQuestHUD()
+    }
   }
 
   private updateQuestHUD() {
@@ -2193,8 +2451,13 @@ export class GameScene extends Phaser.Scene {
     }
     const q = this.questDefs[this.activeQuestIdx]
     if (!q) { this.hud.setQuestText(''); return }
+    if (q.type === 'travel') {
+      this.hud.setQuestText(`${q.title}\n→ ${q.travelZone}`)
+      return
+    }
     const prefix = this.questKills >= q.target ? '★ ' : ''
-    this.hud.setQuestText(`${prefix}${q.title}\n${this.questKills}/${q.target}`)
+    const zone   = q.zone ? `\n[${q.zone}]` : ''
+    this.hud.setQuestText(`${prefix}${q.title}\n${this.questKills}/${q.target}${zone}`)
   }
 
   // ── Spell unlock announcements ────────────────────────────────────────────

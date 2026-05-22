@@ -33,8 +33,8 @@ const Balance = {
   },
 
   xp: {
-    baseToNext:    100,
-    levelScaling:  1.5,   // each level needs ×1.5 more XP than the last
+    baseToNext:    300,
+    levelScaling:  1.8,   // each level needs ×1.8 more XP than the last
 
     // Bonus XP per additional aggroed enemy at kill time.
     // Fighting 4 enemies at once: ×(1 + 3×0.25) = ×1.75 XP on each kill.

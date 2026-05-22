@@ -4,7 +4,8 @@ import { GameScene } from './scenes/GameScene'
 
 // Called by the HTML landing page when the player clicks "Begin"
 ;(window as any).__frostLaunch = () => {
-  const playerName: string = (window as any).__frostPlayerName || 'Apprentice'
+  const playerName: string  = (window as any).__frostPlayerName || 'Apprentice'
+  const hardcore:   boolean = (window as any).__frostHardcore   ?? false
 
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -24,4 +25,5 @@ import { GameScene } from './scenes/GameScene'
   })
 
   game.registry.set('playerName', playerName)
+  game.registry.set('hardcore',   hardcore)
 }

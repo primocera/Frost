@@ -29,8 +29,8 @@ export const ZONE_DEFS: readonly ZoneDef[] = [
     danger: 1, x: 0,    y: 2500, w: 3600, h: 1100,
   },
   {
-    name: 'Frozen Ruins',     labelColor: '#88ccff',
-    atmosphere: 0x001133, atmoAlpha: 0.09,
+    name: 'Frozen Ruins',     labelColor: '#aaddff',
+    atmosphere: 0x88ccff, atmoAlpha: 0.14,
     danger: 2, x: 0,    y: 0,    w: 3600, h: 1100,
   },
   {
@@ -85,6 +85,7 @@ export class World {
     this.buildBoundary()
     this.buildObstacles()
     this.buildAmbientLight()
+    this.buildSnowfall()
     this.buildDungeonEntrances()
     this.buildSpawnZones()
     scene.physics.world.setBounds(0, 0, size, size)
@@ -107,7 +108,8 @@ export class World {
 
     tile('t_plains',  0x1e3a1e, 0x243f24)   // neutral green
     tile('t_forest',  0x112211, 0x172817)   // beginner forest — dark green
-    tile('t_frozen',  0x1a2535, 0x223040)   // frozen ruins — icy blue-grey
+    tile('t_frozen',  0x7aa8c0, 0x8abcd0)   // frozen ruins — pale glacial ice
+    tile('t_snow',    0xc8dce8, 0xd4e6f2)   // snow patches — near-white blue
     tile('t_corrupt', 0x1c0c0c, 0x271414)   // corrupted fields — dark blood-red
     tile('t_arcane',  0x0e0618, 0x150820)   // arcane caves — deep void purple
 
@@ -199,6 +201,14 @@ export class World {
     g.generateTexture('ice_obs', 20, 36)
     g.clear()
 
+    // ── Snowflake (falling snow particle) ────────────────────────────────────
+    g.fillStyle(0xddeeff, 0.85)
+    g.fillCircle(4, 4, 2.5)
+    g.fillStyle(0xffffff, 0.55)
+    g.fillCircle(3, 3, 1.2)
+    g.generateTexture('snowflake', 8, 8)
+    g.clear()
+
     // ── Arcane pillar (arcane caves) ──────────────────────────────────────────
     g.fillStyle(0x252030)
     g.fillRect(5, 5, 12, 32)     // shaft
@@ -287,6 +297,13 @@ export class World {
     add(0,    1100, 1500, 1400, 't_corrupt', 0.1)  // Corrupted Fields (left)
     add(2100, 1100, 1500, 1400, 't_arcane',  0.1)  // Arcane Caves (right)
 
+    // Snow drifts over frozen ruins — lighter patches for deep snow areas
+    add(0,    0,    900,  400,  't_snow', 0.13)
+    add(800,  200,  700,  500,  't_snow', 0.10)
+    add(2200, 0,    800,  350,  't_snow', 0.11)
+    add(2900, 300,  700,  600,  't_snow', 0.09)
+    add(1400, 600,  500,  400,  't_snow', 0.10)
+
     // Central clearing — slightly warmer neutral plains, drawn on top
     const cw = 680, ch = 680
     add(this.cx - cw / 2, this.cy - ch / 2, cw, ch, 't_plains', 0.15)
@@ -312,24 +329,91 @@ export class World {
       g.fillEllipse(x, y, Phaser.Math.Between(30, 80), Phaser.Math.Between(10, 24))
     }
 
-    // ── Frozen Ruins — ice cracks, frozen puddles, snow drifts ───────────────
-    g.lineStyle(1, 0x4a6080, 0.5)
-    for (let i = 0; i < 32; i++) {
-      const x = Phaser.Math.FloatBetween(100, S - 100)
-      const y = Phaser.Math.FloatBetween(70, 1030)
-      g.lineBetween(x, y, x + Phaser.Math.Between(-35, 35), y + Phaser.Math.Between(-22, 22))
+    // ── Frozen Ruins — glacial overhaul ──────────────────────────────────────
+
+    // Glacial lakes / frozen ponds — large bright-blue translucent sheets
+    const lakes: [number, number, number, number][] = [
+      [380,  180, 280, 110], [1050, 420, 380, 130], [2080, 150, 320, 120],
+      [2750, 480, 260,  95], [1650, 780, 300, 100], [3180, 250, 260, 100],
+      [600,  700, 220,  80], [3400, 700, 200,  85], [1800, 350, 180,  70],
+    ]
+    // Deep ice base (darker, shows depth)
+    g.fillStyle(0x3a7aaa, 0.38)
+    for (const [lx, ly, lw, lh] of lakes) g.fillEllipse(lx, ly, lw, lh)
+    // Ice surface (brighter, reflective shimmer)
+    g.fillStyle(0x88cce8, 0.30)
+    for (const [lx, ly, lw, lh] of lakes) g.fillEllipse(lx, ly, lw * 0.85, lh * 0.72)
+    // Bright specular highlight on lakes
+    g.fillStyle(0xddf2ff, 0.22)
+    for (const [lx, ly, lw, lh] of lakes) g.fillEllipse(lx - lw * 0.12, ly - lh * 0.14, lw * 0.4, lh * 0.32)
+
+    // Deep ice crevasses — bold branching cracks
+    g.lineStyle(3, 0x2a6090, 0.80)
+    for (let i = 0; i < 18; i++) {
+      const x = Phaser.Math.FloatBetween(80, S - 80)
+      const y = Phaser.Math.FloatBetween(50, 1050)
+      const dx = Phaser.Math.Between(-90, 90)
+      const dy = Phaser.Math.Between(-55, 55)
+      g.lineBetween(x, y, x + dx, y + dy)
+      // Branch
+      g.lineBetween(x + dx * 0.5, y + dy * 0.5,
+        x + dx * 0.5 + Phaser.Math.Between(-40, 40),
+        y + dy * 0.5 + Phaser.Math.Between(-30, 30))
     }
-    g.fillStyle(0x182840, 0.62)
-    for (const [px, py, rw, rh] of [
-      [400,  300,  90, 36], [1100, 680, 120, 44], [2200, 380,  80, 32],
-      [2900, 620, 100, 38], [820,  880,  70, 28], [3250, 240,  88, 34],
-      [1600, 500,  95, 40], [3000, 900,  72, 30],
-    ]) g.fillEllipse(px, py, rw, rh)
-    g.fillStyle(0x9ab4cc, 0.14)
-    for (let i = 0; i < 28; i++) {
+    // Thinner surface cracks network
+    g.lineStyle(1, 0x5599bb, 0.55)
+    for (let i = 0; i < 50; i++) {
+      const x = Phaser.Math.FloatBetween(60, S - 60)
+      const y = Phaser.Math.FloatBetween(30, 1070)
+      g.lineBetween(x, y, x + Phaser.Math.Between(-28, 28), y + Phaser.Math.Between(-18, 18))
+    }
+    // Hairline frost cracks
+    g.lineStyle(1, 0x99ccdd, 0.28)
+    for (let i = 0; i < 80; i++) {
+      const x = Phaser.Math.FloatBetween(40, S - 40)
+      const y = Phaser.Math.FloatBetween(20, 1080)
+      g.lineBetween(x, y, x + Phaser.Math.Between(-14, 14), y + Phaser.Math.Between(-10, 10))
+    }
+
+    // Snow drifts — piled along wind direction (south-east sweep)
+    g.fillStyle(0xe8f4ff, 0.55)
+    for (let i = 0; i < 38; i++) {
       const x = Phaser.Math.FloatBetween(60, S - 60)
       const y = Phaser.Math.FloatBetween(40, 1060)
-      g.fillEllipse(x, y, Phaser.Math.Between(60, 200), Phaser.Math.Between(8, 22))
+      g.fillEllipse(x, y, Phaser.Math.Between(60, 220), Phaser.Math.Between(8, 24))
+    }
+    // Bright compressed snow at edges/obstacles
+    g.fillStyle(0xf0faff, 0.40)
+    for (let i = 0; i < 22; i++) {
+      const x = Phaser.Math.FloatBetween(50, S - 50)
+      const y = Phaser.Math.FloatBetween(30, 1070)
+      g.fillEllipse(x, y, Phaser.Math.Between(18, 60), Phaser.Math.Between(5, 14))
+    }
+
+    // Ruined building footprints buried under ice/snow
+    const ruins: [number, number, number, number][] = [
+      [250, 200, 120, 80], [820, 550, 160, 90], [1650, 250, 100, 140],
+      [2300, 650, 180, 80], [3100, 420, 130, 100], [1200, 900, 150, 70],
+      [2700, 200, 110, 130], [3380, 820, 140, 80],
+    ]
+    // Stone wall remnants (grey under snow)
+    g.fillStyle(0x6a7e8a, 0.30)
+    for (const [rx, ry, rw, rh] of ruins) {
+      g.fillRect(rx - rw / 2, ry - rh / 2, rw, rh)
+      // Snow covering the top of the walls
+      g.fillStyle(0xdeedf8, 0.45)
+      g.fillRect(rx - rw / 2, ry - rh / 2, rw, 8)
+      g.fillRect(rx - rw / 2, ry - rh / 2, 8, rh)
+      g.fillStyle(0x6a7e8a, 0.30)
+    }
+
+    // Ice sheet shimmer — scattered white highlights across the whole zone
+    g.fillStyle(0xffffff, 0.12)
+    for (let i = 0; i < 60; i++) {
+      const x = Phaser.Math.FloatBetween(30, S - 30)
+      const y = Phaser.Math.FloatBetween(20, 1080)
+      const r = Phaser.Math.Between(4, 22)
+      g.fillEllipse(x, y, r * 3, r)
     }
 
     // ── Corrupted Fields — dark pools and corruption veins ────────────────────
@@ -407,6 +491,58 @@ export class World {
     g.lineBetween(1500, this.cy - 80, 1500, this.cy + 80)
     // East (Arcane Caves)
     g.lineBetween(2100, this.cy - 80, 2100, this.cy + 80)
+
+    // ── Zone gate seals — glowing barriers at locked zone entries ─────────────
+    const gateG = this.scene.add.graphics().setDepth(3.6)
+
+    // Frozen Ruins gate (north path) — icy blue seal
+    gateG.lineStyle(4, 0x44aaff, 0.75)
+    gateG.lineBetween(this.cx - 70, 1102, this.cx + 70, 1102)
+    gateG.lineStyle(2, 0x88ddff, 0.45)
+    gateG.lineBetween(this.cx - 70, 1098, this.cx + 70, 1098)
+    gateG.lineBetween(this.cx - 70, 1106, this.cx + 70, 1106)
+    // Rune diamonds along the seal
+    for (const dx of [-40, 0, 40]) {
+      gateG.fillStyle(0x88ddff, 0.6)
+      gateG.fillTriangle(this.cx + dx, 1095, this.cx + dx - 5, 1102, this.cx + dx + 5, 1102)
+      gateG.fillTriangle(this.cx + dx, 1109, this.cx + dx - 5, 1102, this.cx + dx + 5, 1102)
+    }
+
+    // Corrupted Fields gate (west path) — blood-red seal
+    gateG.lineStyle(4, 0xcc2222, 0.75)
+    gateG.lineBetween(1498, this.cy - 70, 1498, this.cy + 70)
+    gateG.lineStyle(2, 0xff4444, 0.45)
+    gateG.lineBetween(1494, this.cy - 70, 1494, this.cy + 70)
+    gateG.lineBetween(1502, this.cy - 70, 1502, this.cy + 70)
+    for (const dy of [-40, 0, 40]) {
+      gateG.fillStyle(0xff5555, 0.6)
+      gateG.fillTriangle(1491, this.cy + dy, 1498, this.cy + dy - 5, 1498, this.cy + dy + 5)
+      gateG.fillTriangle(1505, this.cy + dy, 1498, this.cy + dy - 5, 1498, this.cy + dy + 5)
+    }
+
+    // Arcane Caves gate (east path) — purple arcane seal
+    gateG.lineStyle(4, 0xaa44ff, 0.75)
+    gateG.lineBetween(2102, this.cy - 70, 2102, this.cy + 70)
+    gateG.lineStyle(2, 0xcc88ff, 0.45)
+    gateG.lineBetween(2098, this.cy - 70, 2098, this.cy + 70)
+    gateG.lineBetween(2106, this.cy - 70, 2106, this.cy + 70)
+    for (const dy of [-40, 0, 40]) {
+      gateG.fillStyle(0xcc88ff, 0.6)
+      gateG.fillTriangle(2095, this.cy + dy, 2102, this.cy + dy - 5, 2102, this.cy + dy + 5)
+      gateG.fillTriangle(2109, this.cy + dy, 2102, this.cy + dy - 5, 2102, this.cy + dy + 5)
+    }
+
+    // Lock icons (🔒) as text above each gate
+    const lockStyle = {
+      fontSize: '14px', fontFamily: 'system-ui', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 3,
+    }
+    this.scene.add.text(this.cx, 1082, '🔒 Frozen Ruins', lockStyle)
+      .setOrigin(0.5, 1).setDepth(3.7)
+    this.scene.add.text(1497, this.cy, '🔒', lockStyle)
+      .setOrigin(1, 0.5).setDepth(3.7)
+    this.scene.add.text(2103, this.cy, '🔒', lockStyle)
+      .setOrigin(0, 0.5).setDepth(3.7)
   }
 
   // ── Hard boundary ─────────────────────────────────────────────────────────
@@ -432,9 +568,9 @@ export class World {
     // Beginner Forest — dense healthy trees
     this.scatter('tree',      0,    2500, S,    1100, 50)
 
-    // Frozen Ruins — ice crystal clusters + frozen boulders
-    this.scatter('ice_obs',   0,    0,    S,    1100, 32)
-    this.scatter('rock_obs',  0,    0,    S,    1100, 18)
+    // Frozen Ruins — dense ice crystal clusters + frozen boulders
+    this.scatter('ice_obs',   0,    0,    S,    1100, 55)
+    this.scatter('rock_obs',  0,    0,    S,    1100, 28)
 
     // Corrupted Fields — twisted dead trees + crumbled stone
     this.scatter('dead_tree', 0,    1100, 1500, 1400, 26)
@@ -552,6 +688,46 @@ export class World {
     ]
     for (const [px, py] of portalPositions) {
       this.addFireGlow(g, px, py - 20, 0x8833ff, 80, 35, 0.025, 0.05)
+    }
+
+    // ── Frozen Ruins — cold blue zone ambient glow ────────────────────────────
+    const coldG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
+    // Wide zone-wide cold blue wash
+    coldG.fillStyle(0x44aaff, 0.04)
+    coldG.fillRect(0, 0, this.size, 1100)
+    // Glacial lake glow points
+    const lakeGlows: [number, number][] = [
+      [380, 180], [1050, 420], [2080, 150], [2750, 480], [1650, 780], [3180, 250],
+    ]
+    for (const [lx, ly] of lakeGlows) {
+      this.addFireGlow(coldG, lx, ly, 0x66ccff, 180, 80, 0.03, 0.055)
+    }
+    // Ice crystal clusters — faint blue glow
+    for (const [lx, ly] of [[600, 340], [1400, 180], [2400, 600], [3000, 820], [1800, 950]]) {
+      this.addFireGlow(coldG, lx, ly, 0x99ddff, 100, 45, 0.025, 0.04)
+    }
+  }
+
+  private buildSnowfall() {
+    // Snowfall emitters scattered across the Frozen Ruins zone (y: 0–1100)
+    // Each emitter covers a ~600×300 patch; together they blanket the whole zone.
+    const emitterCenters: [number, number][] = [
+      [300, 300], [900, 200], [1500, 500], [1800, 150], [2100, 700],
+      [2700, 350], [3300, 200], [600, 800], [1200, 950], [3000, 750],
+    ]
+    for (const [ex, ey] of emitterCenters) {
+      this.scene.add.particles(ex, ey, 'snowflake', {
+        x:        { min: -340, max: 340 },
+        y:        { min: -200, max: 200 },
+        speedX:   { min: 8,  max: 20  },   // slight wind drift east
+        speedY:   { min: 18, max: 40  },   // fall downward
+        lifespan: { min: 4000, max: 7000 },
+        scale:    { start: 0.9, end: 0.1 },
+        alpha:    { start: 0.75, end: 0 },
+        rotate:   { min: 0, max: 360 },
+        quantity:  1,
+        frequency: 280,
+      }).setDepth(3.8)
     }
   }
 

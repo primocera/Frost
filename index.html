@@ -170,6 +170,47 @@
     }
     #btn-guest:hover { background: rgba(255, 255, 255, 0.12); }
 
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      width: 100%;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.3px;
+      border: 1.5px solid transparent;
+    }
+    .mode-btn.normal {
+      background: rgba(20, 90, 200, 0.18);
+      color: rgba(100, 180, 255, 0.7);
+      border-color: rgba(80, 160, 255, 0.2);
+    }
+    .mode-btn.normal.active {
+      background: rgba(20, 90, 200, 0.5);
+      color: #88ccff;
+      border-color: rgba(80, 160, 255, 0.6);
+      box-shadow: 0 0 12px rgba(20, 90, 200, 0.4);
+    }
+    .mode-btn.hardcore {
+      background: rgba(180, 30, 30, 0.12);
+      color: rgba(255, 100, 100, 0.5);
+      border-color: rgba(200, 50, 50, 0.15);
+    }
+    .mode-btn.hardcore.active {
+      background: rgba(180, 30, 30, 0.45);
+      color: #ff7777;
+      border-color: rgba(220, 60, 60, 0.6);
+      box-shadow: 0 0 12px rgba(180, 30, 30, 0.4);
+    }
+
     /* Intro blurb */
     .intro-blurb {
       font-size: 13px;
@@ -764,6 +805,11 @@
         spellcheck="false"
       />
 
+      <div class="mode-toggle">
+        <button class="mode-btn normal active" id="btn-normal">⚡ Normal</button>
+        <button class="mode-btn hardcore"      id="btn-hardcore">☠ Hardcore</button>
+      </div>
+
       <button class="btn" id="btn-start">Begin your journey</button>
       <button class="btn" id="btn-guest">Continue as Apprentice</button>
 
@@ -909,11 +955,25 @@
     })()
 
     // ── Landing page ─────────────────────────────────────────────────────────
+    let hardcoreMode = false
+
+    document.getElementById('btn-normal').addEventListener('click', () => {
+      hardcoreMode = false
+      document.getElementById('btn-normal').classList.add('active')
+      document.getElementById('btn-hardcore').classList.remove('active')
+    })
+    document.getElementById('btn-hardcore').addEventListener('click', () => {
+      hardcoreMode = true
+      document.getElementById('btn-hardcore').classList.add('active')
+      document.getElementById('btn-normal').classList.remove('active')
+    })
+
     function launchGame(name) {
       const landing = document.getElementById('landing')
       landing.classList.add('fade-out')
       setTimeout(() => { landing.style.display = 'none' }, 650)
       window.__frostPlayerName = name || 'Apprentice'
+      window.__frostHardcore   = hardcoreMode
       window.__frostLaunch && window.__frostLaunch()
     }
 
