@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { Item, RARITY_COLOR, RARITY_HEX } from '../items/ItemTypes'
+import { formatCopperShort } from '../utils/currency'
 
 const PICKUP_RADIUS = 44
 const DESPAWN_MS    = 55_000
@@ -24,7 +25,7 @@ export class LootDrop {
     this.gfx = scene.add.graphics()
     const isGold  = gold !== undefined
     const color   = isGold ? '#ffdd00' : RARITY_COLOR[item!.rarity]
-    const abbrev  = isGold ? `${gold}g` : `${item!.type[0].toUpperCase()} ${item!.name.slice(0, 12)}`
+    const abbrev  = isGold ? formatCopperShort(gold!) : `${item!.type[0].toUpperCase()} ${item!.name.slice(0, 12)}`
 
     this.label = scene.add.text(0, -14, abbrev, {
       fontSize:        '9px',
@@ -67,8 +68,8 @@ export class LootDrop {
       scene.time.delayedCall(700, () => { if (burst.active) burst.destroy() })
     }
 
-    // Gold coin sparkle
-    if (gold !== undefined && gold >= 10) {
+    // Gold coin sparkle (100c = 1 silver threshold)
+    if (gold !== undefined && gold >= 50) {
       const coinBurst = scene.add.particles(x, y, 'particle', {
         speed:     { min: 30, max: 80 },
         scale:     { start: 0.5, end: 0 },
@@ -79,7 +80,7 @@ export class LootDrop {
         blendMode: 'ADD',
         emitting:  false,
       }).setDepth(4)
-      coinBurst.explode(gold >= 30 ? 10 : 5)
+      coinBurst.explode(gold >= 500 ? 10 : 5)
       scene.time.delayedCall(400, () => { if (coinBurst.active) coinBurst.destroy() })
     }
 

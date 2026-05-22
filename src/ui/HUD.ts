@@ -1,16 +1,19 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 import { UIScaler } from './uiScale'
+import { formatCopper } from '../utils/currency'
 
 const RING_R    = 16
 const RING_STEP = 56
 
-const RINGS = [
+const RINGS_BASE = [
   { key: 'Q', name: 'ArcEx',    color: 0xcc44ff },
   { key: 'E', name: 'FrNova',   color: 0x44aaff },
   { key: 'R', name: 'Blizzard', color: 0x0088dd },
   { key: 'F', name: 'Firebolt', color: 0xff8800 },
 ] as const
+
+type RingDef = { key: string; name: string; color: number }
 
 export class HUD {
   private bars:           Phaser.GameObjects.Graphics
@@ -84,12 +87,12 @@ export class HUD {
     }).setScrollFactor(0).setDepth(d)
 
     this.controls = scene.add.text(0, 10,
-      'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
+      'WASD move\nF/Click  Bolt\nX  Swap bolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
         fontSize: '11px', color: '#555555', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
     // Ring labels: show key + name when ready, countdown when cooling
-    this.ringLabels = RINGS.map((r, i) =>
+    this.ringLabels = RINGS_BASE.map((r, i) =>
       scene.add.text(0, 0, `${r.key} ${r.name}`, {
         fontSize: '10px', color: '#888888', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
@@ -187,7 +190,7 @@ export class HUD {
     // Reposition elements that depend on current screen size
     this.controls.setX(this.W - 10)
     this.bossNameText.setX(this.W / 2)
-    for (let i = 0; i < RINGS.length; i++) {
+    for (let i = 0; i < RINGS_BASE.length; i++) {
       this.ringLabels[i].setPosition(this.RING_X0 + i * RING_STEP, this.RING_CY + RING_R + 7)
     }
 
@@ -222,7 +225,7 @@ export class HUD {
     this.levelLabel.setText(`Lv ${stats.level}   ${stats.xp} / ${stats.xpToNext} XP`)
     this.hpText.setText(`${stats.hp}/${stats.maxHp}`)
     this.manaText.setText(`${Math.floor(stats.mana)}/${effMaxMana}`)
-    this.goldText.setText(`${player.inventory.gold} g`)
+    this.goldText.setText(formatCopper(player.inventory.gold))
 
     const pts = player.talents.points
     if (pts > 0) {
@@ -251,14 +254,23 @@ export class HUD {
     }
 
     // ── Spell rings ───────────────────────────────────────────────────────
+    const isFrost = player.activeBolt === 'frost'
+    const RINGS: RingDef[] = [
+      { key: 'Q', name: 'ArcEx',                                   color: 0xcc44ff },
+      { key: 'E', name: 'FrNova',                                   color: 0x44aaff },
+      { key: 'R', name: 'Blizzard',                                 color: 0x0088dd },
+      { key: 'F', name: isFrost ? 'Frostbolt' : 'Firebolt',        color: isFrost ? 0x44ccff : 0xff8800 },
+    ]
+    const boltCd    = isFrost ? player.frostboltCooldown  : player.fireboltCooldown
+    const boltCdMax = isFrost ? player.frostboltCooldownMax : player.fireboltCooldownMax
     const cooldowns = [
       { cd: player.arcaneExplosionCooldown, max: player.arcaneExplosionCooldownMax },
       { cd: player.frostNovaCooldown,       max: player.frostNovaCooldownMax },
       { cd: player.blizzardCooldown,        max: player.blizzardCooldownMax },
-      { cd: player.fireboltCooldown,        max: player.fireboltCooldownMax },
+      { cd: boltCd,                         max: boltCdMax },
     ]
 
-    // Unlock level per ring [ArcEx, FrostNova, Blizzard, Firebolt]
+    // Unlock level per ring [ArcEx, FrostNova, Blizzard, Bolt]
     const UNLOCK_LVL = [4, 8, 14, 1]
 
     for (let i = 0; i < RINGS.length; i++) {

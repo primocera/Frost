@@ -65,11 +65,19 @@ const Balance = {
     // ── Arcane Explosion (Q) ──────────────────────────────────────────────
     // Instant AoE burst around the player. Good opener before enemies close in.
     // Damage = baseDamage + spellDamage × 0.5
+    // Cooldown tracks the active bolt's cooldown (same timing as firebolt/frostbolt).
     arcaneExplosion: {
       radius:     180,
-      baseDamage:  40,
-      manaCost:    45,
-      cooldownMs: 6000,
+      baseDamage:  20,
+      manaCost:    20,
+    },
+
+    // ── Frostbolt ─────────────────────────────────────────────────────────
+    // Ice bolt alternative to Firebolt. Slightly slower but applies a slow.
+    frostbolt: {
+      slowMult:      0.55,  // slowed enemies move at 55% speed
+      slowDurationMs: 1800,
+      manaCost:       18,
     },
 
     // ── Frost Nova (E) ────────────────────────────────────────────────────
@@ -78,7 +86,7 @@ const Balance = {
       radius:     200,
       freezeMs:  2200,    // how long enemies stay frozen
       manaCost:    60,
-      cooldownMs: 10000,
+      cooldownMs: 21000,
     },
 
     // ── Blizzard (R) ──────────────────────────────────────────────────────

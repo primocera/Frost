@@ -6,6 +6,7 @@ import { Boss } from '../entities/Boss'
 import { BossConfig, ALL_BOSSES } from '../entities/BossTypes'
 import { World, SpawnZone, ZoneDef, DungeonEntrance, getZoneAt, ZONE_DEFS } from '../world/World'
 import { spawnFirebolt, destroyBolt, spawnImpact, spawnCastEffect } from '../spells/Firebolt'
+import { spawnFrostbolt, destroyFrostbolt, spawnFrostImpact, spawnFrostCastEffect } from '../spells/Frostbolt'
 import { castArcaneExplosion } from '../spells/ArcaneExplosion'
 import { castFrostNova } from '../spells/FrostNova'
 import { spawnBlizzard } from '../spells/Blizzard'
@@ -13,12 +14,14 @@ import { HUD } from '../ui/HUD'
 import { SoundManager } from '../audio/SoundManager'
 import Balance from '../config/Balance'
 import { generateItem, generateGold } from '../items/ItemGen'
+import { formatCopper, formatCopperShort } from '../utils/currency'
 import { LootDrop } from '../world/LootDrop'
 import { InventoryUI } from '../ui/InventoryUI'
 import { StashUI } from '../ui/StashUI'
 import { Stash } from '../systems/Stash'
 import { TalentUI } from '../ui/TalentUI'
 import { ProgressionUI } from '../ui/ProgressionUI'
+import { ShopUI } from '../ui/ShopUI'
 import { MobileControls } from '../ui/MobileControls'
 import { PlayerSprite } from '../ui/PlayerSprite'
 import { ChatUI } from '../ui/ChatUI'
@@ -48,6 +51,7 @@ export class GameScene extends Phaser.Scene {
   private progressionUI!: ProgressionUI
   private stash!:         Stash
   private stashUI!:       StashUI
+  private shopUI!:        ShopUI
   private nearStash       = false
   private stashPrompt!:   Phaser.GameObjects.Text
   private progression!:   ProgressionSystem
@@ -58,6 +62,7 @@ export class GameScene extends Phaser.Scene {
   private iKey!: Phaser.Input.Keyboard.Key
   private tKey!: Phaser.Input.Keyboard.Key
   private pKey!: Phaser.Input.Keyboard.Key
+  private xKey!: Phaser.Input.Keyboard.Key
   private mobileControls: MobileControls | null = null
   private playerSprite!:  PlayerSprite
   // Social systems
@@ -138,6 +143,7 @@ export class GameScene extends Phaser.Scene {
     this.iKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I)
     this.tKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.T)
     this.pKey   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P)
+    this.xKey   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.X)
     this.tabKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB)
 
     this.inventoryUI  = new InventoryUI(this, this.player.inventory)
@@ -159,6 +165,7 @@ export class GameScene extends Phaser.Scene {
     this.talentUI     = new TalentUI(this, this.player.talents)
     this.progression  = new ProgressionSystem()
     this.progressionUI = new ProgressionUI(this, this.progression)
+    this.shopUI = new ShopUI(() => this.player.stats.level, this.player.inventory)
 
     this.progression.onAchievementUnlocked = (def) => {
       const cosName = def.cosmetic ? COSMETICS[def.cosmetic].name : undefined
@@ -184,7 +191,7 @@ export class GameScene extends Phaser.Scene {
         // Spell button taps (0=Q 1=E 2=R 3=F)
         (idx) => {
           if (this.dead) return
-          const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen()
+          const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.stashUI.isOpen() || this.shopUI.isOpen()
           if (anyUIOpen) return
           switch (idx) {
             case 0: this.castArcaneExplosion(); break
@@ -197,18 +204,21 @@ export class GameScene extends Phaser.Scene {
         (key) => {
           switch (key) {
             case 'I':
-              this.talentUI.isOpen() && this.talentUI.hide()
+              this.talentUI.isOpen()      && this.talentUI.hide()
               this.progressionUI.isOpen() && this.progressionUI.hide()
+              this.shopUI.isOpen()        && this.shopUI.hide()
               this.inventoryUI.toggle()
               break
             case 'T':
-              this.inventoryUI.isOpen() && this.inventoryUI.hide()
+              this.inventoryUI.isOpen()   && this.inventoryUI.hide()
               this.progressionUI.isOpen() && this.progressionUI.hide()
+              this.shopUI.isOpen()        && this.shopUI.hide()
               this.talentUI.toggle()
               break
             case 'P':
               this.inventoryUI.isOpen() && this.inventoryUI.hide()
-              this.talentUI.isOpen() && this.talentUI.hide()
+              this.talentUI.isOpen()    && this.talentUI.hide()
+              this.shopUI.isOpen()      && this.shopUI.hide()
               this.progressionUI.toggle()
               break
           }
@@ -251,8 +261,8 @@ export class GameScene extends Phaser.Scene {
       if (this.mobileControls?.isJoystickZone(ptr.x)) return
       if (this.mobileControls?.isControlTap(ptr.x, ptr.y)) return
       if (!ptr.leftButtonDown()) return
-      if (this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen()) return
-      this.castFirebolt(ptr.worldX, ptr.worldY)
+      if (this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.stashUI.isOpen() || this.shopUI.isOpen()) return
+      this.castActiveBolt(ptr.worldX, ptr.worldY)
     })
 
     // Collision: player and enemies push against obstacles
@@ -271,10 +281,13 @@ export class GameScene extends Phaser.Scene {
       const enemy = enemyObj as unknown as Enemy
       if (!bolt.active || !enemy.active || enemy.dying) return
       let dmg    = bolt.getData('damage') as number
+      const isFrost = bolt.getData('isFrost') as boolean | undefined
       const hitX = enemy.x
       const hitY = enemy.y
-      destroyBolt(bolt)
-      spawnImpact(this, hitX, hitY)
+      if (isFrost) destroyFrostbolt(bolt)
+      else destroyBolt(bolt)
+      if (isFrost) spawnFrostImpact(this, hitX, hitY)
+      else spawnImpact(this, hitX, hitY)
 
       // Hitstop: 50 ms physics freeze gives every bolt impact physical weight
       this.physics.world.pause()
@@ -302,12 +315,18 @@ export class GameScene extends Phaser.Scene {
         if (d <= Balance.aggro.chainRadius) nearby.forceAggro()
       }
 
+      // Frostbolt inherently slows
+      if (isFrost && !enemy.dying) {
+        const { slowMult, slowDurationMs } = Balance.spells.frostbolt
+        enemy.slow(slowMult, slowDurationMs)
+      }
+
       // Chilling Touch: slow enemy on bolt hit
       const { chillSlowMult, chillDurationMs } = this.player.talents
       if (chillSlowMult > 0 && !enemy.dying) enemy.slow(chillSlowMult, chillDurationMs)
 
-      // Ignite: apply burn DoT on hit
-      if (this.player.talents.igniteRank > 0 && !enemy.dying) this.applyBurn(enemy)
+      // Ignite: apply burn DoT on hit (fire bolts only)
+      if (!isFrost && this.player.talents.igniteRank > 0 && !enemy.dying) this.applyBurn(enemy)
 
       if (enemy.takeDamage(dmg)) this.killEnemy(enemy)
     })
@@ -528,18 +547,21 @@ export class GameScene extends Phaser.Scene {
     const ptr = this.input.activePointer
 
     if (Phaser.Input.Keyboard.JustDown(this.iKey)) {
-      this.talentUI.isOpen() && this.talentUI.hide()
+      this.talentUI.isOpen()      && this.talentUI.hide()
       this.progressionUI.isOpen() && this.progressionUI.hide()
+      this.shopUI.isOpen()        && this.shopUI.hide()
       this.inventoryUI.toggle()
     }
     if (Phaser.Input.Keyboard.JustDown(this.tKey)) {
-      this.inventoryUI.isOpen() && this.inventoryUI.hide()
+      this.inventoryUI.isOpen()   && this.inventoryUI.hide()
       this.progressionUI.isOpen() && this.progressionUI.hide()
+      this.shopUI.isOpen()        && this.shopUI.hide()
       this.talentUI.toggle()
     }
     if (Phaser.Input.Keyboard.JustDown(this.pKey)) {
       this.inventoryUI.isOpen() && this.inventoryUI.hide()
-      this.talentUI.isOpen() && this.talentUI.hide()
+      this.talentUI.isOpen()    && this.talentUI.hide()
+      this.shopUI.isOpen()      && this.shopUI.hide()
       this.progressionUI.toggle()
     }
 
@@ -548,13 +570,21 @@ export class GameScene extends Phaser.Scene {
     this.updateDungeonProximity()
     this.updateStashProximity()
 
-    if (Phaser.Input.Keyboard.JustDown(this.eKey)) this.handleEInteract()
+    // Capture JustDown once — it resets after the first read per frame
+    const eDown = Phaser.Input.Keyboard.JustDown(this.eKey)
+    if (eDown) this.handleEInteract()
 
-    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.dialogOpen || this.stashUI.isOpen()
+    if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
+      this.player.swapBolt()
+      const label = this.player.activeBolt === 'frost' ? '❄ Frostbolt' : '🔥 Firebolt'
+      this.hud.showQuestUpdate(label, this.player.activeBolt === 'frost' ? '#88ddff' : '#ff8844')
+    }
+
+    const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.dialogOpen || this.stashUI.isOpen() || this.shopUI.isOpen()
     if (!anyUIOpen) {
-      if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castFirebolt(ptr.worldX, ptr.worldY)
+      if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castActiveBolt(ptr.worldX, ptr.worldY)
       if (Phaser.Input.Keyboard.JustDown(this.qKey)) this.castArcaneExplosion()
-      if (!this.nearNPC && !this.nearStash && !this.nearDungeon && Phaser.Input.Keyboard.JustDown(this.eKey)) this.castFrostNova()
+      if (!this.nearNPC && !this.nearStash && !this.nearDungeon && eDown) this.castFrostNova()
       if (Phaser.Input.Keyboard.JustDown(this.rKey)) this.castBlizzard(ptr.worldX, ptr.worldY)
     }
 
@@ -602,6 +632,12 @@ export class GameScene extends Phaser.Scene {
 
   // ── Combat ────────────────────────────────────────────────────────────────
 
+  /** Dispatches to whichever bolt is active (fire or frost). */
+  private castActiveBolt(worldX: number, worldY: number) {
+    if (this.player.activeBolt === 'frost') this.castFrostbolt(worldX, worldY)
+    else this.castFirebolt(worldX, worldY)
+  }
+
   private castFirebolt(worldX: number, worldY: number) {
     if (!this.player.canCastFirebolt()) {
       if (this.player.fireboltCooldown > 0) this.hud.notifyCastFailed(3)
@@ -612,6 +648,20 @@ export class GameScene extends Phaser.Scene {
     this.playerSprite.playCast()
     spawnCastEffect(this, this.player.x, this.player.y)
     const bolt = spawnFirebolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
+    bolt.setData('castZone', getZoneAt(this.player.x, this.player.y)?.name ?? '__town__')
+    this.sfx.onFireboltCast()
+  }
+
+  private castFrostbolt(worldX: number, worldY: number) {
+    if (!this.player.canCastFrostbolt()) {
+      if (this.player.frostboltCooldown > 0) this.hud.notifyCastFailed(3)
+      else this.hud.notifyOOM()
+      return
+    }
+    this.player.spendFrostboltCost()
+    this.playerSprite.playCast()
+    spawnFrostCastEffect(this, this.player.x, this.player.y)
+    const bolt = spawnFrostbolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
     bolt.setData('castZone', getZoneAt(this.player.x, this.player.y)?.name ?? '__town__')
     this.sfx.onFireboltCast()
   }
@@ -751,7 +801,7 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  /** Mobile F-button: auto-aims Firebolt at the nearest active enemy or boss. */
+  /** Mobile F-button: auto-aims active bolt at the nearest active enemy or boss. */
   private castFireboltAtNearest() {
     let tx = this.input.activePointer.worldX
     let ty = this.input.activePointer.worldY
@@ -767,7 +817,7 @@ export class GameScene extends Phaser.Scene {
       if (d < nearestDist) { tx = this.activeBoss.x; ty = this.activeBoss.y }
     }
 
-    this.castFirebolt(tx, ty)
+    this.castActiveBolt(tx, ty)
   }
 
   private doInspect() {
@@ -818,7 +868,7 @@ export class GameScene extends Phaser.Scene {
         maxMana: this.player.effectiveMaxMana,
         type:    'player',
         extra:   [
-          `Kills: ${stats.totalKills}   Gold: ${this.player.inventory.gold}g`,
+          `Kills: ${stats.totalKills}   Gold: ${formatCopper(this.player.inventory.gold)}`,
           `Spell Power: ${this.player.effectiveSpellDamage}`,
         ],
       })
@@ -853,7 +903,7 @@ export class GameScene extends Phaser.Scene {
       this.progression.onLevelReached(this.player.stats.level)
       this.onSpellUnlock(this.player.stats.level)
     }
-    if (this.player.premiumGateReached && !this.premiumGateShown) this.showPremiumGate()
+    if (this.player.premiumGateReached && !this.premiumGateShown) this.showLevel10Milestone()
     if (this.activeQuestIdx >= 0) this.trackQuestKill()
 
     // Flashpoint: killing a burning enemy resets Firebolt cooldown
@@ -953,6 +1003,7 @@ export class GameScene extends Phaser.Scene {
         return
       }
       this.player.inventory.add(drop.item)
+      this.player.inventory.onChange?.()
       const rarity = drop.item.rarity
       const isRare = rarity === 'rare' || rarity === 'epic'
       const sz  = rarity === 'epic' ? 20 : rarity === 'rare' ? 17 : 13
@@ -966,10 +1017,11 @@ export class GameScene extends Phaser.Scene {
       }
     } else if (drop.gold !== undefined) {
       this.player.inventory.gold += drop.gold
+      this.player.inventory.onChange?.()
       this.progression.onGoldCollected(drop.gold)
-      const sz  = drop.gold >= 20 ? 16 : 13
-      const col = drop.gold >= 20 ? '#ffee44' : '#ffdd00'
-      this.hud.showFloatingText(drop.x, drop.y - 20, `+${drop.gold}g`, col, sz)
+      const sz  = drop.gold >= 100 ? 16 : 13
+      const col = drop.gold >= 100 ? '#ffee44' : '#ffdd00'
+      this.hud.showFloatingText(drop.x, drop.y - 20, `+${formatCopperShort(drop.gold)}`, col, sz)
     }
     const i = this.lootDrops.indexOf(drop)
     if (i !== -1) this.lootDrops.splice(i, 1)
@@ -1843,9 +1895,10 @@ export class GameScene extends Phaser.Scene {
     } else if (this.nearStash) {
       if (this.stashUI.isOpen()) this.stashUI.hide()
       else {
-        this.inventoryUI.isOpen() && this.inventoryUI.hide()
-        this.talentUI.isOpen()    && this.talentUI.hide()
+        this.inventoryUI.isOpen()   && this.inventoryUI.hide()
+        this.talentUI.isOpen()      && this.talentUI.hide()
         this.progressionUI.isOpen() && this.progressionUI.hide()
+        this.shopUI.isOpen()        && this.shopUI.hide()
         this.stashUI.show()
       }
     } else if (this.nearDungeon && !this.dialogOpen && !this.activeBoss) {
@@ -1940,7 +1993,7 @@ export class GameScene extends Phaser.Scene {
         `"Well done! You have completed:"`,
         `"${q.title}"`,
         '',
-        `Reward: +${q.xp} XP  +${q.gold} gold`,
+        `Reward: +${q.xp} XP  +${formatCopper(q.gold)}`,
         '',
         '[E] Collect reward',
       ]
@@ -1975,22 +2028,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private openMerchantDialog() {
-    if (this.dialogOpen) return
-    const lines = [
-      'Trader Brom:',
-      '',
-      '"Welcome, weary mage!"',
-      '"My wares are being restocked."',
-      '"A full shop arrives in the"',
-      '"premium version of Frost!"',
-      '',
-      `Gold: ${this.player.inventory.gold} g`,
-      '',
-      '[E] Close',
-    ]
-    this.showDialog(lines)
-    this.dialogOpen = true
-    this.questDialogAction = false
+    if (this.dialogOpen || this.shopUI.isOpen()) return
+    this.inventoryUI.isOpen() && this.inventoryUI.hide()
+    this.talentUI.isOpen()    && this.talentUI.hide()
+    this.progressionUI.isOpen() && this.progressionUI.hide()
+    this.stashUI.isOpen()     && this.stashUI.hide()
+    this.shopUI.open()
   }
 
   private showDialog(lines: string[]) {
@@ -2037,7 +2080,8 @@ export class GameScene extends Phaser.Scene {
       // Collect reward
       this.player.gainXP(q.xp)
       this.player.inventory.gold += q.gold
-      this.hud.showQuestUpdate(`Quest complete!\n+${q.xp} XP  +${q.gold} gold`, '#ffdd44')
+      this.player.inventory.onChange?.()
+      this.hud.showQuestUpdate(`Quest complete!\n+${q.xp} XP  +${formatCopper(q.gold)}`, '#ffdd44')
       this.hideQuestObjectiveMarker()
       const next = this.activeQuestIdx + 1
       if (next < this.questDefs.length) {
@@ -2126,9 +2170,9 @@ export class GameScene extends Phaser.Scene {
 
   private initQuests() {
     this.questDefs = [
-      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',          target: 5,  xp: 80,  gold: 15 },
-      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.',   target: 12, xp: 160, gold: 35 },
-      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies total.',          target: 25, xp: 300, gold: 70 },
+      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',          target: 5,  xp: 80,  gold: 1500  },
+      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.',   target: 12, xp: 160, gold: 3500  },
+      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies total.',          target: 25, xp: 300, gold: 7000  },
     ]
     this.updateQuestHUD()
   }
@@ -2164,32 +2208,28 @@ export class GameScene extends Phaser.Scene {
     if (msgs[level]) this.hud.showQuestUpdate(msgs[level], '#88ddff')
   }
 
-  // ── Premium gate ──────────────────────────────────────────────────────────
+  // ── Level 10 milestone modal ──────────────────────────────────────────────
 
-  private showPremiumGate() {
+  private showLevel10Milestone() {
     this.premiumGateShown = true
-    this.screenFlash(0x4466aa, 0.18, 1200)
+    this.screenFlash(0x4466aa, 0.22, 1200)
     const frostModal = (window as any).__frostModal
     if (!frostModal) return
     frostModal.show({
-      title: '✦  Your Journey Continues  ✦',
+      title: '⚡  Level 10 — Veteran Mage  ⚡',
       titleClass: 'premium',
       lines: [
-        "You've reached Level 10 — end of the free chapter.",
+        '"You have grown stronger than most dare to imagine."',
         '',
-        'The full version unlocks:',
-        '◆ Levels 11–20 & true archmage power',
-        '◆ Blizzard — sustained AoE ice storm (Lv 14)',
-        '◆ Deep talent trees & item crafting',
-        '◆ Endless boss lairs & epic rewards',
+        'Milestones reached:',
+        '◆ Talent trees are now fully open — spend wisely',
+        '◆ Blizzard unlocks at level 14 (R)',
+        '◆ Arcane tree unlocks at level 9 — power awaits',
         '',
-        'Thank you for playing Frost!',
-        '',
-        'You may keep exploring — XP is capped at level 10.',
+        'Press T to open your Talent Trees.',
       ],
       buttons: [
-        { label: '✦  Get Full Version', primary: true,  onClick: () => {} },
-        { label: 'Skip for now (testing)', primary: false, onClick: () => {} },
+        { label: 'Keep going', primary: true, onClick: () => {} },
       ],
       onClose: () => {},
     })

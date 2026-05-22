@@ -29,9 +29,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   readonly talents   = new TalentSystem()
 
   fireboltCooldown        = 0
+  frostboltCooldown       = 0
   arcaneExplosionCooldown = 0
   frostNovaCooldown       = 0
   blizzardCooldown        = 0
+
+  /** Which bolt spell the F key and left-click currently fire. */
+  activeBolt: 'fire' | 'frost' = 'fire'
+
+  swapBolt() { this.activeBolt = this.activeBolt === 'fire' ? 'frost' : 'fire' }
 
   /** True when the free-tier level cap (5) has been hit. Read by GameScene. */
   premiumGateReached = false
@@ -70,7 +76,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const base = Math.max(Balance.player.fireboltCdMin, raw)
     return this.applyCDR(base)
   }
-  get arcaneExplosionCooldownMax() { return this.applyCDR(Balance.spells.arcaneExplosion.cooldownMs) }
+  get frostboltCooldownMax(): number { return this.fireboltCooldownMax }
+  /** ArcEx shares cooldown length with whichever bolt is active. */
+  get arcaneExplosionCooldownMax(): number { return this.fireboltCooldownMax }
   get frostNovaCooldownMax()       { return this.applyCDR(Balance.spells.frostNova.cooldownMs) }
   get blizzardCooldownMax()        { return this.applyCDR(Balance.spells.blizzard.cooldownMs) }
 
@@ -86,16 +94,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get fireboltCost()        { return this.effectiveCost(Balance.player.fireboltManaCost) }
+  get frostboltCost()       { return this.effectiveCost(Balance.spells.frostbolt.manaCost) }
   get arcaneExplosionCost() { return this.effectiveCost(Balance.spells.arcaneExplosion.manaCost) }
   get frostNovaCost()       { return this.effectiveCost(Balance.spells.frostNova.manaCost) }
   get blizzardCost()        { return this.effectiveCost(Balance.spells.blizzard.manaCost) }
 
   canCastFirebolt()        { return this.fireboltCooldown <= 0        && this.stats.mana >= this.fireboltCost }
+  canCastFrostbolt()       { return this.frostboltCooldown <= 0       && this.stats.mana >= this.frostboltCost }
   canCastArcaneExplosion() { return this.arcaneExplosionCooldown <= 0 && this.stats.mana >= this.arcaneExplosionCost }
   canCastFrostNova()       { return this.frostNovaCooldown <= 0       && this.stats.mana >= this.frostNovaCost }
   canCastBlizzard()        { return this.blizzardCooldown <= 0        && this.stats.mana >= this.blizzardCost }
 
   spendFireboltCost()        { this.stats.mana -= this.fireboltCost;        this.fireboltCooldown        = this.fireboltCooldownMax }
+  spendFrostboltCost()       { this.stats.mana -= this.frostboltCost;       this.frostboltCooldown       = this.frostboltCooldownMax }
   spendArcaneExplosionCost() { this.stats.mana -= this.arcaneExplosionCost; this.arcaneExplosionCooldown = this.arcaneExplosionCooldownMax }
   spendFrostNovaCost()       { this.stats.mana -= this.frostNovaCost;       this.frostNovaCooldown       = this.frostNovaCooldownMax }
   spendBlizzardCost()        { this.stats.mana -= this.blizzardCost;        this.blizzardCooldown        = this.blizzardCooldownMax }
@@ -140,6 +151,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   update(delta: number) {
     this.move()
     if (this.fireboltCooldown        > 0) this.fireboltCooldown        -= delta
+    if (this.frostboltCooldown       > 0) this.frostboltCooldown       -= delta
     if (this.arcaneExplosionCooldown > 0) this.arcaneExplosionCooldown -= delta
     if (this.frostNovaCooldown       > 0) this.frostNovaCooldown       -= delta
     if (this.blizzardCooldown        > 0) this.blizzardCooldown        -= delta
@@ -198,12 +210,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private levelUp() {
-    // Free version: cap at level 10
-    if (this.stats.level >= 10) {
-      this.premiumGateReached = true
-      this.stats.xp = this.stats.xpToNext - 1 // clamp just below threshold
-      return
-    }
+    if (this.stats.level === 10) this.premiumGateReached = true  // milestone flag, no cap
     const B = Balance.player
     this.stats.xp       -= this.stats.xpToNext
     this.stats.level++

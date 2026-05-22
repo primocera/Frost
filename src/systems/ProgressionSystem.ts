@@ -15,7 +15,7 @@ export const COSMETICS: Record<CosmeticId, CosmeticDef> = {
   default: { id: 'default', name: 'Azure',   tint: 0xffffff, desc: 'Default' },
   crimson: { id: 'crimson', name: 'Crimson',  tint: 0xff5555, desc: 'Kill 100 enemies' },
   void:    { id: 'void',    name: 'Void',     tint: 0xaa55ff, desc: 'Hunt an elite mob' },
-  golden:  { id: 'golden',  name: 'Golden',   tint: 0xffdd55, desc: 'Collect 1000 gold' },
+  golden:  { id: 'golden',  name: 'Golden',   tint: 0xffdd55, desc: 'Collect 10 gold' },
   frost:   { id: 'frost',   name: 'Frost',    tint: 0x55ddff, desc: 'Reach level 10' },
   shadow:  { id: 'shadow',  name: 'Shadow',   tint: 0x7799bb, desc: 'Kill 500 enemies' },
 }
@@ -41,7 +41,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'elite_slayer',  name: 'Elite Slayer',   desc: 'Kill 10 elites',              goal: 10,   stat: 'eliteKills' },
   { id: 'level_10',      name: 'Veteran Mage',   desc: 'Reach level 10',              goal: 10,   stat: 'highestLevel',  cosmetic: 'frost' },
   { id: 'level_20',      name: 'Archmage',        desc: 'Reach level 20',              goal: 20,   stat: 'highestLevel' },
-  { id: 'gold_hoarder',  name: 'Gold Hoarder',   desc: 'Collect 1000 gold lifetime',  goal: 1000, stat: 'totalGold',     cosmetic: 'golden' },
+  { id: 'gold_hoarder',  name: 'Gold Hoarder',   desc: 'Collect 10 gold lifetime',    goal: 100000, stat: 'totalGold',   cosmetic: 'golden' },
   { id: 'streak_master', name: 'Streak Master',  desc: 'Hit a kill streak of 8',      goal: 8,    stat: 'highestStreak' },
   { id: 'veteran',       name: 'Veteran',         desc: 'Play 10 sessions',            goal: 10,   stat: 'sessionsPlayed' },
   { id: 'challenger',    name: 'Challenger',      desc: 'Complete 5 daily challenges', goal: 5,    stat: 'dailiesCompleted' },

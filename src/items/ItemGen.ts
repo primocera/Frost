@@ -136,6 +136,7 @@ export function generateItem(ilvl: number, forceRarity?: Rarity): Item {
   }
 }
 
+/** Returns a copper amount dropped by an enemy at the given level. */
 export function generateGold(level: number): number {
-  return Math.max(1, Math.round(level * 3 * (0.7 + Math.random() * 0.6)))
+  return Math.max(5, Math.round(level * 30 * (0.7 + Math.random() * 0.6)))
 }
