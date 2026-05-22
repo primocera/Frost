@@ -1,48 +1,97 @@
 import Phaser from 'phaser'
 
-/** Visual effect only — GameScene applies freeze to enemies. */
 export function castFrostNova(scene: Phaser.Scene, x: number, y: number, radius: number) {
-  // Expanding ice ring out to the freeze radius
-  const ring = scene.add.graphics().setPosition(x, y).setDepth(8)
-  ring.lineStyle(4, 0x88ddff, 1)
-  ring.strokeCircle(0, 0, 10)
+  // Ice ground disc — flat circle that expands across the floor
+  const disc = scene.add.graphics().setPosition(x, y).setDepth(5)
+  disc.fillStyle(0x88ccff, 0.18)
+  disc.fillCircle(0, 0, radius)
+  disc.lineStyle(2, 0xaaeeff, 0.55)
+  disc.strokeCircle(0, 0, radius * 0.9)
   scene.tweens.add({
-    targets: ring, scaleX: radius / 10, scaleY: radius / 10, alpha: 0,
-    duration: 480, ease: 'Power2Out',
-    onComplete: () => ring.destroy(),
+    targets: disc, alpha: 0,
+    duration: 600, delay: 80, ease: 'Power2',
+    onComplete: () => disc.destroy(),
   })
 
-  // Second ring — thinner, slightly slower
-  const ring2 = scene.add.graphics().setPosition(x, y).setDepth(7)
-  ring2.lineStyle(2, 0xaaeeff, 0.7)
+  // Primary expanding ice ring
+  const ring1 = scene.add.graphics().setPosition(x, y).setDepth(9)
+  ring1.lineStyle(4, 0x66ddff, 1)
+  ring1.strokeCircle(0, 0, 10)
+  scene.tweens.add({
+    targets: ring1, scaleX: radius / 10, scaleY: radius / 10, alpha: 0,
+    duration: 440, ease: 'Power2Out',
+    onComplete: () => ring1.destroy(),
+  })
+
+  // Secondary ring — thinner, icy white
+  const ring2 = scene.add.graphics().setPosition(x, y).setDepth(8)
+  ring2.lineStyle(2, 0xeeffff, 0.75)
   ring2.strokeCircle(0, 0, 10)
   scene.tweens.add({
-    targets: ring2, scaleX: radius / 10 * 0.85, scaleY: radius / 10 * 0.85, alpha: 0,
-    duration: 600, delay: 60, ease: 'Power2Out',
+    targets: ring2, scaleX: radius / 10 * 0.82, scaleY: radius / 10 * 0.82, alpha: 0,
+    duration: 580, delay: 55, ease: 'Power2Out',
     onComplete: () => ring2.destroy(),
   })
 
-  // Flash fill — icy dome
-  const fill = scene.add.graphics().setPosition(x, y).setDepth(6)
-  fill.fillStyle(0x44aadd, 0.28)
-  fill.fillCircle(0, 0, radius)
-  scene.tweens.add({
-    targets: fill, alpha: 0,
-    duration: 400, ease: 'Power2',
-    onComplete: () => fill.destroy(),
-  })
+  // Crystal shard burst — fly outward and fade
+  const shards = scene.add.particles(x, y, 'particle', {
+    speed:       { min: radius * 0.4, max: radius * 1.2 },
+    scale:       { start: 0.65, end: 0 },
+    alpha:       { start: 1, end: 0 },
+    lifespan:    680,
+    tint:        [0xffffff, 0xaaeeff, 0x55ccff, 0x88eeff],
+    angle:       { min: 0, max: 360 },
+    blendMode:   'ADD',
+    emitting:    false,
+  }).setDepth(9)
+  shards.explode(34)
 
-  // Ice crystal burst
-  const emitter = scene.add.particles(x, y, 'particle', {
-    speed:     { min: 60, max: radius * 1.1 },
-    scale:     { start: 0.9, end: 0 },
-    alpha:     { start: 1, end: 0 },
-    lifespan:  650,
-    blendMode: 'ADD',
-    tint:      [0x88ddff, 0xaaeeff, 0xffffff, 0x44aadd],
-    angle:     { min: 0, max: 360 },
-    emitting:  false,
-  }).setDepth(8)
-  emitter.explode(32)
-  scene.time.delayedCall(750, () => { if (emitter.active) emitter.destroy() })
+  // Fine sparkle on top
+  const sparkle = scene.add.particles(x, y, 'particle', {
+    speed:       { min: 20, max: 60 },
+    scale:       { start: 0.35, end: 0 },
+    alpha:       { start: 0.8, end: 0 },
+    lifespan:    500,
+    tint:        [0xffffff, 0xddffff],
+    angle:       { min: 0, max: 360 },
+    blendMode:   'ADD',
+    emitting:    false,
+  }).setDepth(10)
+  sparkle.explode(18)
+
+  scene.time.delayedCall(800, () => {
+    if (shards.active) shards.destroy()
+    if (sparkle.active) sparkle.destroy()
+  })
+}
+
+/** Icy overlay on a frozen enemy — ring that pulses around them. */
+export function applyFreezeVisual(
+  scene: Phaser.Scene,
+  enemy: Phaser.GameObjects.Components.Transform & { active: boolean },
+  durationMs: number,
+) {
+  if (!enemy.active) return
+  const r  = 14
+  const fg = scene.add.graphics().setDepth(6)
+
+  const draw = () => {
+    if (!fg.active || !enemy.active) return
+    fg.clear()
+    fg.setPosition(enemy.x, enemy.y)
+    fg.lineStyle(2, 0x88ddff, 0.65)
+    fg.strokeCircle(0, 0, r)
+    fg.lineStyle(1, 0xccffff, 0.35)
+    fg.strokeCircle(0, 0, r * 0.65)
+  }
+  draw()
+
+  const ticker = scene.time.addEvent({ delay: 80, loop: true, callback: draw })
+  scene.time.delayedCall(durationMs, () => {
+    ticker.destroy()
+    scene.tweens.add({
+      targets: fg, alpha: 0, duration: 250,
+      onComplete: () => fg.destroy(),
+    })
+  })
 }

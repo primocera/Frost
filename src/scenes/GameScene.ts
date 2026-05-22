@@ -20,6 +20,7 @@ import { Stash } from '../systems/Stash'
 import { TalentUI } from '../ui/TalentUI'
 import { ProgressionUI } from '../ui/ProgressionUI'
 import { MobileControls } from '../ui/MobileControls'
+import { PlayerSprite } from '../ui/PlayerSprite'
 import { ChatUI } from '../ui/ChatUI'
 import { InspectPanel } from '../ui/InspectPanel'
 import { SocialSystem } from '../social/SocialSystem'
@@ -58,6 +59,7 @@ export class GameScene extends Phaser.Scene {
   private tKey!: Phaser.Input.Keyboard.Key
   private pKey!: Phaser.Input.Keyboard.Key
   private mobileControls: MobileControls | null = null
+  private playerSprite!:  PlayerSprite
   // Social systems
   private social!:   SocialSystem
   private party!:    PartySystem
@@ -109,6 +111,9 @@ export class GameScene extends Phaser.Scene {
 
     this.world       = new World(this, WORLD)
     this.player      = new Player(this, WORLD / 2, WORLD / 2, playerName)
+    // Physics body is still active; hide the placeholder circle visual
+    this.player.setAlpha(0)
+    this.playerSprite = new PlayerSprite(this)
     this.enemyGroup  = this.physics.add.group()
     this.bolts       = this.physics.add.group()
     this.wraithBolts = this.physics.add.group()
@@ -314,6 +319,7 @@ export class GameScene extends Phaser.Scene {
       const dmg = bolt.getData('damage') as number
       bolt.destroy()
       this.player.takeDamage(dmg)
+      this.playerSprite.playHurt()
       this.sfx.onPlayerHit()
       this.cameras.main.shake(130, 0.006)
       this.screenFlash(0xff0000, 0.18, 280)
@@ -323,6 +329,7 @@ export class GameScene extends Phaser.Scene {
     // Enemy emits this when a melee or telegraph hit lands
     this.events.on('enemy-hit-player', (_dmg: number) => {
       if (this.dead) return
+      this.playerSprite.playHurt()
       this.sfx.onPlayerHit()
       this.cameras.main.shake(160, 0.009)
       this.screenFlash(0xff0000, 0.20, 300)
@@ -424,6 +431,7 @@ export class GameScene extends Phaser.Scene {
       const dmg = bolt.getData('damage') as number
       bolt.destroy()
       this.player.takeDamage(dmg)
+      this.playerSprite.playHurt()
       this.sfx.onPlayerHit()
       this.cameras.main.shake(130, 0.006)
       this.screenFlash(0xff0000, 0.18, 280)
@@ -514,12 +522,10 @@ export class GameScene extends Phaser.Scene {
 
     this.player.update(delta)
 
-    const ptr = this.input.activePointer
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+    this.playerSprite.update(delta, this.player.x, this.player.y, body.velocity.x, body.velocity.y, this.dead)
 
-    // Rotate player sprite to always face the cursor — snappy and intuitive
-    this.player.setRotation(
-      Phaser.Math.Angle.Between(this.player.x, this.player.y, ptr.worldX, ptr.worldY)
-    )
+    const ptr = this.input.activePointer
 
     if (Phaser.Input.Keyboard.JustDown(this.iKey)) {
       this.talentUI.isOpen() && this.talentUI.hide()
@@ -603,6 +609,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     this.player.spendFireboltCost()
+    this.playerSprite.playCast()
     spawnCastEffect(this, this.player.x, this.player.y)
     const bolt = spawnFirebolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
     bolt.setData('castZone', getZoneAt(this.player.x, this.player.y)?.name ?? '__town__')
@@ -620,6 +627,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     this.player.spendArcaneExplosionCost()
+    this.playerSprite.playCast()
 
     const t      = this.player.talents
     const radius = Math.round(Balance.spells.arcaneExplosion.radius * t.bonusAoEMult)
@@ -669,6 +677,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     this.player.spendFrostNovaCost()
+    this.playerSprite.playCast()
 
     const radius   = Math.round(Balance.spells.frostNova.radius * this.player.talents.bonusAoEMult)
     const freezeMs = Balance.spells.frostNova.freezeMs + this.player.talents.bonusFreezeMs
@@ -707,6 +716,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     this.player.spendBlizzardCost()
+    this.playerSprite.playCast()
 
     const { tickDamage, slowMult, slowDurationMs } = Balance.spells.blizzard
     const radius   = Math.round(Balance.spells.blizzard.radius * this.player.talents.bonusAoEMult)
@@ -1234,14 +1244,16 @@ export class GameScene extends Phaser.Scene {
   private buildPlayerTexture() {
     const g = this.add.graphics()
 
-    // Player — direction indicator dot at top so rotation shows facing
-    g.fillStyle(0x3377ee)
-    g.fillCircle(16, 16, 14)
-    g.fillStyle(0x88bbff, 0.4)
-    g.fillCircle(12, 12, 6)    // glint
-    g.fillStyle(0xffffff, 0.92)
-    g.fillCircle(16, 6, 3)     // bright dot near top → rotates to face cursor
+    // Invisible 1×1 placeholder — the physics body still uses 'player' key
+    // but the PlayerSprite renders the actual mage visuals.
+    g.fillStyle(0x000000, 0)
+    g.fillRect(0, 0, 1, 1)
     g.generateTexture('player', 32, 32)
+    g.clear()
+
+    // ── Mage animated sprite sheet ─────────────────────────────────────────
+    // 32×48 per frame, 11 frames: idle(0-3) walk(4-7) cast(8-10)
+    this.buildMageSheet()
     g.clear()
 
     // Enemies — base pass for all types
@@ -1323,19 +1335,267 @@ export class GameScene extends Phaser.Scene {
     g.generateTexture('wraith_bolt', 12, 12)
     g.clear()
 
-    // Firebolt
-    g.fillStyle(0xff6600)
+    // Firebolt — bright hot core with additive-ready edges
+    g.fillStyle(0xff3300, 1)
     g.fillCircle(7, 7, 7)
-    g.fillStyle(0xffcc00, 0.8)
-    g.fillCircle(7, 7, 4)
+    g.fillStyle(0xff8800, 0.85)
+    g.fillCircle(7, 7, 5)
+    g.fillStyle(0xffee44, 0.90)
+    g.fillCircle(7, 7, 3)
+    g.fillStyle(0xffffff, 0.80)
+    g.fillCircle(7, 7, 1.5)
     g.generateTexture('firebolt', 14, 14)
     g.clear()
 
-    // Particle
+    // Particle — soft round glow dot (used by all particle effects)
     g.fillStyle(0xffffff)
     g.fillCircle(4, 4, 4)
     g.generateTexture('particle', 8, 8)
     g.destroy()
+  }
+
+  // ── Mage sprite sheet ──────────────────────────────────────────────────────
+
+  private buildMageSheet() {
+    // 32×48 per frame, 11 frames horizontal strip
+    // Frames: 0-3 idle | 4-7 walk | 8-10 cast
+    const FW = 32, FH = 48, FRAMES = 11
+    const ct = this.textures.createCanvas('mage_sheet', FW * FRAMES, FH)!
+    const ctx = ct.getContext()
+
+    for (let f = 0; f < FRAMES; f++) {
+      this.drawMageFrame(ctx, f * FW, f)
+    }
+    ct.refresh()
+
+    // Register numbered frames so anims.generateFrameNumbers() works
+    for (let i = 0; i < FRAMES; i++) {
+      ct.add(i, 0, i * FW, 0, FW, FH)
+    }
+  }
+
+  private drawMageFrame(ctx: CanvasRenderingContext2D, ox: number, frame: number) {
+    const FW = 32
+    // Animation parameters per frame
+    type Anim = { bob: number; staffRaise: number; glow: number; footSwing: number; blink: boolean }
+    const ANIMS: Anim[] = [
+      // Idle 0-3
+      { bob: 0, staffRaise: 0,  glow: 0.20, footSwing: 0,    blink: false },
+      { bob: 1, staffRaise: 0,  glow: 0.15, footSwing: 0,    blink: false },
+      { bob: 1, staffRaise: 0,  glow: 0.20, footSwing: 0,    blink: false },
+      { bob: 0, staffRaise: 0,  glow: 0.30, footSwing: 0,    blink: true  },
+      // Walk 4-7
+      { bob: 0, staffRaise: -1, glow: 0.15, footSwing: -1,   blink: false },
+      { bob:-1, staffRaise:  1, glow: 0.15, footSwing: -0.4, blink: false },
+      { bob: 0, staffRaise: -1, glow: 0.15, footSwing:  1,   blink: false },
+      { bob:-1, staffRaise:  1, glow: 0.15, footSwing:  0.4, blink: false },
+      // Cast 8-10
+      { bob:-1, staffRaise:  6, glow: 0.55, footSwing: 0,    blink: false },
+      { bob:-3, staffRaise: 14, glow: 1.00, footSwing: 0,    blink: false },
+      { bob:-2, staffRaise: 10, glow: 0.65, footSwing: 0,    blink: false },
+    ]
+    const a  = ANIMS[Math.min(frame, ANIMS.length - 1)]
+    const cx = ox + FW / 2        // horizontal centre of this frame
+    const by = a.bob               // vertical body offset
+
+    // ── Cast glow behind everything ──────────────────────────────────────
+    if (a.glow > 0.3) {
+      const grad = ctx.createRadialGradient(cx, by + 32, 0, cx, by + 32, 22)
+      grad.addColorStop(0, `rgba(160,100,255,${a.glow * 0.55})`)
+      grad.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.ellipse(cx, by + 32, 22, 18, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // ── Drop shadow ──────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'
+    ctx.beginPath()
+    ctx.ellipse(cx, by + 47, 10, 3.5, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // ── Staff (drawn behind body) ─────────────────────────────────────────
+    const sx   = cx + 11
+    const tipY = by + 7 - a.staffRaise
+    const botY = by + 41
+
+    // Shaft
+    ctx.save()
+    ctx.strokeStyle = '#7a4e0a'
+    ctx.lineWidth   = 2.5
+    ctx.lineCap     = 'round'
+    ctx.beginPath()
+    ctx.moveTo(sx, tipY + 11)
+    ctx.lineTo(sx + 1, botY)
+    ctx.stroke()
+    ctx.restore()
+
+    // Orb glow
+    if (a.glow > 0.2) {
+      const ogr = ctx.createRadialGradient(sx, tipY + 6, 0, sx, tipY + 6, 14 * a.glow)
+      ogr.addColorStop(0, `rgba(220,170,255,${a.glow * 0.8})`)
+      ogr.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = ogr
+      ctx.beginPath()
+      ctx.arc(sx, tipY + 6, 14 * a.glow, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // Orb body
+    const orbGr = ctx.createRadialGradient(sx - 1, tipY + 4, 0, sx, tipY + 6, 6)
+    orbGr.addColorStop(0, '#ffffff')
+    orbGr.addColorStop(0.25, `rgba(220,${Math.round(120 + 80 * a.glow)},255,1)`)
+    orbGr.addColorStop(1, `rgba(90,0,180,${0.85 + a.glow * 0.15})`)
+    ctx.fillStyle = orbGr
+    ctx.beginPath()
+    ctx.arc(sx, tipY + 6, 5.5 + a.glow * 1.5, 0, Math.PI * 2)
+    ctx.fill()
+
+    // ── Boots / feet ──────────────────────────────────────────────────────
+    const lx = cx - 7 + a.footSwing * -3
+    const rx = cx + 4 + a.footSwing * 3
+    ctx.fillStyle = '#1c0e00'
+    ctx.beginPath(); ctx.ellipse(lx, by + 44, 6.5, 4, -0.08, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.ellipse(rx, by + 44, 6.5, 4, 0.08, 0, Math.PI * 2); ctx.fill()
+
+    // ── Robe body ─────────────────────────────────────────────────────────
+    const robeGr = ctx.createLinearGradient(cx - 13, by + 26, cx + 13, by + 43)
+    robeGr.addColorStop(0, '#1e3a8a')
+    robeGr.addColorStop(0.55, '#152d6e')
+    robeGr.addColorStop(1, '#0d1e4a')
+    ctx.fillStyle = robeGr
+    ctx.beginPath()
+    ctx.moveTo(cx - 12, by + 27)
+    ctx.bezierCurveTo(cx - 15, by + 33, cx - 13, by + 41, cx - 8, by + 44)
+    ctx.lineTo(cx + 7, by + 44)
+    ctx.bezierCurveTo(cx + 13, by + 41, cx + 15, by + 33, cx + 12, by + 27)
+    ctx.closePath()
+    ctx.fill()
+
+    // Robe left-edge highlight
+    ctx.save()
+    ctx.strokeStyle = '#2a4faa'
+    ctx.lineWidth   = 1.5
+    ctx.beginPath()
+    ctx.moveTo(cx - 12, by + 27)
+    ctx.bezierCurveTo(cx - 15, by + 33, cx - 13, by + 41, cx - 8, by + 44)
+    ctx.stroke()
+    ctx.restore()
+
+    // Robe trim at collar
+    ctx.fillStyle = '#2855b0'
+    ctx.beginPath()
+    ctx.moveTo(cx - 12, by + 27)
+    ctx.lineTo(cx,      by + 23)
+    ctx.lineTo(cx + 12, by + 27)
+    ctx.closePath()
+    ctx.fill()
+
+    // Belt
+    ctx.fillStyle = '#4a2e00'
+    ctx.fillRect(cx - 10, by + 32, 20, 3)
+    ctx.fillStyle = '#d4a820'
+    ctx.fillRect(cx - 4, by + 31, 8, 5)   // buckle
+
+    // ── Left sleeve + hand ────────────────────────────────────────────────
+    ctx.fillStyle = '#17317a'
+    ctx.beginPath(); ctx.ellipse(cx - 13, by + 31, 5, 7.5, -0.18, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#f0c898'
+    ctx.beginPath(); ctx.arc(cx - 14, by + 38, 4, 0, Math.PI * 2); ctx.fill()
+
+    // ── Right sleeve + hand ───────────────────────────────────────────────
+    ctx.fillStyle = '#17317a'
+    ctx.beginPath(); ctx.ellipse(cx + 11, by + 31, 5, 7.5, 0.18, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#f0c898'
+    ctx.beginPath(); ctx.arc(cx + 12, by + 38, 4, 0, Math.PI * 2); ctx.fill()
+
+    // ── Head ──────────────────────────────────────────────────────────────
+    const headX = cx, headY = by + 21, headR = 7.5
+    const headGr = ctx.createRadialGradient(headX - 2, headY - 2, 0, headX, headY, headR)
+    headGr.addColorStop(0, '#fde0c0')
+    headGr.addColorStop(0.7, '#eaaa78')
+    headGr.addColorStop(1, '#c87850')
+    ctx.fillStyle = headGr
+    ctx.beginPath()
+    ctx.arc(headX, headY, headR, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Eyes
+    if (a.blink) {
+      ctx.strokeStyle = '#334'
+      ctx.lineWidth   = 1.5
+      ctx.beginPath()
+      ctx.moveTo(headX - 5, headY + 0.5); ctx.lineTo(headX - 2, headY + 0.5)
+      ctx.moveTo(headX + 2, headY + 0.5); ctx.lineTo(headX + 5, headY + 0.5)
+      ctx.stroke()
+    } else {
+      ctx.fillStyle = '#223388'
+      ctx.beginPath()
+      ctx.arc(headX - 3,   headY + 0.5, 2, 0, Math.PI * 2)
+      ctx.arc(headX + 3.2, headY + 0.5, 2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      ctx.arc(headX - 2.2, headY - 0.3, 0.75, 0, Math.PI * 2)
+      ctx.arc(headX + 4.0, headY - 0.3, 0.75, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // ── Wizard hat ───────────────────────────────────────────────────────
+    const hatBrimY = headY - headR + 1
+    const hatBrimW = 12
+    const hatTipX  = headX - 1.5
+    const hatTipY  = by + 2
+
+    // Brim
+    ctx.fillStyle = '#100036'
+    ctx.beginPath()
+    ctx.ellipse(headX, hatBrimY, hatBrimW, 4, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#3300aa'
+    ctx.lineWidth   = 1
+    ctx.stroke()
+
+    // Hat body
+    ctx.fillStyle = '#180050'
+    ctx.beginPath()
+    ctx.moveTo(headX - hatBrimW * 0.78, hatBrimY)
+    ctx.quadraticCurveTo(headX - 5, (hatBrimY + hatTipY) * 0.5, hatTipX - 2, hatTipY)
+    ctx.lineTo(hatTipX + 2, hatTipY)
+    ctx.quadraticCurveTo(headX + 5, (hatBrimY + hatTipY) * 0.5, headX + hatBrimW * 0.78, hatBrimY)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#4400bb'
+    ctx.lineWidth   = 0.8
+    ctx.stroke()
+
+    // Hat band
+    ctx.fillStyle = '#5500cc'
+    const bandY = hatBrimY - 8
+    const bandW = hatBrimW * 0.62
+    ctx.fillRect(headX - bandW, bandY, bandW * 2, 3)
+
+    // Star gem on hat
+    ctx.save()
+    ctx.fillStyle = '#ffee44'
+    ctx.shadowColor = '#ffdd00'
+    ctx.shadowBlur  = 3 + a.glow * 5
+    this.drawStar5(ctx, hatTipX, hatTipY + 8, 3.5, 1.5)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  /** Draw a 5-pointed star path (call ctx.fill() after). */
+  private drawStar5(ctx: CanvasRenderingContext2D, cx: number, cy: number, outerR: number, innerR: number) {
+    ctx.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const angle = (i * Math.PI) / 5 - Math.PI / 2
+      const r     = i % 2 === 0 ? outerR : innerR
+      if (i === 0) ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
+      else         ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
+    }
+    ctx.closePath()
   }
 
   // ── Stash ─────────────────────────────────────────────────────────────────
