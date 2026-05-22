@@ -7,6 +7,8 @@ export interface SpawnZone {
   radius: number
   table: EnemyConfig[]
   maxEnemies: number
+  /** Rectangle that confines enemies to this zone. null = no restriction (town area). */
+  zoneBounds: { x: number; y: number; w: number; h: number } | null
 }
 
 // ── Zone definitions ───────────────────────────────────────────────────────────
@@ -397,9 +399,10 @@ export class World {
     ;(this.stashChestPos as { x: number; y: number }).x = chestX
     ;(this.stashChestPos as { x: number; y: number }).y = chestY
     this.scene.add.image(chestX, chestY, 'stash_chest').setDepth(3).setOrigin(0.5, 1)
-    this.scene.add.text(chestX, chestY - 44, 'Town Stash', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#ddaa33',
-      stroke: '#000', strokeThickness: 3,
+    this.scene.add.text(chestX, chestY - 48, 'Town Stash', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddaa33',
+      stroke: '#000', strokeThickness: 4,
     }).setDepth(4).setOrigin(0.5)
     // Glow under campfire
     const glow = this.scene.add.graphics().setDepth(1.5)
@@ -457,13 +460,14 @@ export class World {
       this.scene.add.image(e.x, e.y, 'dungeon_portal').setDepth(3).setOrigin(0.5, 1)
 
       // Boss dungeon label above portal
-      this.scene.add.text(e.x, e.y - 60, e.label, {
-        fontSize: '12px', fontFamily: 'monospace', color: e.col,
-        stroke: '#000', strokeThickness: 3,
+      this.scene.add.text(e.x, e.y - 64, e.label, {
+        fontSize: '13px', fontStyle: 'bold',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: e.col,
+        stroke: '#000', strokeThickness: 4,
       }).setDepth(4).setOrigin(0.5)
 
-      this.scene.add.text(e.x, e.y - 46, '⚔ Boss Dungeon', {
-        fontSize: '10px', fontFamily: 'monospace', color: '#888888',
+      this.scene.add.text(e.x, e.y - 48, '⚔ Boss Dungeon', {
+        fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#777788',
         stroke: '#000', strokeThickness: 2,
       }).setDepth(4).setOrigin(0.5)
     }
@@ -472,6 +476,11 @@ export class World {
   // ── Spawn zones ───────────────────────────────────────────────────────────
 
   private buildSpawnZones() {
+    const zoneBoundsFor = (cx: number, cy: number) => {
+      const z = ZONE_DEFS.find(d => cx >= d.x && cx < d.x + d.w && cy >= d.y && cy < d.y + d.h)
+      return z ? { x: z.x, y: z.y, w: z.w, h: z.h } : null
+    }
+
     // ── Beginner Forest (y: 2500–3600) — danger 1, sparse ────────────────
     for (const [cx, cy] of [
       [500, 2900], [1200, 2800], [1800, 3100],
@@ -481,6 +490,7 @@ export class World {
         cx, cy, radius: 260,
         table: [Slime, Slime, Slime, Ghoul],
         maxEnemies: 3,
+        zoneBounds: zoneBoundsFor(cx, cy),
       })
     }
 
@@ -493,6 +503,7 @@ export class World {
         cx, cy, radius: 340,
         table: [Ghoul, Ghoul, Wraith, Wraith, Brute],
         maxEnemies: 5,
+        zoneBounds: zoneBoundsFor(cx, cy),
       })
     }
 
@@ -504,6 +515,7 @@ export class World {
         cx, cy, radius: 340,
         table: [Imp, Imp, Imp, Ghoul, Brute],
         maxEnemies: 5,
+        zoneBounds: zoneBoundsFor(cx, cy),
       })
     }
 
@@ -515,6 +527,7 @@ export class World {
         cx, cy, radius: 360,
         table: [Wraith, Wraith, Brute, Elite, Ghoul],
         maxEnemies: 4,
+        zoneBounds: zoneBoundsFor(cx, cy),
       })
     }
 
@@ -526,6 +539,7 @@ export class World {
         cx, cy, radius: 220,
         table: [Slime, Slime, Ghoul],
         maxEnemies: 3,
+        zoneBounds: zoneBoundsFor(cx, cy),
       })
     }
   }

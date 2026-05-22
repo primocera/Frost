@@ -17,6 +17,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private wanderIdleMs = 0
   private wanderTarget: Phaser.Math.Vector2 | null = null
 
+  /** Zone rectangle this enemy must stay within. null = unrestricted (town area). */
+  homeZone: { x: number; y: number; w: number; h: number } | null = null
+
   private readonly homeX: number
   private readonly homeY: number
 
@@ -129,14 +132,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
 
-    if (dist < this.cfg.aggroRange) {
+    // Only aggro if the player is inside this enemy's zone
+    if (dist < this.cfg.aggroRange && this.isInMyZone(player.x, player.y)) {
       this.aiState = 'chase'
     } else if (this.aiState === 'chase' && dist > this.cfg.aggroRange * 1.4) {
       this.aiState      = 'wander'
       this.wanderTarget = null
     }
 
-    // Leash: give up chase if we've wandered too far from spawn point
+    // Drop chase the moment the player leaves this zone
+    if (this.aiState === 'chase' && !this.isInMyZone(player.x, player.y)) {
+      this.aiState      = 'wander'
+      this.wanderTarget = null
+    }
+
+    // Leash: give up chase if too far from spawn point
     if (this.aiState === 'chase') {
       const leashDist = Phaser.Math.Distance.Between(this.x, this.y, this.homeX, this.homeY)
       if (leashDist > 850) {
@@ -145,7 +155,24 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Safe zone: town center at world mid-point — enemies cannot pursue there
+    // Zone boundary leash: return to zone if enemy has drifted outside it
+    if (this.homeZone) {
+      const z = this.homeZone
+      const outside = this.x < z.x - 80 || this.x > z.x + z.w + 80
+                   || this.y < z.y - 80 || this.y > z.y + z.h + 80
+      if (outside) {
+        this.aiState      = 'wander'
+        this.wanderTarget = null
+        // Steer back toward nearest zone edge
+        const rx = Phaser.Math.Clamp(this.x, z.x, z.x + z.w)
+        const ry = Phaser.Math.Clamp(this.y, z.y, z.y + z.h)
+        const ra = Phaser.Math.Angle.Between(this.x, this.y, rx, ry)
+        this.setVelocity(Math.cos(ra) * this.cfg.speed * 0.6, Math.sin(ra) * this.cfg.speed * 0.6)
+        return
+      }
+    }
+
+    // Safe zone: town center — enemies cannot pursue there
     if (this.aiState === 'chase') {
       const townCX = 1800, townCY = 1800, safeR = 420
       const playerToTown = Phaser.Math.Distance.Between(player.x, player.y, townCX, townCY)
@@ -391,10 +418,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private pickWanderTarget() {
     const angle = Math.random() * Math.PI * 2
     const r     = Phaser.Math.Between(30, this.cfg.wanderRadius)
-    this.wanderTarget = new Phaser.Math.Vector2(
-      this.homeX + Math.cos(angle) * r,
-      this.homeY + Math.sin(angle) * r,
-    )
+    let tx = this.homeX + Math.cos(angle) * r
+    let ty = this.homeY + Math.sin(angle) * r
+    if (this.homeZone) {
+      const z = this.homeZone
+      tx = Phaser.Math.Clamp(tx, z.x + 60, z.x + z.w - 60)
+      ty = Phaser.Math.Clamp(ty, z.y + 60, z.y + z.h - 60)
+    }
+    this.wanderTarget = new Phaser.Math.Vector2(tx, ty)
+  }
+
+  /** Returns true if the given world position is inside this enemy's home zone (or zone-less). */
+  private isInMyZone(wx: number, wy: number): boolean {
+    if (!this.homeZone) return true
+    const z = this.homeZone
+    return wx >= z.x && wx < z.x + z.w && wy >= z.y && wy < z.y + z.h
   }
 
   // ── Visuals ───────────────────────────────────────────────────────────────

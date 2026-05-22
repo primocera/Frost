@@ -13,6 +13,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    this.scene.start('NameScene')
+    const playerName = this.registry.get('playerName') || 'Apprentice'
+    this.scene.start('GameScene', { playerName })
   }
 }

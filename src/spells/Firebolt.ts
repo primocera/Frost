@@ -13,7 +13,7 @@ export function spawnFirebolt(
   toX: number,
   toY: number,
   damage: number,
-) {
+): Phaser.Physics.Arcade.Sprite {
   const bolt = group.create(fromX, fromY, 'firebolt') as Phaser.Physics.Arcade.Sprite
   bolt.setData('damage', damage)
   bolt.setDepth(7)
@@ -38,6 +38,7 @@ export function spawnFirebolt(
   bolt.setData('trail', trail)
 
   scene.time.delayedCall(LIFETIME, () => destroyBolt(bolt))
+  return bolt
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────

@@ -90,7 +90,6 @@ export class GameScene extends Phaser.Scene {
   private npcPrompt!:   Phaser.GameObjects.Text
   private nearNPC:      'quest' | 'merchant' | null = null
   private dialogOpen    = false
-  private dialogContainer: Phaser.GameObjects.Container | null = null
   private questDialogAction = false
   // Quest system
   private questDefs:     { title: string; desc: string; target: number; xp: number; gold: number }[] = []
@@ -143,7 +142,7 @@ export class GameScene extends Phaser.Scene {
     this.stashPrompt = this.add.text(
       this.world.stashChestPos.x, this.world.stashChestPos.y - 56,
       '[E] Open stash', {
-        fontSize: '11px', fontFamily: 'monospace', color: '#ddaa33',
+        fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddaa33',
         stroke: '#000', strokeThickness: 3,
         backgroundColor: '#00000088', padding: { x: 4, y: 2 },
       }
@@ -483,7 +482,7 @@ export class GameScene extends Phaser.Scene {
       this.physics.pause()
       this.add.text(this.scale.width / 2, this.scale.height / 2, `YOU DIED\n${this.social.profile.name}\n\nRefresh to restart`, {
         fontSize: '32px', color: '#ff4444',
-        fontFamily: 'monospace', align: 'center',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'center',
         stroke: '#000000', strokeThickness: 5,
       }).setScrollFactor(0).setDepth(50).setOrigin(0.5)
       return
@@ -535,8 +534,10 @@ export class GameScene extends Phaser.Scene {
 
     if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
       if (this.nearNPC) {
-        if (this.dialogOpen) this.dismissDialog()
-        else if (this.nearNPC === 'quest') this.openQuestDialog()
+        if (this.dialogOpen) {
+          ;(window as any).__frostModal?.hide()
+          this.dismissDialog()
+        } else if (this.nearNPC === 'quest') this.openQuestDialog()
         else this.openMerchantDialog()
       } else if (this.nearStash) {
         if (this.stashUI.isOpen()) this.stashUI.hide()
@@ -586,6 +587,16 @@ export class GameScene extends Phaser.Scene {
     const aggroCount = this.enemies.filter(e => e.active && !e.dying && e.isChasing).length
     this.hud.update(this.player, aggroCount)
 
+    // Clip bolts that cross a zone boundary — prevents sniping across zones
+    for (const child of this.bolts.getChildren()) {
+      const b = child as Phaser.Physics.Arcade.Sprite
+      if (!b.active) continue
+      const castZone = b.getData('castZone') as string | undefined
+      if (castZone === undefined) continue
+      const currZone = getZoneAt(b.x, b.y)?.name ?? '__town__'
+      if (currZone !== castZone) destroyBolt(b)
+    }
+
     // Zone detection — triggers atmosphere + ambient effects on entry
     const zone = getZoneAt(this.player.x, this.player.y)
     if (zone !== this.currentZone) this.enterZone(zone)
@@ -601,7 +612,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.spendFireboltCost()
     spawnCastEffect(this, this.player.x, this.player.y)
-    spawnFirebolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
+    const bolt = spawnFirebolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
+    bolt.setData('castZone', getZoneAt(this.player.x, this.player.y)?.name ?? '__town__')
     this.sfx.onFireboltCast()
   }
 
@@ -627,8 +639,10 @@ export class GameScene extends Phaser.Scene {
       Balance.spells.arcaneExplosion.baseDamage + t.bonusArcExDamage
       + this.player.effectiveSpellDamage * 0.5
     )
+    const playerZoneName = getZoneAt(this.player.x, this.player.y)?.name ?? '__town__'
     for (const enemy of [...this.enemies]) {
       if (!enemy.active || enemy.dying) continue
+      if ((getZoneAt(enemy.x, enemy.y)?.name ?? '__town__') !== playerZoneName) continue
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
       if (d > radius) continue
       const wasFrozen = enemy.isFrozen
@@ -670,8 +684,10 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(80, 0.005)
     this.sfx.onFrostNova()
 
+    const frostPlayerZone = getZoneAt(this.player.x, this.player.y)?.name ?? '__town__'
     for (const enemy of [...this.enemies]) {
       if (!enemy.active || enemy.dying) continue
+      if ((getZoneAt(enemy.x, enemy.y)?.name ?? '__town__') !== frostPlayerZone) continue
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y)
       if (d > radius) continue
       enemy.freeze(freezeMs)
@@ -705,10 +721,12 @@ export class GameScene extends Phaser.Scene {
     const spellDmg = this.player.effectiveSpellDamage
     this.sfx.onBlizzardCast()
 
+    const blizzPlayerZone = getZoneAt(this.player.x, this.player.y)?.name ?? '__town__'
     spawnBlizzard(this, worldX, worldY, (cx, cy) => {
       // Snapshot to avoid mutation issues during kill processing
       for (const enemy of [...this.enemies]) {
         if (!enemy.active || enemy.dying) continue
+        if ((getZoneAt(enemy.x, enemy.y)?.name ?? '__town__') !== blizzPlayerZone) continue
         const d = Phaser.Math.Distance.Between(cx, cy, enemy.x, enemy.y)
         if (d > radius) continue
         const wasFrozen = enemy.isFrozen
@@ -1005,7 +1023,7 @@ export class GameScene extends Phaser.Scene {
 
     // Arrival announcement
     const t = this.add.text(this.scale.width / 2, this.scale.height / 2 - 25, `⚔  ${cfg.name}  ⚔\nBOSS ENCOUNTER`, {
-      fontSize: '22px', fontFamily: 'monospace', color: '#ff5555',
+      fontSize: '22px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ff5555',
       stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
 
@@ -1182,6 +1200,7 @@ export class GameScene extends Phaser.Scene {
 
     const cfg = zone.table[Phaser.Math.Between(0, zone.table.length - 1)]
     const enemy = new Enemy(this, x, y, cfg)
+    enemy.homeZone = zone.zoneBounds
     enemy.setData('zone', zone)
     enemy.setData('zoneName', getZoneAt(zone.cx, zone.cy)?.name ?? null)
     this.enemies.push(enemy)
@@ -1327,7 +1346,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.dungeonPrompt = this.add.text(0, 0, '', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#cc88ff',
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#cc88ff',
       stroke: '#000000', strokeThickness: 3,
       backgroundColor: '#00000088', padding: { x: 4, y: 2 },
     }).setDepth(10).setOrigin(0.5).setVisible(false)
@@ -1369,28 +1388,30 @@ export class GameScene extends Phaser.Scene {
 
     // Quest NPC
     this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_quest').setDepth(4).setOrigin(0.5, 1)
-    this.add.text(cx - 180, cy - 62, 'Elder Mirwen', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#cc88ff',
-      stroke: '#000', strokeThickness: 3,
+    this.add.text(cx - 180, cy - 68, 'Elder Mirwen', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#cc88ff',
+      stroke: '#000', strokeThickness: 4,
     }).setDepth(4).setOrigin(0.5)
-    this.add.text(cx - 180, cy - 50, '! Quest', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#ffdd44',
+    this.add.text(cx - 180, cy - 52, '! Quest', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
     // Merchant NPC
     this.npcMerchant = this.add.image(cx + 180, cy - 20, 'npc_merchant').setDepth(4).setOrigin(0.5, 1)
-    this.add.text(cx + 180, cy - 62, 'Trader Brom', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#ddbb44',
-      stroke: '#000', strokeThickness: 3,
+    this.add.text(cx + 180, cy - 68, 'Trader Brom', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddbb44',
+      stroke: '#000', strokeThickness: 4,
     }).setDepth(4).setOrigin(0.5)
-    this.add.text(cx + 180, cy - 50, '$ Shop', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#aaffaa',
+    this.add.text(cx + 180, cy - 52, '$ Shop', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaffaa',
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
     // Direction signs
-    const sty = (col: string) => ({ fontSize: '12px', fontFamily: 'monospace', color: col, stroke: '#000', strokeThickness: 4 })
+    const sty = (col: string) => ({ fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: col, stroke: '#000', strokeThickness: 4 })
     this.add.text(cx, cy + 260, '▼  Beginner Forest',        sty('#44cc44')).setDepth(4).setOrigin(0.5)
     this.add.text(cx, cy - 260, '▲  Frozen Ruins (Danger)',  sty('#88ccff')).setDepth(4).setOrigin(0.5)
     this.add.text(cx - 290, cy, '◄  Corrupted Fields',       sty('#cc4444')).setDepth(4).setOrigin(0.5)
@@ -1398,7 +1419,7 @@ export class GameScene extends Phaser.Scene {
 
     // Proximity prompt (world-space, follows camera)
     this.npcPrompt = this.add.text(0, 0, 'Press E to talk', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#ffffcc',
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffffcc',
       stroke: '#000000', strokeThickness: 3,
       backgroundColor: '#00000088', padding: { x: 4, y: 2 },
     }).setDepth(10).setOrigin(0.5).setVisible(false)
@@ -1497,29 +1518,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showDialog(lines: string[]) {
-    const bW = 380, bH = lines.length * 18 + 32
-    const bX = this.scale.width / 2 - bW / 2, bY = this.scale.height / 2 - bH / 2
-    const container = this.add.container(0, 0).setScrollFactor(0).setDepth(60)
-    const bg = this.add.graphics()
-    bg.fillStyle(0x04080f, 0.93)
-    bg.fillRoundedRect(bX, bY, bW, bH, 8)
-    bg.lineStyle(1, 0x334466, 0.8)
-    bg.strokeRoundedRect(bX, bY, bW, bH, 8)
-    container.add(bg)
-    lines.forEach((line, i) => {
-      const isTitle  = i === 0
-      const isAction = line.startsWith('[E]')
-      const col  = isTitle ? '#cc88ff' : isAction ? '#ffdd44' : '#ccccdd'
-      const size = isTitle ? '13px' : '12px'
-      container.add(this.add.text(bX + 16, bY + 12 + i * 18, line, {
-        fontSize: size, fontFamily: 'monospace', color: col,
-      }).setScrollFactor(0).setDepth(61))
+    const frostModal = (window as any).__frostModal
+    if (!frostModal) return
+
+    // lines[0] is always "NpcName:" — strip colon for title
+    const title = lines[0].replace(/:$/, '').trim()
+    const isMerchant = title.toLowerCase().includes('brom') || title.toLowerCase().includes('trader')
+
+    // body: everything except first line and [E] action lines
+    const bodyLines = lines.slice(1).filter(l => !l.startsWith('['))
+
+    // action label from the [E] line
+    const actionLine = lines.find(l => l.startsWith('[E]'))
+    const actionLabel = actionLine ? actionLine.replace('[E]', '').trim() : 'Close'
+
+    frostModal.show({
+      title,
+      titleClass: isMerchant ? 'merchant' : '',
+      lines: bodyLines,
+      buttons: [{ label: actionLabel, primary: true, onClick: () => this.dismissDialog() }],
+      onClose: () => this.dismissDialog(),
     })
-    this.dialogContainer = container
   }
 
   private dismissDialog() {
-    if (this.dialogContainer) { this.dialogContainer.destroy(true); this.dialogContainer = null }
+    if (!this.dialogOpen) return
     const hadAction = this.questDialogAction
     this.questDialogAction = false
     this.dialogOpen = false
@@ -1600,41 +1623,30 @@ export class GameScene extends Phaser.Scene {
 
   private showPremiumGate() {
     this.premiumGateShown = true
-    const SW = this.scale.width, SH = this.scale.height
-    const bW = 500, bH = 290
-    const bX = SW / 2 - bW / 2, bY = SH / 2 - bH / 2
-    const over = this.add.graphics().setScrollFactor(0).setDepth(80)
-    over.fillStyle(0x000000, 0.72)
-    over.fillRect(0, 0, SW, SH)
-    over.fillStyle(0x08101e, 0.98)
-    over.fillRoundedRect(bX, bY, bW, bH, 10)
-    over.lineStyle(2, 0x4466aa, 0.9)
-    over.strokeRoundedRect(bX, bY, bW, bH, 10)
-
-    this.add.text(SW / 2, bY + 36, '✦  Your Journey Continues  ✦', {
-      fontSize: '20px', fontFamily: 'monospace', color: '#88ccff',
-      stroke: '#001133', strokeThickness: 6,
-    }).setScrollFactor(0).setDepth(81).setOrigin(0.5)
-
-    this.add.text(SW / 2, bY + 76, [
-      'You have reached Level 10 — end of the free chapter.',
-      '',
-      'The full version unlocks:',
-      '  ◆ Levels 11–20 & true archmage power',
-      '  ◆ Blizzard — sustained AoE ice storm (Lv 14)',
-      '  ◆ Deep talent trees & item crafting',
-      '  ◆ Endless boss lairs & epic rewards',
-      '',
-      'Thank you for playing Frost!',
-    ].join('\n'), {
-      fontSize: '13px', fontFamily: 'monospace', color: '#aabbcc',
-      lineSpacing: 4, align: 'center',
-    }).setScrollFactor(0).setDepth(81).setOrigin(0.5, 0)
-
-    this.add.text(SW / 2, bY + bH - 22, 'You may keep exploring — XP is capped at level 10.', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#445566',
-    }).setScrollFactor(0).setDepth(81).setOrigin(0.5)
-
     this.screenFlash(0x4466aa, 0.18, 1200)
+    const frostModal = (window as any).__frostModal
+    if (!frostModal) return
+    frostModal.show({
+      title: '✦  Your Journey Continues  ✦',
+      titleClass: 'premium',
+      lines: [
+        "You've reached Level 10 — end of the free chapter.",
+        '',
+        'The full version unlocks:',
+        '◆ Levels 11–20 & true archmage power',
+        '◆ Blizzard — sustained AoE ice storm (Lv 14)',
+        '◆ Deep talent trees & item crafting',
+        '◆ Endless boss lairs & epic rewards',
+        '',
+        'Thank you for playing Frost!',
+        '',
+        'You may keep exploring — XP is capped at level 10.',
+      ],
+      buttons: [
+        { label: '✦  Get Full Version', primary: true,  onClick: () => {} },
+        { label: 'Skip for now (testing)', primary: false, onClick: () => {} },
+      ],
+      onClose: () => {},
+    })
   }
 }

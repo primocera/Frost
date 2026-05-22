@@ -55,21 +55,21 @@ export class StashUI {
 
     this.stashTexts = Array.from({ length: ROWS * COLS }, () =>
       scene.add.text(0, 0, '', {
-        fontSize: '10px', fontFamily: 'monospace', color: '#aaaaaa',
+        fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaaaaa',
         align: 'center', wordWrap: { width: CELL - 4 },
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5)
     )
 
     this.invTexts = Array.from({ length: ROWS * COLS }, () =>
       scene.add.text(0, 0, '', {
-        fontSize: '10px', fontFamily: 'monospace', color: '#aaaaaa',
+        fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaaaaa',
         align: 'center', wordWrap: { width: CELL - 4 },
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5)
     )
 
     this.tipGfx  = scene.add.graphics().setScrollFactor(0).setDepth(D_TOOLTIP)
     this.tipText = scene.add.text(0, 0, '', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#dddddd', lineSpacing: 3,
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#dddddd', lineSpacing: 3,
     }).setScrollFactor(0).setDepth(D_TOOLTIP)
 
     this.allObjects = [

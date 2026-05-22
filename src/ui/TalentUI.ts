@@ -45,17 +45,19 @@ export class TalentUI {
     const d = D_PANEL
 
     this.panelGfx  = scene.add.graphics().setScrollFactor(0).setDepth(d)
-    this.titleText = scene.add.text(PX + PW / 2, PY + 8, 'TALENT TREES', {
-      fontSize: '15px', fontFamily: 'monospace', color: '#ccddff',
+    this.titleText = scene.add.text(PX + PW / 2, PY + 10, 'Talent Trees', {
+      fontSize: '17px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#c8d8f8',
     }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
 
     this.pointsText = scene.add.text(PX + PW / 2, PY + PH - FTR_H + 6, '', {
-      fontSize: '12px', fontFamily: 'monospace', color: '#ffdd88',
+      fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd88',
     }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
 
     this.treeHeaders = TALENT_TREES.map((tree, col) =>
       scene.add.text(colX(col) + COL_W / 2, PY + HDR_H / 2, TREE_LABEL[tree], {
-        fontSize: '13px', fontFamily: 'monospace', color: TREE_COLOR[tree],
+        fontSize: '13px', fontStyle: 'bold',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: TREE_COLOR[tree],
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0.5)
     )
 
@@ -65,7 +67,7 @@ export class TalentUI {
         colX(col) + COL_W / 2,
         PY + HDR_H + (PH - HDR_H - FTR_H) / 2,
         `Unlocks at\nlevel ${TREE_UNLOCK_LEVEL[tree]}`, {
-          fontSize: '13px', fontFamily: 'monospace', color: '#446666',
+          fontSize: '13px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#446666',
           align: 'center',
         }
       ).setScrollFactor(0).setDepth(d + 1).setOrigin(0.5, 0.5)
@@ -80,20 +82,20 @@ export class TalentUI {
       const color = TREE_COLOR[def.tree]
 
       const nameText = scene.add.text(cx, ry + 8, def.name, {
-        fontSize: '12px', fontFamily: 'monospace', color,
+        fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       }).setScrollFactor(0).setDepth(d)
 
       const rankText = scene.add.text(cx, ry + 26, '', {
-        fontSize: '12px', fontFamily: 'monospace', color,
+        fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       }).setScrollFactor(0).setDepth(d)
 
       const descText = scene.add.text(cx, ry + 44, '', {
-        fontSize: '10px', fontFamily: 'monospace', color: '#888888',
+        fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#888888',
       }).setScrollFactor(0).setDepth(d)
 
       const { x: bx, y: by } = buyZone(col, rowIdx)
       const buyText = scene.add.text(bx + 19, by + 13, '[+]', {
-        fontSize: '11px', fontFamily: 'monospace', color: '#44ff88',
+        fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#44ff88',
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0.5)
 
       void idx

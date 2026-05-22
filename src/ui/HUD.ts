@@ -49,59 +49,59 @@ export class HUD {
 
     // HP / mana / XP labels
     this.levelLabel = scene.add.text(10, 56, '', {
-      fontSize: '13px', color: '#dddddd', fontFamily: 'monospace',
+      fontSize: '13px', color: '#dddddd', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d)
 
     this.hpText = scene.add.text(176, 10, '', {
-      fontSize: '10px', color: '#ff8888', fontFamily: 'monospace',
+      fontSize: '10px', color: '#ff8888', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
     this.manaText = scene.add.text(176, 28, '', {
-      fontSize: '10px', color: '#8888ff', fontFamily: 'monospace',
+      fontSize: '10px', color: '#8888ff', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
     // "OOM" label fades in when trying to cast without mana
     this.oomLabel = scene.add.text(176, 28, 'OOM', {
-      fontSize: '11px', color: '#ff4444', fontFamily: 'monospace',
+      fontSize: '11px', color: '#ff4444', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d + 1).setOrigin(1, 0).setAlpha(0)
 
     this.goldText = scene.add.text(10, 72, '', {
-      fontSize: '12px', color: '#ffdd00', fontFamily: 'monospace',
+      fontSize: '12px', color: '#ffdd00', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d)
 
     this.talentBadge = scene.add.text(10, 88, '', {
-      fontSize: '11px', color: '#cc88ff', fontFamily: 'monospace',
+      fontSize: '11px', color: '#cc88ff', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d)
 
     this.aggroText = scene.add.text(10, 104, '', {
-      fontSize: '11px', color: '#888888', fontFamily: 'monospace',
+      fontSize: '11px', color: '#888888', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d)
 
     this.controls = scene.add.text(0, 10,
       'WASD move\nF/Click  Firebolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
-        fontSize: '11px', color: '#555555', fontFamily: 'monospace', align: 'right',
+        fontSize: '11px', color: '#555555', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
     // Ring labels: show key + name when ready, countdown when cooling
     this.ringLabels = RINGS.map((r, i) =>
       scene.add.text(0, 0, `${r.key} ${r.name}`, {
-        fontSize: '10px', color: '#888888', fontFamily: 'monospace',
+        fontSize: '10px', color: '#888888', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
     )
 
     // Boss name label — hidden until a boss spawns
     this.bossNameText = scene.add.text(0, 4, '', {
-      fontSize: '11px', color: '#ff8888', fontFamily: 'monospace',
+      fontSize: '11px', color: '#ff8888', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0).setVisible(false)
 
     // Player name
     this.playerNameText = scene.add.text(10, 120, '', {
-      fontSize: '11px', color: '#556677', fontFamily: 'monospace',
+      fontSize: '11px', color: '#556677', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     }).setScrollFactor(0).setDepth(d)
 
     // Quest tracker
     this.questText = scene.add.text(10, 134, '', {
-      fontSize: '11px', color: '#aabb66', fontFamily: 'monospace',
+      fontSize: '11px', color: '#aabb66', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       wordWrap: { width: 220 },
     }).setScrollFactor(0).setDepth(d)
   }
@@ -117,7 +117,7 @@ export class HUD {
   /** Animated banner for quest updates, spell unlocks, etc. */
   showQuestUpdate(text: string, color = '#aadd44') {
     const t = this.scene.add.text(this.W / 2, this.H * 0.75, text, {
-      fontSize: '16px', fontFamily: 'monospace', color,
+      fontSize: '16px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
     this.scene.tweens.add({
@@ -285,7 +285,7 @@ export class HUD {
     const xOff = Phaser.Math.Between(-14, 14)
     const t = this.scene.add.text(x + xOff, y - 8, text, {
       fontSize: `${fontSize}px`, color,
-      fontFamily: 'monospace',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       stroke: '#000000', strokeThickness: Math.max(3, Math.round(fontSize / 5)),
     }).setDepth(30).setOrigin(0.5).setScale(0.4)
 
@@ -306,7 +306,7 @@ export class HUD {
   showAchievementUnlock(name: string, cosmeticName?: string) {
     const body = cosmeticName ? `Achievement: ${name}\nUnlocked ${cosmeticName} cosmetic!` : `Achievement: ${name}`
     const t = this.scene.add.text(this.W / 2, this.H * 0.266, body, {
-      fontSize: '15px', fontFamily: 'monospace', color: '#ffdd44',
+      fontSize: '15px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
       stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
 
@@ -326,7 +326,7 @@ export class HUD {
   /** Daily challenge completion banner. */
   showChallengeComplete(desc: string, xpReward: number) {
     const t = this.scene.add.text(this.W / 2, this.H * 0.3125, `Challenge complete!\n${desc}\n+${xpReward} XP bonus`, {
-      fontSize: '14px', fontFamily: 'monospace', color: '#44ff88',
+      fontSize: '14px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#44ff88',
       stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
 
@@ -346,7 +346,7 @@ export class HUD {
   /** Large centered kill-streak announcement — pops in and floats up. */
   showStreakText(text: string, color: string, fontSize = 32) {
     const t = this.scene.add.text(this.W / 2, this.H * 0.172, text, {
-      fontSize: `${fontSize}px`, fontFamily: 'monospace', color,
+      fontSize: `${fontSize}px`, fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       stroke: '#000000', strokeThickness: 6,
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0).setScale(0.3)
 

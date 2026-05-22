@@ -48,12 +48,13 @@ export class ProgressionUI {
 
     this.tabTexts = ['Daily Challenges', 'Achievements', 'Cosmetics & Stats'].map((label, i) =>
       scene.add.text(PX + (PW / 3) * i + PW / 6, PY + TAB_H / 2, label, {
-        fontSize: '12px', fontFamily: 'monospace', color: '#aabbcc',
+        fontSize: '13px', fontStyle: 'bold',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aabbcc',
       }).setScrollFactor(0).setDepth(D).setOrigin(0.5, 0.5)
     )
 
     this.footerText = scene.add.text(PX + PW / 2, PY + PH - FTR_H / 2, '', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#334455',
+      fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#334455',
     }).setScrollFactor(0).setDepth(D).setOrigin(0.5, 0.5)
 
     // ── Challenge texts ──────────────────────────────────────────────────────
@@ -62,19 +63,19 @@ export class ProgressionUI {
       this.chTexts.push(
         // [0] title
         scene.add.text(CONT_X + 14, ry + 8, '', {
-          fontSize: '13px', fontFamily: 'monospace', color: '#ccddee',
+          fontSize: '13px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ccddee',
         }).setScrollFactor(0).setDepth(D),
         // [1] progress "X / Y"
         scene.add.text(CONT_X + 14, ry + 32, '', {
-          fontSize: '11px', fontFamily: 'monospace', color: '#778899',
+          fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#778899',
         }).setScrollFactor(0).setDepth(D),
         // [2] status label (COMPLETE)
         scene.add.text(CONT_X + 14, ry + 60, '', {
-          fontSize: '12px', fontFamily: 'monospace', color: '#44ff88',
+          fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#44ff88',
         }).setScrollFactor(0).setDepth(D),
         // [3] xp reward (right-aligned)
         scene.add.text(PX + PW - 18, ry + 8, '', {
-          fontSize: '13px', fontFamily: 'monospace', color: '#ffdd88',
+          fontSize: '13px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd88',
         }).setScrollFactor(0).setDepth(D).setOrigin(1, 0),
       )
     }
@@ -84,10 +85,10 @@ export class ProgressionUI {
       const ry = CONT_Y + 4 + i * 42
       this.achTexts.push(
         scene.add.text(CONT_X + 26, ry + 8, '', {
-          fontSize: '12px', fontFamily: 'monospace', color: '#aabbcc',
+          fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aabbcc',
         }).setScrollFactor(0).setDepth(D),
         scene.add.text(PX + PW - 18, ry + 8, '', {
-          fontSize: '11px', fontFamily: 'monospace', color: '#556677',
+          fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#556677',
         }).setScrollFactor(0).setDepth(D).setOrigin(1, 0),
       )
     }
@@ -97,17 +98,17 @@ export class ProgressionUI {
       const cx = PX + 75 + i * 138
       this.cosTexts.push(
         scene.add.text(cx, CONT_Y + 96, '', {
-          fontSize: '12px', fontFamily: 'monospace', color: '#aabbcc',
+          fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aabbcc',
         }).setScrollFactor(0).setDepth(D).setOrigin(0.5, 0),
         scene.add.text(cx, CONT_Y + 114, '', {
-          fontSize: '10px', fontFamily: 'monospace', color: '#446655',
+          fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#446655',
         }).setScrollFactor(0).setDepth(D).setOrigin(0.5, 0),
       )
     }
 
     // ── Stat texts ───────────────────────────────────────────────────────────
     this.statsHeader = scene.add.text(CONT_X + 8, CONT_Y + 145, 'ACCOUNT STATS', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#334455',
+      fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#334455',
     }).setScrollFactor(0).setDepth(D)
 
     const statLabels = ['Total Kills', 'Elite Kills', 'Gold Collected', 'Highest Level', 'Highest Streak', 'Sessions', 'Dailies Done']
@@ -118,10 +119,10 @@ export class ProgressionUI {
       const sy  = CONT_Y + 164 + row * 60
       this.statTexts.push(
         scene.add.text(sx, sy, statLabels[i], {
-          fontSize: '10px', fontFamily: 'monospace', color: '#446677',
+          fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#446677',
         }).setScrollFactor(0).setDepth(D),
         scene.add.text(sx, sy + 16, '', {
-          fontSize: '20px', fontFamily: 'monospace', color: '#7799bb',
+          fontSize: '20px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#7799bb',
         }).setScrollFactor(0).setDepth(D),
       )
     }

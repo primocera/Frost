@@ -84,15 +84,16 @@ export class InventoryUI {
     this.panelGfx = scene.add.graphics().setScrollFactor(0).setDepth(d)
 
     // ── Title ───────────────────────────────────────────────────────────────
-    this.titleText = scene.add.text(PX + PW / 2, PY + 14, 'INVENTORY', {
-      fontSize: '16px', fontFamily: 'monospace', color: '#ccddff',
+    this.titleText = scene.add.text(PX + PW / 2, PY + 12, 'Inventory', {
+      fontSize: '17px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#c8d8f8',
     }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0)
 
     // ── Equipment slot texts ────────────────────────────────────────────────
     this.equipTexts = EQUIP_SLOTS.map((slot, i) => {
       const { x, y, h } = equipSlotRect(i)
       return scene.add.text(x + 6, y + h / 2, '', {
-        fontSize: '11px', fontFamily: 'monospace', color: '#aaaaaa',
+        fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaaaaa',
       }).setScrollFactor(0).setDepth(d).setOrigin(0, 0.5)
     })
 
@@ -100,20 +101,20 @@ export class InventoryUI {
     this.invTexts = Array.from({ length: ROWS * COLS }, (_, idx) => {
       const { x, y, w, h } = invSlotRect(idx)
       return scene.add.text(x + w / 2, y + h / 2, '', {
-        fontSize: '10px', fontFamily: 'monospace', color: '#aaaaaa',
+        fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaaaaa',
         align: 'center', wordWrap: { width: w - 4 },
       }).setScrollFactor(0).setDepth(d).setOrigin(0.5, 0.5)
     })
 
     // ── Gold text ───────────────────────────────────────────────────────────
     this.goldText = scene.add.text(GX, PY + PH - 22, '', {
-      fontSize: '12px', fontFamily: 'monospace', color: '#ffdd00',
+      fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd00',
     }).setScrollFactor(0).setDepth(d).setOrigin(0, 1)
 
     // ── Tooltip ─────────────────────────────────────────────────────────────
     this.tipGfx  = scene.add.graphics().setScrollFactor(0).setDepth(D_TOOLTIP)
     this.tipText = scene.add.text(0, 0, '', {
-      fontSize: '11px', fontFamily: 'monospace', color: '#dddddd',
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#dddddd',
       lineSpacing: 4,
     }).setScrollFactor(0).setDepth(D_TOOLTIP)
 
