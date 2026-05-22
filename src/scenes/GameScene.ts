@@ -985,8 +985,7 @@ export class GameScene extends Phaser.Scene {
     this.player.stats.mana = this.player.effectiveMaxMana
     ;(this.player.body as Phaser.Physics.Arcade.Body).reset(WORLD / 2, WORLD / 2)
 
-    // Clear all existing enemies so they don't instantly re-kill the player
-    for (const e of [...this.enemies]) e.die()
+    // Enemies stay alive — player teleports to town so there's no instant re-kill
 
     this.dead = false
     this.physics.resume()
