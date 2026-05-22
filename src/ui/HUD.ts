@@ -37,8 +37,9 @@ export class HUD {
   private bossMaxHp  = 0
   private bossPhase  = 1
 
-  private get W()       { return this.scene.scale.width }
-  private get H()       { return this.scene.scale.height }
+  private get Z()       { return this.scene.cameras.main.zoom || 1 }
+  private get W()       { return this.scene.scale.width  / this.Z }
+  private get H()       { return this.scene.scale.height / this.Z }
   private get RING_CY() { return this.H - 44 }
   private get RING_X0() { return this.W / 2 - RING_STEP * 1.5 }
 

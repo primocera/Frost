@@ -1,39 +1,21 @@
 import Phaser from 'phaser'
 
-// ── Layout constants (all in 960×640 canvas-space) ─────────────────────────
-
-// Virtual joystick — bottom-left
-const JX     = 112
-const JY     = 530
-const BASE_R = 74
-const KNOB_R = 28
-
-// Spell buttons — bottom-right
-const SPELL_DEFS = [
-  { key: 'Q', label: 'ArcEx',    color: 0xcc44ff, cx: 746, cy: 480 },
-  { key: 'E', label: 'FrNova',   color: 0x44aaff, cx: 820, cy: 480 },
-  { key: 'R', label: 'Blizzard', color: 0x0088dd, cx: 746, cy: 556 },
-  { key: 'F', label: 'Firebolt', color: 0xff8800, cx: 820, cy: 556 },
-] as const
-const SPELL_R = 31
-
-// Interact button — bottom-center, shown contextually
-const IX     = 480
-const IY     = 556
-const IRAD   = 38
-const ICOL   = 0x33bb77
-
-// Menu buttons — top-right column
-const MENU_DEFS = [
-  { key: 'I', cx: 930, cy: 52  },
-  { key: 'T', cx: 930, cy: 82  },
-  { key: 'P', cx: 930, cy: 112 },
-] as const
-const MENU_R = 17
+const SPELL_COLORS = [0xcc44ff, 0x44aaff, 0x0088dd, 0xff8800] as const
+const SPELL_KEYS   = ['Q', 'E', 'R', 'F'] as const
+const SPELL_LABELS = ['ArcEx', 'FrNova', 'Blizzard', 'Firebolt'] as const
+const MENU_KEYS    = ['I', 'T', 'P'] as const
+const ICOL         = 0x33bb77
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface SpellCooldown { cd: number; max: number }
+
+interface Layout {
+  jx: number; jy: number; baseR: number; knobR: number
+  spellR: number; spells: Array<{ cx: number; cy: number }>
+  menuR: number;  menus:  Array<{ cx: number; cy: number }>
+  ix: number; iy: number; iRad: number
+}
 
 export class MobileControls {
   /** Normalised joystick direction — magnitude 0..1. */
@@ -45,12 +27,11 @@ export class MobileControls {
   private interactText: Phaser.GameObjects.Text
 
   private joystickPtrId: number | null = null
-  private knobX = JX
-  private knobY = JY
+  private knobOffX = 0
+  private knobOffY = 0
 
   private interactLabel: string | null = null
 
-  // [cd, max] for each spell — updated each frame by GameScene
   private cooldowns: SpellCooldown[] = [
     { cd: 0, max: 1 }, { cd: 0, max: 1 },
     { cd: 0, max: 1 }, { cd: 0, max: 1 },
@@ -60,29 +41,28 @@ export class MobileControls {
     private scene:      Phaser.Scene,
     private onSpell:    (idx: number) => void,   // 0=Q 1=E 2=R 3=F
     private onMenu:     (key: string) => void,   // 'I'|'T'|'P'
-    private onInteract: () => void,               // contextual E-key action
+    private onInteract: () => void,               // contextual action
   ) {
-    // Support up to 5 simultaneous touches (joystick + 4 spell buttons)
     scene.input.addPointer(4)
 
     this.gfx = scene.add.graphics().setScrollFactor(0).setDepth(25)
 
-    // Spell labels (key/countdown) — updated each frame
-    this.spellTexts = SPELL_DEFS.map(s =>
-      scene.add.text(s.cx, s.cy + SPELL_R + 5, s.key, {
+    // Spell labels — positioned dynamically in redraw()
+    this.spellTexts = SPELL_KEYS.map(() =>
+      scene.add.text(0, 0, '', {
         fontSize: '10px', color: '#cccccc', fontFamily: 'monospace',
       }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0)
     )
 
-    // Menu button labels — static
-    this.menuTexts = MENU_DEFS.map(m =>
-      scene.add.text(m.cx, m.cy, m.key, {
+    // Menu button labels — positioned dynamically in redraw()
+    this.menuTexts = MENU_KEYS.map(k =>
+      scene.add.text(0, 0, k, {
         fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
       }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0.5)
     )
 
-    // Interact button label — hidden until showInteract() is called
-    this.interactText = scene.add.text(IX, IY, '', {
+    // Interact label — hidden until showInteract() is called
+    this.interactText = scene.add.text(0, 0, '', {
       fontSize: '13px', fontStyle: 'bold',
       fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       color: '#ffffff',
@@ -93,23 +73,74 @@ export class MobileControls {
     scene.input.on('pointerup',   this.onUp,   this)
   }
 
+  // ── Layout ─────────────────────────────────────────────────────────────────
+
+  private get Z()  { return this.scene.cameras.main.zoom || 1 }
+  private get VW() { return this.scene.scale.width  / this.Z }
+  private get VH() { return this.scene.scale.height / this.Z }
+
+  /** Recompute all button positions relative to the visible canvas area. */
+  private getLayout(): Layout {
+    const vw = this.VW, vh = this.VH
+    const s  = Math.min(vw, vh)   // smaller dimension drives sizing
+
+    // Joystick (bottom-left)
+    const baseR = Math.max(30, Math.round(s * 0.13))
+    const knobR = Math.round(baseR * 0.38)
+    const jx    = baseR + 16
+    const jy    = vh - baseR - 16
+
+    // Spell buttons — 2×2 grid, bottom-right corner
+    const spellR = Math.max(18, Math.round(s * 0.057))
+    const gap    = spellR * 2 + 10
+    const sx1    = Math.round(vw - spellR - 12)
+    const sx0    = sx1 - gap
+    const sy1    = Math.round(vh - spellR - 12)
+    const sy0    = sy1 - gap
+    const spells = [
+      { cx: sx0, cy: sy0 },   // Q — ArcEx
+      { cx: sx1, cy: sy0 },   // E — FrNova
+      { cx: sx0, cy: sy1 },   // R — Blizzard
+      { cx: sx1, cy: sy1 },   // F — Firebolt
+    ]
+
+    // Menu buttons (I/T/P) — top-right column
+    const menuR = 16
+    const mx    = Math.round(vw - menuR - 6)
+    const menus = MENU_KEYS.map((_, i) => ({
+      cx: mx,
+      cy: Math.round(menuR + 6 + i * (menuR * 2 + 4)),
+    }))
+
+    // Interact button — bottom-center
+    const iRad = spellR + 6
+    const ix   = Math.round(vw / 2)
+    const iy   = Math.round(vh - iRad - 12)
+
+    return { jx, jy, baseR, knobR, spellR, spells, menuR, menus, ix, iy, iRad }
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /** True if this pointer ID belongs to the joystick touch. */
   isJoystickPtr(ptrId: number): boolean { return ptrId === this.joystickPtrId }
 
   /** True if canvas-x is inside the joystick zone (don't fire Firebolt here). */
-  isJoystickZone(x: number): boolean { return x < JX + BASE_R + 28 }
+  isJoystickZone(x: number): boolean {
+    const { jx, baseR } = this.getLayout()
+    return x < jx + baseR + 28
+  }
 
-  /** True if the tap lands on any control button (spell, menu, or interact) — block Firebolt. */
+  /** True if the tap lands on any control button — block Firebolt. */
   isControlTap(x: number, y: number): boolean {
-    for (const s of SPELL_DEFS) {
-      if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= SPELL_R + 10) return true
+    const L = this.getLayout()
+    for (const s of L.spells) {
+      if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= L.spellR + 10) return true
     }
-    for (const m of MENU_DEFS) {
-      if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= MENU_R + 10) return true
+    for (const m of L.menus) {
+      if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= L.menuR + 10) return true
     }
-    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, IX, IY) <= IRAD + 12) return true
+    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, L.ix, L.iy) <= L.iRad + 12) return true
     return false
   }
 
@@ -145,34 +176,33 @@ export class MobileControls {
 
   private onDown(ptr: Phaser.Input.Pointer) {
     const { x, y } = ptr
+    const L = this.getLayout()
 
-    // Menu buttons (highest priority — small targets, top-right)
-    for (const m of MENU_DEFS) {
-      if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= MENU_R + 10) {
-        this.onMenu(m.key)
+    for (let i = 0; i < MENU_KEYS.length; i++) {
+      const m = L.menus[i]
+      if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= L.menuR + 10) {
+        this.onMenu(MENU_KEYS[i])
         return
       }
     }
 
-    // Interact button — contextual E action
-    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, IX, IY) <= IRAD + 12) {
+    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, L.ix, L.iy) <= L.iRad + 12) {
       this.onInteract()
       return
     }
 
-    // Spell buttons
-    for (let i = 0; i < SPELL_DEFS.length; i++) {
-      const s = SPELL_DEFS[i]
-      if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= SPELL_R + 10) {
+    for (let i = 0; i < L.spells.length; i++) {
+      const s = L.spells[i]
+      if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= L.spellR + 10) {
         this.onSpell(i)
         return
       }
     }
 
-    // Joystick zone — left portion of screen, only one joystick at a time
-    if (x < JX + BASE_R + 30 && this.joystickPtrId === null) {
+    // Left side of screen → joystick
+    if (x < L.jx + L.baseR + 30 && this.joystickPtrId === null) {
       this.joystickPtrId = ptr.id
-      this.moveKnob(x, y)
+      this.moveKnob(ptr.x, ptr.y)
     }
   }
 
@@ -184,35 +214,34 @@ export class MobileControls {
   private onUp(ptr: Phaser.Input.Pointer) {
     if (ptr.id !== this.joystickPtrId) return
     this.joystickPtrId = null
-    this.knobX = JX
-    this.knobY = JY
+    this.knobOffX = 0
+    this.knobOffY = 0
     this.dir.x = 0
     this.dir.y = 0
   }
 
   private moveKnob(x: number, y: number) {
-    const dx   = x - JX
-    const dy   = y - JY
+    const { jx, jy, baseR } = this.getLayout()
+    const dx   = x - jx
+    const dy   = y - jy
     const dist = Math.sqrt(dx * dx + dy * dy)
 
-    // Clamp knob to base radius
-    if (dist > BASE_R) {
-      const s  = BASE_R / dist
-      this.knobX = JX + dx * s
-      this.knobY = JY + dy * s
+    if (dist > baseR) {
+      const s     = baseR / dist
+      this.knobOffX = dx * s
+      this.knobOffY = dy * s
     } else {
-      this.knobX = x
-      this.knobY = y
+      this.knobOffX = dx
+      this.knobOffY = dy
     }
 
-    // Normalised direction with dead zone (12% of base radius)
-    const deadZone = BASE_R * 0.12
-    const clamped  = Math.min(dist, BASE_R)
+    const deadZone = baseR * 0.12
+    const clamped  = Math.min(dist, baseR)
     if (clamped < deadZone) {
       this.dir.x = 0
       this.dir.y = 0
     } else {
-      const norm = (clamped - deadZone) / (BASE_R - deadZone)
+      const norm = (clamped - deadZone) / (baseR - deadZone)
       this.dir.x = (dist > 0 ? dx / dist : 0) * norm
       this.dir.y = (dist > 0 ? dy / dist : 0) * norm
     }
@@ -223,83 +252,86 @@ export class MobileControls {
   private redraw() {
     const g      = this.gfx
     const active = this.joystickPtrId !== null
+    const L      = this.getLayout()
     g.clear()
 
-    // ── Joystick base ─────────────────────────────────────────────────────
-    g.fillStyle(0x000000, active ? 0.42 : 0.18)
-    g.fillCircle(JX, JY, BASE_R)
-    g.lineStyle(2, 0xffffff, active ? 0.22 : 0.09)
-    g.strokeCircle(JX, JY, BASE_R)
+    // Sync text positions with current layout
+    for (let i = 0; i < L.spells.length; i++) {
+      this.spellTexts[i].setPosition(L.spells[i].cx, L.spells[i].cy + L.spellR + 5)
+    }
+    for (let i = 0; i < L.menus.length; i++) {
+      this.menuTexts[i].setPosition(L.menus[i].cx, L.menus[i].cy)
+    }
+    this.interactText.setPosition(L.ix, L.iy)
 
-    // Inner guide ring
+    const knobX = L.jx + this.knobOffX
+    const knobY = L.jy + this.knobOffY
+
+    // ── Joystick base ──────────────────────────────────────────────────────
+    g.fillStyle(0x000000, active ? 0.42 : 0.18)
+    g.fillCircle(L.jx, L.jy, L.baseR)
+    g.lineStyle(2, 0xffffff, active ? 0.22 : 0.09)
+    g.strokeCircle(L.jx, L.jy, L.baseR)
     g.lineStyle(1, 0xffffff, active ? 0.10 : 0.04)
-    g.strokeCircle(JX, JY, BASE_R * 0.5)
+    g.strokeCircle(L.jx, L.jy, L.baseR * 0.5)
 
     // Knob
     g.fillStyle(0x7788ff, active ? 0.78 : 0.28)
-    g.fillCircle(this.knobX, this.knobY, KNOB_R)
+    g.fillCircle(knobX, knobY, L.knobR)
     if (active) {
+      const glint = Math.round(L.knobR * 0.5)
       g.fillStyle(0xffffff, 0.22)
-      g.fillCircle(this.knobX - 7, this.knobY - 7, 9)
+      g.fillCircle(knobX - glint, knobY - glint, Math.max(4, glint))
     }
 
     // ── Spell buttons ──────────────────────────────────────────────────────
-    for (let i = 0; i < SPELL_DEFS.length; i++) {
-      const s             = SPELL_DEFS[i]
+    for (let i = 0; i < L.spells.length; i++) {
+      const { cx, cy }   = L.spells[i]
       const { cd, max }  = this.cooldowns[i]
       const ready         = cd <= 0
+      const color         = SPELL_COLORS[i]
+      const sr            = L.spellR
 
-      // Dark backing ring
       g.fillStyle(0x111111, 0.80)
-      g.fillCircle(s.cx, s.cy, SPELL_R + 4)
+      g.fillCircle(cx, cy, sr + 4)
 
       if (ready) {
-        g.fillStyle(s.color, 0.88)
-        g.fillCircle(s.cx, s.cy, SPELL_R)
-        // Glint
+        g.fillStyle(color, 0.88)
+        g.fillCircle(cx, cy, sr)
         g.fillStyle(0xffffff, 0.22)
-        g.fillCircle(s.cx - 8, s.cy - 8, 8)
-        this.spellTexts[i].setText(s.key).setColor('#dddddd')
+        g.fillCircle(cx - Math.round(sr * 0.44), cy - Math.round(sr * 0.44), Math.max(4, Math.round(sr * 0.33)))
+        this.spellTexts[i].setText(SPELL_KEYS[i]).setColor('#dddddd')
       } else {
-        // Dimmed base
         g.fillStyle(0x0d0d0d)
-        g.fillCircle(s.cx, s.cy, SPELL_R)
-
-        // Cooldown fill arc (sweeps clockwise from top)
+        g.fillCircle(cx, cy, sr)
         const pct = 1 - cd / max
         if (pct > 0.01) {
-          g.fillStyle(s.color, 0.58)
-          g.slice(
-            s.cx, s.cy, SPELL_R,
-            -Math.PI / 2,
-            -Math.PI / 2 + pct * Math.PI * 2,
-            false,
-          )
+          g.fillStyle(color, 0.58)
+          g.slice(cx, cy, sr, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2, false)
           g.fillPath()
         }
-
         this.spellTexts[i].setText((cd / 1000).toFixed(1) + 's').setColor('#555555')
       }
     }
 
-    // ── Interact button (contextual E) ────────────────────────────────────
+    // ── Interact button (contextual) ───────────────────────────────────────
     if (this.interactLabel) {
       g.fillStyle(0x000000, 0.55)
-      g.fillCircle(IX, IY, IRAD + 4)
+      g.fillCircle(L.ix, L.iy, L.iRad + 4)
       g.fillStyle(ICOL, 0.88)
-      g.fillCircle(IX, IY, IRAD)
+      g.fillCircle(L.ix, L.iy, L.iRad)
       g.fillStyle(0xffffff, 0.18)
-      g.fillCircle(IX - 10, IY - 10, 10)
+      g.fillCircle(L.ix - 10, L.iy - 10, 10)
       g.lineStyle(2, 0x66ffaa, 0.5)
-      g.strokeCircle(IX, IY, IRAD)
+      g.strokeCircle(L.ix, L.iy, L.iRad)
     }
 
     // ── Menu buttons (I / T / P) ───────────────────────────────────────────
-    for (const m of MENU_DEFS) {
+    for (const m of L.menus) {
       g.fillStyle(0x000000, 0.52)
-      g.fillCircle(m.cx, m.cy, MENU_R)
+      g.fillCircle(m.cx, m.cy, L.menuR)
       g.lineStyle(1, 0x555555, 0.75)
-      g.strokeCircle(m.cx, m.cy, MENU_R)
+      g.strokeCircle(m.cx, m.cy, L.menuR)
     }
   }
 }
