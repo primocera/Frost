@@ -98,7 +98,8 @@ export class GameScene extends Phaser.Scene {
   private npcQuest!:    Phaser.GameObjects.Image
   private npcMerchant!: Phaser.GameObjects.Image
   private npcPrompt!:   Phaser.GameObjects.Text
-  private nearNPC:      'quest' | 'merchant' | null = null
+  private nearNPC:      'quest' | 'merchant' | 'zone' | null = null
+  private zoneNPCs:     Array<{ sprite: Phaser.GameObjects.Image; travelZone: string }> = []
   private dialogOpen    = false
   private questDialogAction = false
   // Quest system
@@ -661,12 +662,6 @@ export class GameScene extends Phaser.Scene {
       this.pushOutOfZone(zone)
     } else {
       if (zone !== this.currentZone) this.enterZone(zone)
-      // Travel quest completion — check if player entered the target zone
-      if (this.activeQuestIdx >= 0) {
-        const tq = this.questDefs[this.activeQuestIdx]
-        if (tq?.type === 'travel' && tq.travelZone && zone?.name === tq.travelZone)
-          this.completeTravelQuest()
-      }
     }
   }
 
@@ -1949,6 +1944,7 @@ export class GameScene extends Phaser.Scene {
         ;(window as any).__frostModal?.hide()
         this.dismissDialog()
       } else if (this.nearNPC === 'quest') this.openQuestDialog()
+      else if (this.nearNPC === 'zone') this.completeTravelQuest()
       else this.openMerchantDialog()
     } else if (this.nearStash) {
       if (this.stashUI.isOpen()) this.stashUI.hide()
@@ -1994,6 +1990,26 @@ export class GameScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
+    // Zone quest-giver NPCs — placed inside each zone, visible once unlocked
+    const zoneNPCDefs: Array<{ x: number; y: number; name: string; travelZone: string; color: number; label: string }> = [
+      { x: 1800, y: 550,  name: 'Mage Solvara',  travelZone: 'Frozen Ruins',     color: 0x88eeff, label: '! Quest' },
+      { x: 750,  y: 1800, name: 'Ranger Aldric',  travelZone: 'Corrupted Fields', color: 0xff8844, label: '! Quest' },
+      { x: 2850, y: 1800, name: 'Hermit Zethkar', travelZone: 'Arcane Caves',     color: 0xcc88ff, label: '! Quest' },
+    ]
+    for (const def of zoneNPCDefs) {
+      const sprite = this.add.image(def.x, def.y, 'npc_quest').setDepth(4).setOrigin(0.5, 1).setTint(def.color)
+      this.add.text(def.x, def.y - 48, def.name, {
+        fontSize: '13px', fontStyle: 'bold',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffffff',
+        stroke: '#000', strokeThickness: 4,
+      }).setDepth(4).setOrigin(0.5)
+      this.add.text(def.x, def.y - 32, def.label, {
+        fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
+        stroke: '#000', strokeThickness: 3,
+      }).setDepth(4).setOrigin(0.5)
+      this.zoneNPCs.push({ sprite, travelZone: def.travelZone })
+    }
+
     // Direction signs
     const sty = (col: string) => ({ fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: col, stroke: '#000', strokeThickness: 4 })
     this.add.text(cx, cy + 260, '▼  Beginner Forest',        sty('#44cc44')).setDepth(4).setOrigin(0.5)
@@ -2013,18 +2029,37 @@ export class GameScene extends Phaser.Scene {
     const px = this.player.x, py = this.player.y
     const dQ = Phaser.Math.Distance.Between(px, py, this.npcQuest.x,    this.npcQuest.y)
     const dM = Phaser.Math.Distance.Between(px, py, this.npcMerchant.x, this.npcMerchant.y)
-    if (dQ < 90) {
-      this.nearNPC = 'quest'
-      this.npcPrompt.setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
-      this.mobileControls?.showInteract('Talk')
-    } else if (dM < 90) {
-      this.nearNPC = 'merchant'
-      this.npcPrompt.setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
-      this.mobileControls?.showInteract('Talk')
-    } else {
-      this.nearNPC = null
-      if (!this.dialogOpen) this.npcPrompt.setVisible(false)
-      if (!this.nearStash && !this.nearDungeon) this.mobileControls?.hideInteract()
+    // Check zone NPC proximity first (only when the matching travel quest is active)
+    const activeQ = this.questDefs[this.activeQuestIdx]
+    let nearZone = false
+    if (activeQ?.type === 'travel') {
+      for (const znpc of this.zoneNPCs) {
+        if (znpc.travelZone !== activeQ.travelZone) continue
+        const d = Phaser.Math.Distance.Between(px, py, znpc.sprite.x, znpc.sprite.y)
+        if (d < 90) {
+          this.nearNPC = 'zone'
+          this.npcPrompt.setPosition(znpc.sprite.x, znpc.sprite.y - 72).setVisible(true)
+          this.mobileControls?.showInteract('Talk')
+          nearZone = true
+          break
+        }
+      }
+    }
+
+    if (!nearZone) {
+      if (dQ < 90) {
+        this.nearNPC = 'quest'
+        this.npcPrompt.setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
+        this.mobileControls?.showInteract('Talk')
+      } else if (dM < 90) {
+        this.nearNPC = 'merchant'
+        this.npcPrompt.setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
+        this.mobileControls?.showInteract('Talk')
+      } else {
+        this.nearNPC = null
+        if (!this.dialogOpen) this.npcPrompt.setVisible(false)
+        if (!this.nearStash && !this.nearDungeon) this.mobileControls?.hideInteract()
+      }
     }
   }
 
