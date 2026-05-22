@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Item, RARITY_COLOR } from '../items/ItemTypes'
 import { Inventory } from '../systems/Inventory'
 import { Stash } from '../systems/Stash'
+import { UIScaler } from './uiScale'
 
 const CELL = 56
 const GAP  = 6
@@ -41,6 +42,7 @@ export class StashUI {
   private tipGfx:     Phaser.GameObjects.Graphics
   private tipText:    Phaser.GameObjects.Text
   private allObjects: Phaser.GameObjects.GameObject[]
+  private ui!:        UIScaler
 
   /** Called when player right-clicks an inventory item — idx is the inventory slot. */
   onDropInventoryItem?: (idx: number) => void
@@ -76,6 +78,10 @@ export class StashUI {
       this.panelGfx, this.tipGfx, this.tipText,
       ...this.stashTexts, ...this.invTexts,
     ]
+
+    this.ui = new UIScaler(scene, D_PANEL)
+    this.ui.add(this.allObjects)
+
     this.hide()
 
     stash.onChange = () => this.refresh()
@@ -86,6 +92,7 @@ export class StashUI {
 
   show() {
     this.visible = true
+    this.ui.relayout()
     this.allObjects.forEach(o => (o as Phaser.GameObjects.Graphics).setVisible(true))
     this.refresh()
     this.scene.input.on('pointermove', this.onMove,  this)

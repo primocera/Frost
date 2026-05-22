@@ -49,7 +49,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     scene.add.existing(this)
     scene.physics.add.existing(this)
-    ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, 2, 2)
+    // Texture is padded 8px each side (size = 2r+16); centre the body circle
+    ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, 8, 8)
     this.setDepth(4)
 
     this.hpBar = scene.add.graphics().setDepth(6)

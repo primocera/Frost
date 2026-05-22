@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
+import { UIScaler } from './uiScale'
 
 const RING_R    = 16
 const RING_STEP = 56
@@ -37,14 +38,18 @@ export class HUD {
   private bossMaxHp  = 0
   private bossPhase  = 1
 
-  private get Z()       { return this.scene.cameras.main.zoom || 1 }
-  private get W()       { return this.scene.scale.width  / this.Z }
-  private get H()       { return this.scene.scale.height / this.Z }
+  private ui!: UIScaler
+
+  // W/H are screen pixels; the UIScaler container counteracts camera zoom,
+  // so screen-pixel coordinates render correctly on mobile (zoom 1.6).
+  private get W()       { return this.scene.scale.width }
+  private get H()       { return this.scene.scale.height }
   private get RING_CY() { return this.H - 44 }
   private get RING_X0() { return this.W / 2 - RING_STEP * 1.5 }
 
   constructor(private scene: Phaser.Scene) {
     const d = 20
+    this.ui = new UIScaler(scene, d)
 
     this.bars = scene.add.graphics().setScrollFactor(0).setDepth(d)
 
@@ -105,6 +110,13 @@ export class HUD {
       fontSize: '11px', color: '#aabb66', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       wordWrap: { width: 220 },
     }).setScrollFactor(0).setDepth(d)
+
+    // Parent all persistent HUD objects into the zoom-correcting container
+    this.ui.add([
+      this.bars, this.levelLabel, this.hpText, this.manaText, this.oomLabel,
+      this.goldText, this.talentBadge, this.aggroText, this.controls,
+      ...this.ringLabels, this.bossNameText, this.playerNameText, this.questText,
+    ])
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -121,6 +133,7 @@ export class HUD {
       fontSize: '16px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+    this.ui.container.add(t)
     this.scene.tweens.add({
       targets: t, alpha: 1, y: 468,
       duration: 260, ease: 'Back.Out',
@@ -168,6 +181,7 @@ export class HUD {
     const { stats } = player
     const now = this.scene.time.now
     const g   = this.bars
+    this.ui.relayout()
     g.clear()
 
     // Reposition elements that depend on current screen size
@@ -310,6 +324,7 @@ export class HUD {
       fontSize: '15px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
       stroke: '#000000', strokeThickness: 5, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+    this.ui.container.add(t)
 
     this.scene.tweens.add({
       targets: t, alpha: 1,
@@ -330,6 +345,7 @@ export class HUD {
       fontSize: '14px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#44ff88',
       stroke: '#000000', strokeThickness: 4, align: 'center',
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0)
+    this.ui.container.add(t)
 
     this.scene.tweens.add({
       targets: t, alpha: 1,
@@ -350,6 +366,7 @@ export class HUD {
       fontSize: `${fontSize}px`, fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color,
       stroke: '#000000', strokeThickness: 6,
     }).setScrollFactor(0).setDepth(50).setOrigin(0.5).setAlpha(0).setScale(0.3)
+    this.ui.container.add(t)
 
     this.scene.tweens.add({
       targets: t, scaleX: 1, scaleY: 1, alpha: 1,

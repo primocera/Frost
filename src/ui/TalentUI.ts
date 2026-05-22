@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { TALENT_DEFS, TALENT_TREES, TREE_COLOR, TREE_HEX, TREE_LABEL, TREE_UNLOCK_LEVEL, TalentId, talentsForTree } from '../talents/TalentTypes'
 import { TalentSystem } from '../systems/TalentSystem'
+import { UIScaler } from './uiScale'
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const PX = 60,  PY = 88,  PW = 840, PH = 454
@@ -40,6 +41,7 @@ export class TalentUI {
   private lockLabels:  Phaser.GameObjects.Text[]   // one per tree column
   private rows:        TalentRow[]
   private allObjects:  Phaser.GameObjects.GameObject[]
+  private ui!:         UIScaler
 
   constructor(private scene: Phaser.Scene, private talents: TalentSystem) {
     const d = D_PANEL
@@ -109,6 +111,9 @@ export class TalentUI {
       ...this.rows.flatMap(r => [r.nameText, r.rankText, r.descText, r.buyText]),
     ]
 
+    this.ui = new UIScaler(scene, D_PANEL)
+    this.ui.add(this.allObjects)
+
     this.hide()
     talents.onChange = () => this.refresh()
   }
@@ -121,6 +126,7 @@ export class TalentUI {
 
   show() {
     this.visible = true
+    this.ui.relayout()
     this.allObjects.forEach(o => (o as Phaser.GameObjects.Graphics).setVisible(true))
     this.refresh()
     this.scene.input.on('pointerdown', this.onClick, this)

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import {
   ProgressionSystem, ACHIEVEMENTS, COSMETICS, COSMETIC_IDS, CosmeticId,
 } from '../systems/ProgressionSystem'
+import { UIScaler } from './uiScale'
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const PX   = 50,  PY   = 58
@@ -42,6 +43,7 @@ export class ProgressionUI {
   private statsHeader: Phaser.GameObjects.Text
 
   private allObjs: Phaser.GameObjects.GameObject[]
+  private ui!:     UIScaler
 
   constructor(private scene: Phaser.Scene, private prog: ProgressionSystem) {
     this.panelGfx = scene.add.graphics().setScrollFactor(0).setDepth(D)
@@ -136,6 +138,9 @@ export class ProgressionUI {
       ...this.statTexts,
     ]
 
+    this.ui = new UIScaler(scene, D)
+    this.ui.add(this.allObjs)
+
     this.hide()
     prog.onChange = () => { if (this.visible) this.refresh() }
   }
@@ -147,6 +152,7 @@ export class ProgressionUI {
 
   show() {
     this.visible = true
+    this.ui.relayout()
     this.allObjs.forEach(o => (o as Phaser.GameObjects.Graphics).setVisible(true))
     this.refresh()
     this.scene.input.on('pointerdown', this.onClick, this)

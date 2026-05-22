@@ -1256,37 +1256,13 @@ export class GameScene extends Phaser.Scene {
     this.buildMageSheet()
     g.clear()
 
-    // Enemies — base pass for all types
+    // Enemies — distinct creature art per type.
+    // Texture padded by 8px each side (size = 2r+16) so horns/auras/wisps
+    // aren't clipped; Enemy.ts centres the physics circle with offset 8.
     for (const cfg of [Slime, Ghoul, Imp, Brute, Wraith, Elite] as EnemyConfig[]) {
-      const size = cfg.radius * 2 + 4
+      const size = cfg.radius * 2 + 16
       const c    = size / 2
-      const r    = cfg.radius
-
-      // Elite: outer gold aura ring
-      if (cfg.aiType === 'elite') {
-        g.lineStyle(4, 0xffdd00, 0.45)
-        g.strokeCircle(c, c, r + 3)
-      }
-
-      // Wraith: outer glow ring
-      if (cfg.aiType === 'ranged') {
-        g.lineStyle(2, cfg.color, 0.35)
-        g.strokeCircle(c, c, r + 4)
-      }
-
-      g.fillStyle(cfg.color)
-      g.fillCircle(c, c, r)
-
-      // Brute: dark inner mass to convey heaviness
-      if (cfg.aiType === 'tank') {
-        g.fillStyle(0x000000, 0.30)
-        g.fillCircle(c, c, r * 0.55)
-      }
-
-      // Glint highlight
-      g.fillStyle(0xffffff, 0.25)
-      g.fillCircle(c - r * 0.2, c - r * 0.3, r * 0.38)
-
+      this.drawEnemyArt(g, cfg, c, cfg.radius)
       g.generateTexture(cfg.key, size, size)
       g.clear()
     }
@@ -1398,14 +1374,14 @@ export class GameScene extends Phaser.Scene {
     const cx = ox + FW / 2        // horizontal centre of this frame
     const by = a.bob               // vertical body offset
 
-    // ── Cast glow behind everything ──────────────────────────────────────
+    // ── Cast glow behind everything (Gandalf's white-blue light) ─────────
     if (a.glow > 0.3) {
-      const grad = ctx.createRadialGradient(cx, by + 32, 0, cx, by + 32, 22)
-      grad.addColorStop(0, `rgba(160,100,255,${a.glow * 0.55})`)
+      const grad = ctx.createRadialGradient(cx, by + 30, 0, cx, by + 30, 22)
+      grad.addColorStop(0, `rgba(180,215,255,${a.glow * 0.55})`)
       grad.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = grad
       ctx.beginPath()
-      ctx.ellipse(cx, by + 32, 22, 18, 0, 0, Math.PI * 2)
+      ctx.ellipse(cx, by + 30, 22, 18, 0, 0, Math.PI * 2)
       ctx.fill()
     }
 
@@ -1415,175 +1391,211 @@ export class GameScene extends Phaser.Scene {
     ctx.ellipse(cx, by + 47, 10, 3.5, 0, 0, Math.PI * 2)
     ctx.fill()
 
-    // ── Staff (drawn behind body) ─────────────────────────────────────────
-    const sx   = cx + 11
-    const tipY = by + 7 - a.staffRaise
-    const botY = by + 41
+    // ── Staff (gnarled wood, crystal near the top) ───────────────────────
+    const sx   = cx + 12
+    const tipY = by + 4 - a.staffRaise
+    const botY = by + 45
 
     // Shaft
     ctx.save()
-    ctx.strokeStyle = '#7a4e0a'
-    ctx.lineWidth   = 2.5
-    ctx.lineCap     = 'round'
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#5a3d1e'
+    ctx.lineWidth   = 3
     ctx.beginPath()
-    ctx.moveTo(sx, tipY + 11)
+    ctx.moveTo(sx, tipY + 8)
     ctx.lineTo(sx + 1, botY)
+    ctx.stroke()
+    // Wood highlight
+    ctx.strokeStyle = '#8a6838'
+    ctx.lineWidth   = 1
+    ctx.beginPath()
+    ctx.moveTo(sx - 0.5, tipY + 9)
+    ctx.lineTo(sx + 0.5, botY)
+    ctx.stroke()
+    // Gnarled claw holding the crystal
+    ctx.strokeStyle = '#4a3318'
+    ctx.lineWidth   = 2
+    ctx.beginPath()
+    ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx - 4, tipY + 5, sx - 3, tipY + 1)
+    ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx + 4, tipY + 5, sx + 3, tipY + 1)
     ctx.stroke()
     ctx.restore()
 
-    // Orb glow
+    // Crystal glow
     if (a.glow > 0.2) {
-      const ogr = ctx.createRadialGradient(sx, tipY + 6, 0, sx, tipY + 6, 14 * a.glow)
-      ogr.addColorStop(0, `rgba(220,170,255,${a.glow * 0.8})`)
+      const ogr = ctx.createRadialGradient(sx, tipY + 3, 0, sx, tipY + 3, 13 * a.glow)
+      ogr.addColorStop(0, `rgba(200,230,255,${a.glow * 0.85})`)
       ogr.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = ogr
       ctx.beginPath()
-      ctx.arc(sx, tipY + 6, 14 * a.glow, 0, Math.PI * 2)
+      ctx.arc(sx, tipY + 3, 13 * a.glow, 0, Math.PI * 2)
       ctx.fill()
     }
 
-    // Orb body
-    const orbGr = ctx.createRadialGradient(sx - 1, tipY + 4, 0, sx, tipY + 6, 6)
-    orbGr.addColorStop(0, '#ffffff')
-    orbGr.addColorStop(0.25, `rgba(220,${Math.round(120 + 80 * a.glow)},255,1)`)
-    orbGr.addColorStop(1, `rgba(90,0,180,${0.85 + a.glow * 0.15})`)
-    ctx.fillStyle = orbGr
+    // Crystal body
+    const cgr = ctx.createRadialGradient(sx - 1, tipY + 1, 0, sx, tipY + 3, 5)
+    cgr.addColorStop(0, '#ffffff')
+    cgr.addColorStop(0.4, '#cfe8ff')
+    cgr.addColorStop(1, `rgba(80,150,220,${0.85 + a.glow * 0.15})`)
+    ctx.fillStyle = cgr
     ctx.beginPath()
-    ctx.arc(sx, tipY + 6, 5.5 + a.glow * 1.5, 0, Math.PI * 2)
+    ctx.moveTo(sx, tipY - 2 - a.glow)
+    ctx.lineTo(sx + 3.5, tipY + 3)
+    ctx.lineTo(sx, tipY + 6 + a.glow)
+    ctx.lineTo(sx - 3.5, tipY + 3)
+    ctx.closePath()
     ctx.fill()
+    if (a.glow > 0.5) {
+      ctx.save()
+      ctx.fillStyle   = '#ffffff'
+      ctx.shadowColor = '#cfe8ff'
+      ctx.shadowBlur  = 5
+      this.drawStar5(ctx, sx, tipY + 3, 2.5, 1)
+      ctx.fill()
+      ctx.restore()
+    }
 
-    // ── Boots / feet ──────────────────────────────────────────────────────
-    const lx = cx - 7 + a.footSwing * -3
+    // ── Boots peeking from the robe hem ──────────────────────────────────
+    const lx = cx - 6 + a.footSwing * -3
     const rx = cx + 4 + a.footSwing * 3
-    ctx.fillStyle = '#1c0e00'
-    ctx.beginPath(); ctx.ellipse(lx, by + 44, 6.5, 4, -0.08, 0, Math.PI * 2); ctx.fill()
-    ctx.beginPath(); ctx.ellipse(rx, by + 44, 6.5, 4, 0.08, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#2a2018'
+    ctx.beginPath(); ctx.ellipse(lx, by + 45, 5, 3.5, -0.08, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.ellipse(rx, by + 45, 5, 3.5, 0.08, 0, Math.PI * 2); ctx.fill()
 
-    // ── Robe body ─────────────────────────────────────────────────────────
-    const robeGr = ctx.createLinearGradient(cx - 13, by + 26, cx + 13, by + 43)
-    robeGr.addColorStop(0, '#1e3a8a')
-    robeGr.addColorStop(0.55, '#152d6e')
-    robeGr.addColorStop(1, '#0d1e4a')
+    // ── Robe body (grey, long) ───────────────────────────────────────────
+    const robeGr = ctx.createLinearGradient(cx - 13, by + 24, cx + 13, by + 45)
+    robeGr.addColorStop(0, '#9a948a')
+    robeGr.addColorStop(0.55, '#7c766b')
+    robeGr.addColorStop(1, '#544f47')
     ctx.fillStyle = robeGr
     ctx.beginPath()
-    ctx.moveTo(cx - 12, by + 27)
-    ctx.bezierCurveTo(cx - 15, by + 33, cx - 13, by + 41, cx - 8, by + 44)
-    ctx.lineTo(cx + 7, by + 44)
-    ctx.bezierCurveTo(cx + 13, by + 41, cx + 15, by + 33, cx + 12, by + 27)
+    ctx.moveTo(cx - 11, by + 25)
+    ctx.bezierCurveTo(cx - 15, by + 33, cx - 14, by + 42, cx - 9, by + 46)
+    ctx.lineTo(cx + 8, by + 46)
+    ctx.bezierCurveTo(cx + 14, by + 42, cx + 15, by + 33, cx + 11, by + 25)
     ctx.closePath()
     ctx.fill()
 
-    // Robe left-edge highlight
-    ctx.save()
-    ctx.strokeStyle = '#2a4faa'
-    ctx.lineWidth   = 1.5
+    // Robe fold shadows
+    ctx.strokeStyle = '#4a463d'
+    ctx.lineWidth   = 1
     ctx.beginPath()
-    ctx.moveTo(cx - 12, by + 27)
-    ctx.bezierCurveTo(cx - 15, by + 33, cx - 13, by + 41, cx - 8, by + 44)
+    ctx.moveTo(cx - 3, by + 30); ctx.lineTo(cx - 4, by + 45)
+    ctx.moveTo(cx + 4, by + 30); ctx.lineTo(cx + 5, by + 45)
     ctx.stroke()
-    ctx.restore()
-
-    // Robe trim at collar
-    ctx.fillStyle = '#2855b0'
+    // Robe left highlight
+    ctx.strokeStyle = '#b3ab9d'
+    ctx.lineWidth   = 1.2
     ctx.beginPath()
-    ctx.moveTo(cx - 12, by + 27)
-    ctx.lineTo(cx,      by + 23)
-    ctx.lineTo(cx + 12, by + 27)
-    ctx.closePath()
-    ctx.fill()
+    ctx.moveTo(cx - 11, by + 25)
+    ctx.bezierCurveTo(cx - 15, by + 33, cx - 14, by + 42, cx - 9, by + 46)
+    ctx.stroke()
 
-    // Belt
-    ctx.fillStyle = '#4a2e00'
-    ctx.fillRect(cx - 10, by + 32, 20, 3)
-    ctx.fillStyle = '#d4a820'
-    ctx.fillRect(cx - 4, by + 31, 8, 5)   // buckle
+    // Rope belt
+    ctx.strokeStyle = '#6b5436'
+    ctx.lineWidth   = 2
+    ctx.beginPath()
+    ctx.moveTo(cx - 9, by + 33); ctx.quadraticCurveTo(cx, by + 35, cx + 9, by + 33)
+    ctx.stroke()
 
-    // ── Left sleeve + hand ────────────────────────────────────────────────
-    ctx.fillStyle = '#17317a'
-    ctx.beginPath(); ctx.ellipse(cx - 13, by + 31, 5, 7.5, -0.18, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = '#f0c898'
-    ctx.beginPath(); ctx.arc(cx - 14, by + 38, 4, 0, Math.PI * 2); ctx.fill()
+    // ── Sleeves + hands ──────────────────────────────────────────────────
+    ctx.fillStyle = '#857f74'
+    ctx.beginPath(); ctx.ellipse(cx - 12, by + 31, 5, 7.5, -0.18, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.ellipse(cx + 11, by + 31, 4.5, 7, 0.18, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#d8a878'
+    ctx.beginPath(); ctx.arc(cx - 13, by + 38, 3.5, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(cx + 12, by + 36, 3.5, 0, Math.PI * 2); ctx.fill()   // grips staff
 
-    // ── Right sleeve + hand ───────────────────────────────────────────────
-    ctx.fillStyle = '#17317a'
-    ctx.beginPath(); ctx.ellipse(cx + 11, by + 31, 5, 7.5, 0.18, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = '#f0c898'
-    ctx.beginPath(); ctx.arc(cx + 12, by + 38, 4, 0, Math.PI * 2); ctx.fill()
-
-    // ── Head ──────────────────────────────────────────────────────────────
-    const headX = cx, headY = by + 21, headR = 7.5
-    const headGr = ctx.createRadialGradient(headX - 2, headY - 2, 0, headX, headY, headR)
-    headGr.addColorStop(0, '#fde0c0')
-    headGr.addColorStop(0.7, '#eaaa78')
-    headGr.addColorStop(1, '#c87850')
+    // ── Head (small, will be mostly hidden by hat + beard) ───────────────
+    const headX = cx, headY = by + 19, headR = 6.5
+    const headGr = ctx.createRadialGradient(headX - 1, headY - 1, 0, headX, headY, headR)
+    headGr.addColorStop(0, '#e8c098')
+    headGr.addColorStop(1, '#bf8a5e')
     ctx.fillStyle = headGr
     ctx.beginPath()
     ctx.arc(headX, headY, headR, 0, Math.PI * 2)
     ctx.fill()
 
-    // Eyes
-    if (a.blink) {
-      ctx.strokeStyle = '#334'
-      ctx.lineWidth   = 1.5
+    // ── Beard (long, flowing grey — Gandalf's signature) ─────────────────
+    const beardGr = ctx.createLinearGradient(cx, by + 18, cx, by + 38)
+    beardGr.addColorStop(0, '#e4e0d6')
+    beardGr.addColorStop(1, '#b4ad9f')
+    ctx.fillStyle = beardGr
+    ctx.beginPath()
+    ctx.moveTo(cx - 6.5, by + 17)
+    ctx.quadraticCurveTo(cx - 9, by + 26, cx - 4, by + 33)   // left side flares then in
+    ctx.quadraticCurveTo(cx - 2, by + 37, cx, by + 38)        // to the point
+    ctx.quadraticCurveTo(cx + 2, by + 37, cx + 4, by + 33)
+    ctx.quadraticCurveTo(cx + 9, by + 26, cx + 6.5, by + 17)  // right side
+    ctx.quadraticCurveTo(cx, by + 21, cx - 6.5, by + 17)      // top under the nose
+    ctx.closePath()
+    ctx.fill()
+    // Beard strands
+    ctx.strokeStyle = '#9f988a'
+    ctx.lineWidth   = 0.8
+    ctx.beginPath()
+    ctx.moveTo(cx - 2, by + 22); ctx.lineTo(cx - 2.5, by + 34)
+    ctx.moveTo(cx + 2, by + 22); ctx.lineTo(cx + 2.5, by + 34)
+    ctx.stroke()
+    // Moustache
+    ctx.fillStyle = '#dedacf'
+    ctx.beginPath()
+    ctx.ellipse(cx - 3, by + 19.5, 3, 1.8, 0.3, 0, Math.PI * 2)
+    ctx.ellipse(cx + 3, by + 19.5, 3, 1.8, -0.3, 0, Math.PI * 2)
+    ctx.fill()
+
+    // ── Hat brim (wide, droops at the sides; shadows the face) ───────────
+    const brimY = by + 14
+    ctx.fillStyle = '#7e796e'
+    ctx.beginPath()
+    ctx.moveTo(cx - 13, brimY)
+    ctx.quadraticCurveTo(cx, brimY + 6, cx + 13, brimY)       // drooping front edge
+    ctx.quadraticCurveTo(cx, brimY - 4, cx - 13, brimY)
+    ctx.closePath()
+    ctx.fill()
+    // Brim underside shadow over the eyes
+    ctx.fillStyle = 'rgba(20,18,14,0.55)'
+    ctx.beginPath()
+    ctx.ellipse(cx, brimY + 1.5, 8, 2.5, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // ── Eye glints under the brim shadow ─────────────────────────────────
+    if (!a.blink) {
+      ctx.fillStyle = '#dff0ff'
       ctx.beginPath()
-      ctx.moveTo(headX - 5, headY + 0.5); ctx.lineTo(headX - 2, headY + 0.5)
-      ctx.moveTo(headX + 2, headY + 0.5); ctx.lineTo(headX + 5, headY + 0.5)
-      ctx.stroke()
-    } else {
-      ctx.fillStyle = '#223388'
-      ctx.beginPath()
-      ctx.arc(headX - 3,   headY + 0.5, 2, 0, Math.PI * 2)
-      ctx.arc(headX + 3.2, headY + 0.5, 2, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#ffffff'
-      ctx.beginPath()
-      ctx.arc(headX - 2.2, headY - 0.3, 0.75, 0, Math.PI * 2)
-      ctx.arc(headX + 4.0, headY - 0.3, 0.75, 0, Math.PI * 2)
+      ctx.arc(cx - 3, by + 16.5, 1, 0, Math.PI * 2)
+      ctx.arc(cx + 3, by + 16.5, 1, 0, Math.PI * 2)
       ctx.fill()
     }
 
-    // ── Wizard hat ───────────────────────────────────────────────────────
-    const hatBrimY = headY - headR + 1
-    const hatBrimW = 12
-    const hatTipX  = headX - 1.5
-    const hatTipY  = by + 2
-
-    // Brim
-    ctx.fillStyle = '#100036'
+    // ── Hat cone (bent tip drooping to the left) ─────────────────────────
+    const coneGr = ctx.createLinearGradient(cx - 9, by, cx + 9, brimY)
+    coneGr.addColorStop(0, '#928d82')
+    coneGr.addColorStop(1, '#625d53')
+    ctx.fillStyle = coneGr
     ctx.beginPath()
-    ctx.ellipse(headX, hatBrimY, hatBrimW, 4, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = '#3300aa'
-    ctx.lineWidth   = 1
-    ctx.stroke()
-
-    // Hat body
-    ctx.fillStyle = '#180050'
-    ctx.beginPath()
-    ctx.moveTo(headX - hatBrimW * 0.78, hatBrimY)
-    ctx.quadraticCurveTo(headX - 5, (hatBrimY + hatTipY) * 0.5, hatTipX - 2, hatTipY)
-    ctx.lineTo(hatTipX + 2, hatTipY)
-    ctx.quadraticCurveTo(headX + 5, (hatBrimY + hatTipY) * 0.5, headX + hatBrimW * 0.78, hatBrimY)
+    ctx.moveTo(cx - 9, brimY - 1)
+    ctx.quadraticCurveTo(cx - 12, by + 6, cx - 8, by + 2)      // up the left, bulging (droop)
+    ctx.quadraticCurveTo(cx - 6, by - 1, cx - 3, by + 2)        // over the bent tip
+    ctx.quadraticCurveTo(cx + 4, by + 6, cx + 9, brimY - 1)     // down the right edge
     ctx.closePath()
     ctx.fill()
-    ctx.strokeStyle = '#4400bb'
+    // Cone shading seam
+    ctx.strokeStyle = '#4f4a41'
     ctx.lineWidth   = 0.8
+    ctx.beginPath()
+    ctx.moveTo(cx - 1, by + 3); ctx.quadraticCurveTo(cx + 1, by + 8, cx + 2, brimY - 1)
     ctx.stroke()
 
     // Hat band
-    ctx.fillStyle = '#5500cc'
-    const bandY = hatBrimY - 8
-    const bandW = hatBrimW * 0.62
-    ctx.fillRect(headX - bandW, bandY, bandW * 2, 3)
-
-    // Star gem on hat
-    ctx.save()
-    ctx.fillStyle = '#ffee44'
-    ctx.shadowColor = '#ffdd00'
-    ctx.shadowBlur  = 3 + a.glow * 5
-    this.drawStar5(ctx, hatTipX, hatTipY + 8, 3.5, 1.5)
+    ctx.fillStyle = '#403c34'
+    ctx.beginPath()
+    ctx.moveTo(cx - 8.5, brimY - 2)
+    ctx.quadraticCurveTo(cx, brimY + 1, cx + 8.5, brimY - 2)
+    ctx.lineTo(cx + 8, brimY - 5)
+    ctx.quadraticCurveTo(cx, brimY - 2, cx - 8, brimY - 5)
+    ctx.closePath()
     ctx.fill()
-    ctx.restore()
   }
 
   /** Draw a 5-pointed star path (call ctx.fill() after). */
@@ -1596,6 +1608,158 @@ export class GameScene extends Phaser.Scene {
       else         ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
     }
     ctx.closePath()
+  }
+
+  // ── Enemy creature art ──────────────────────────────────────────────────────
+
+  /** Draws a stylised creature for the given config, centred at (c, c). */
+  private drawEnemyArt(g: Phaser.GameObjects.Graphics, cfg: EnemyConfig, c: number, r: number) {
+    switch (cfg.key) {
+      case 'slime': {
+        // Squashed green blob with glossy belly + big eyes
+        g.fillStyle(0x2f9e2f)
+        g.fillEllipse(c, c + r * 0.25, r * 2, r * 1.7)
+        g.fillStyle(0x44cc44)
+        g.fillEllipse(c, c + r * 0.1, r * 1.9, r * 1.5)
+        g.fillStyle(0x66dd66, 0.55)
+        g.fillEllipse(c - r * 0.3, c - r * 0.2, r * 0.9, r * 0.7)
+        // Eyes
+        g.fillStyle(0xffffff)
+        g.fillCircle(c - r * 0.4, c - r * 0.1, r * 0.28)
+        g.fillCircle(c + r * 0.4, c - r * 0.1, r * 0.28)
+        g.fillStyle(0x111111)
+        g.fillCircle(c - r * 0.36, c - r * 0.02, r * 0.14)
+        g.fillCircle(c + r * 0.44, c - r * 0.02, r * 0.14)
+        // Top gloss
+        g.fillStyle(0xffffff, 0.5)
+        g.fillCircle(c - r * 0.35, c - r * 0.55, r * 0.22)
+        break
+      }
+      case 'ghoul': {
+        // Hunched undead with sunken glowing eyes + claws
+        g.fillStyle(0x7a4422)
+        g.fillEllipse(c, c + r * 0.2, r * 1.9, r * 1.8)
+        g.fillStyle(0xaa6633)
+        g.fillEllipse(c, c, r * 1.7, r * 1.5)
+        // Head hunch
+        g.fillStyle(0x8a5128)
+        g.fillCircle(c, c - r * 0.5, r * 0.7)
+        // Sunken eye sockets
+        g.fillStyle(0x2a1808)
+        g.fillCircle(c - r * 0.35, c - r * 0.45, r * 0.26)
+        g.fillCircle(c + r * 0.35, c - r * 0.45, r * 0.26)
+        // Glowing eyes
+        g.fillStyle(0xffcc22)
+        g.fillCircle(c - r * 0.35, c - r * 0.45, r * 0.13)
+        g.fillCircle(c + r * 0.35, c - r * 0.45, r * 0.13)
+        // Claws
+        g.fillStyle(0xddccbb)
+        g.fillTriangle(c - r * 0.9, c + r * 0.8, c - r * 0.6, c + r * 0.7, c - r * 0.7, c + r * 1.1)
+        g.fillTriangle(c + r * 0.9, c + r * 0.8, c + r * 0.6, c + r * 0.7, c + r * 0.7, c + r * 1.1)
+        break
+      }
+      case 'imp': {
+        // Small red devil with horns, ears and angry eyes
+        // Bat-wing hints behind
+        g.fillStyle(0x661100, 0.9)
+        g.fillTriangle(c - r * 0.6, c, c - r * 1.5, c - r * 0.4, c - r * 1.2, c + r * 0.6)
+        g.fillTriangle(c + r * 0.6, c, c + r * 1.5, c - r * 0.4, c + r * 1.2, c + r * 0.6)
+        // Body
+        g.fillStyle(0xcc1100)
+        g.fillCircle(c, c + r * 0.1, r)
+        g.fillStyle(0xff3322)
+        g.fillCircle(c, c, r * 0.9)
+        // Horns
+        g.fillStyle(0x551100)
+        g.fillTriangle(c - r * 0.55, c - r * 0.7, c - r * 0.2, c - r * 0.7, c - r * 0.5, c - r * 1.5)
+        g.fillTriangle(c + r * 0.55, c - r * 0.7, c + r * 0.2, c - r * 0.7, c + r * 0.5, c - r * 1.5)
+        // Angry eyes
+        g.fillStyle(0xffee00)
+        g.fillTriangle(c - r * 0.5, c - r * 0.1, c - r * 0.1, c, c - r * 0.45, c + r * 0.2)
+        g.fillTriangle(c + r * 0.5, c - r * 0.1, c + r * 0.1, c, c + r * 0.45, c + r * 0.2)
+        break
+      }
+      case 'brute': {
+        // Big armoured tank with heavy shoulders + glowing eyes
+        g.fillStyle(0x445566)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x667788)
+        g.fillCircle(c, c, r * 0.92)
+        // Shoulders
+        g.fillStyle(0x556677)
+        g.fillCircle(c - r * 0.85, c - r * 0.3, r * 0.5)
+        g.fillCircle(c + r * 0.85, c - r * 0.3, r * 0.5)
+        // Armor band
+        g.fillStyle(0x2f3a44)
+        g.fillRect(c - r * 0.9, c + r * 0.1, r * 1.8, r * 0.45)
+        // Rivets
+        g.fillStyle(0x99aabb)
+        g.fillCircle(c - r * 0.6, c + r * 0.32, r * 0.1)
+        g.fillCircle(c, c + r * 0.32, r * 0.1)
+        g.fillCircle(c + r * 0.6, c + r * 0.32, r * 0.1)
+        // Glowing eyes
+        g.fillStyle(0xff4422)
+        g.fillCircle(c - r * 0.32, c - r * 0.2, r * 0.16)
+        g.fillCircle(c + r * 0.32, c - r * 0.2, r * 0.16)
+        // Top highlight
+        g.fillStyle(0x8899aa, 0.4)
+        g.fillCircle(c - r * 0.25, c - r * 0.55, r * 0.3)
+        break
+      }
+      case 'wraith': {
+        // Hooded spectre — rounded hood, wispy tapering bottom, no feet
+        g.fillStyle(cfg.color, 0.25)
+        g.fillCircle(c, c, r + 4)                       // aura
+        g.fillStyle(0xaa44ee, 0.9)
+        // Cloak body: hood top + wispy tail
+        g.fillCircle(c, c - r * 0.2, r * 0.95)
+        g.fillTriangle(c - r * 0.9, c, c + r * 0.9, c, c, c + r * 1.5)
+        // Wisp tendrils
+        g.fillStyle(0x8833cc, 0.7)
+        g.fillTriangle(c - r * 0.6, c + r * 0.6, c - r * 0.2, c + r * 0.6, c - r * 0.45, c + r * 1.4)
+        g.fillTriangle(c + r * 0.6, c + r * 0.6, c + r * 0.2, c + r * 0.6, c + r * 0.45, c + r * 1.4)
+        // Hood opening (dark)
+        g.fillStyle(0x2a0d44)
+        g.fillEllipse(c, c - r * 0.15, r * 1.1, r * 0.95)
+        // Glowing eyes
+        g.fillStyle(0xddaaff)
+        g.fillCircle(c - r * 0.3, c - r * 0.2, r * 0.18)
+        g.fillCircle(c + r * 0.3, c - r * 0.2, r * 0.18)
+        break
+      }
+      case 'elite': {
+        // Imposing golden champion — crown of spikes + bright aura
+        g.lineStyle(3, 0xffdd00, 0.4)
+        g.strokeCircle(c, c, r + 5)
+        g.fillStyle(0xaa7700)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0xddaa00)
+        g.fillCircle(c, c, r * 0.9)
+        // Crown of spikes
+        g.fillStyle(0xffdd44)
+        for (let i = -2; i <= 2; i++) {
+          const sxk = c + i * r * 0.42
+          g.fillTriangle(sxk - r * 0.18, c - r * 0.75, sxk + r * 0.18, c - r * 0.75, sxk, c - r * 1.3)
+        }
+        // Inner gem
+        g.fillStyle(0xff8822)
+        g.fillCircle(c, c + r * 0.1, r * 0.4)
+        // Menacing eyes
+        g.fillStyle(0xff5522)
+        g.fillCircle(c - r * 0.38, c - r * 0.2, r * 0.16)
+        g.fillCircle(c + r * 0.38, c - r * 0.2, r * 0.16)
+        // Highlight
+        g.fillStyle(0xffffff, 0.35)
+        g.fillCircle(c - r * 0.3, c - r * 0.45, r * 0.28)
+        break
+      }
+      default: {
+        g.fillStyle(cfg.color)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0xffffff, 0.25)
+        g.fillCircle(c - r * 0.2, c - r * 0.3, r * 0.38)
+      }
+    }
   }
 
   // ── Stash ─────────────────────────────────────────────────────────────────

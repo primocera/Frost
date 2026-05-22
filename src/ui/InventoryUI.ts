@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { EQUIP_SLOTS, EquipSlot, Item, ItemStats, RARITY_COLOR, SLOT_LABEL, STAT_LABEL } from '../items/ItemTypes'
 import { Inventory } from '../systems/Inventory'
+import { UIScaler } from './uiScale'
 
 // ── Layout constants (all screen-space pixels) ────────────────────────────────
 const PX = 130, PY = 112, PW = 700, PH = 388            // outer panel
@@ -76,6 +77,7 @@ export class InventoryUI {
   private tipText: Phaser.GameObjects.Text
 
   private allObjects: Phaser.GameObjects.GameObject[]
+  private ui!:        UIScaler
 
   constructor(private scene: Phaser.Scene, private inv: Inventory) {
     const d = D_PANEL
@@ -125,6 +127,9 @@ export class InventoryUI {
       ...this.invTexts,
     ]
 
+    this.ui = new UIScaler(scene, D_PANEL)
+    this.ui.add(this.allObjects)
+
     this.hide()
 
     // Register onChange to redraw when inventory mutates
@@ -139,6 +144,7 @@ export class InventoryUI {
 
   show() {
     this.visible = true
+    this.ui.relayout()
     this.allObjects.forEach(o => (o as Phaser.GameObjects.Graphics).setVisible(true))
     this.refresh()
     this.scene.input.on('pointermove', this.onMove, this)
