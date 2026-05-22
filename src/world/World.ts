@@ -84,6 +84,7 @@ export class World {
     this.buildDecor()
     this.buildBoundary()
     this.buildObstacles()
+    this.buildAmbientLight()
     this.buildDungeonEntrances()
     this.buildSpawnZones()
     scene.physics.world.setBounds(0, 0, size, size)
@@ -209,6 +210,30 @@ export class World {
     g.lineStyle(1, 0xcc66ff, 0.28)
     g.strokeRect(5, 5, 12, 32)
     g.generateTexture('pillar_obs', 22, 42)
+    g.clear()
+
+    // ── Torch ─────────────────────────────────────────────────────────────────
+    g.fillStyle(0x5a3808)
+    g.fillRect(10, 16, 4, 20)             // post
+    g.fillStyle(0x7a4e18)
+    g.fillRect(8, 12, 8, 6)              // bracket
+    g.fillStyle(0xff2200, 0.9)
+    g.fillTriangle(12, 4, 7, 14, 17, 14) // flame outer
+    g.fillStyle(0xff8800, 0.88)
+    g.fillTriangle(12, 7, 9, 13, 15, 13)
+    g.fillStyle(0xffee00, 0.8)
+    g.fillCircle(12, 11, 3)              // hot tip
+    g.generateTexture('torch', 24, 36)
+    g.clear()
+
+    // ── Fence post ────────────────────────────────────────────────────────────
+    g.fillStyle(0x5a4220)
+    g.fillRect(4, 0, 7, 28)
+    g.fillStyle(0x7a5c2e, 0.6)
+    g.fillRect(4, 0, 3, 28)
+    g.fillStyle(0x3a2a10)
+    g.fillRect(0, 12, 14, 3)
+    g.generateTexture('fence_post', 14, 28)
     g.clear()
 
     // ── Stash chest ───────────────────────────────────────────────────────────
@@ -338,9 +363,24 @@ export class World {
       [2640, 2180, 90, 36],  [3420, 2300, 76, 30],
     ]) g.fillEllipse(px, py, rw, rh)
 
-    // ── Central — dirt path leading south toward beginner forest ──────────────
-    g.fillStyle(0x2a3a1a, 0.3)
-    g.fillRect(this.cx - 18, this.cy, 36, S * 0.5)
+    // ── Paths from town center to each zone ──────────────────────────────────
+    const pathColor = 0x2a2e1a
+    g.fillStyle(pathColor, 0.42)
+    // South — toward Beginner Forest
+    g.fillRect(this.cx - 22, this.cy + 220, 44, S * 0.5 - 220)
+    // North — toward Frozen Ruins
+    g.fillRect(this.cx - 22, 0, 44, this.cy - 220)
+    // West — toward Corrupted Fields
+    g.fillRect(0, this.cy - 22, this.cx - 220, 44)
+    // East — toward Arcane Caves
+    g.fillRect(this.cx + 220, this.cy - 22, S - (this.cx + 220), 44)
+
+    // Path edges (slightly lighter) to give road a defined edge
+    g.fillStyle(0x363c22, 0.25)
+    g.fillRect(this.cx - 28, this.cy + 220, 6, S * 0.5 - 220)
+    g.fillRect(this.cx + 22, this.cy + 220, 6, S * 0.5 - 220)
+    g.fillRect(this.cx - 28, 0, 6, this.cy - 220)
+    g.fillRect(this.cx + 22, 0, 6, this.cy - 220)
 
     // ── Town square — cobblestone circle ──────────────────────────────────────
     g.fillStyle(0x2c2c28, 0.5)
@@ -350,6 +390,23 @@ export class World {
     g.strokeCircle(this.cx, this.cy, 140)
     g.lineBetween(this.cx - 220, this.cy, this.cx + 220, this.cy)
     g.lineBetween(this.cx, this.cy - 220, this.cx, this.cy + 220)
+
+    // ── Town fence ring ───────────────────────────────────────────────────────
+    g.lineStyle(4, 0x4a3018, 0.5)
+    g.strokeCircle(this.cx, this.cy, 310)
+    g.lineStyle(2, 0x6a4828, 0.28)
+    g.strokeCircle(this.cx, this.cy, 316)
+
+    // ── Zone danger markers at path entry points ───────────────────────────────
+    g.lineStyle(3, 0xcc3322, 0.28)
+    // North path border (Frozen Ruins)
+    g.lineBetween(this.cx - 80, 1100, this.cx + 80, 1100)
+    // South path border (Beginner Forest)
+    g.lineBetween(this.cx - 80, 2500, this.cx + 80, 2500)
+    // West (Corrupted Fields)
+    g.lineBetween(1500, this.cy - 80, 1500, this.cy + 80)
+    // East (Arcane Caves)
+    g.lineBetween(2100, this.cy - 80, 2100, this.cy + 80)
   }
 
   // ── Hard boundary ─────────────────────────────────────────────────────────
@@ -391,8 +448,57 @@ export class World {
     this.scatter('tree',     1300, 1100, 1000, 1400, 12)
     this.scatter('rock_obs', 1300, 1100, 1000, 1400,  6)
 
-    // Campfire at town center (decorative, no collision)
+    // ── Extra tree clusters in Beginner Forest ────────────────────────────────
+    const treeClusters: [number, number][] = [
+      [400, 2700], [780, 2850], [1400, 2650], [2200, 2800],
+      [2700, 2700], [3200, 2900], [600, 3300], [1900, 3350],
+    ]
+    for (const [cx, cy] of treeClusters) {
+      for (let j = 0; j < 4; j++) {
+        const ox = Phaser.Math.Between(-60, 60)
+        const oy = Phaser.Math.Between(-55, 55)
+        if (Phaser.Math.Distance.Between(cx + ox, cy + oy, this.cx, this.cy) < SAFE_RADIUS) continue
+        const obs = this.obstacles.create(cx + ox, cy + oy, 'tree') as Phaser.Physics.Arcade.Sprite
+        obs.setDepth(3)
+        ;(obs.body as Phaser.Physics.Arcade.StaticBody).setCircle(13, 6, 3)
+        obs.refreshBody()
+      }
+    }
+
+    // ── Campfire at town center (decorative, no collision) ────────────────────
     this.scene.add.image(this.cx, this.cy - 40, 'campfire').setDepth(2).setOrigin(0.5, 1)
+
+    // Extra campfires in the Beginner Forest — give safe resting spots
+    const forestFires: [number, number][] = [
+      [800, 2850], [1600, 3100], [2600, 2950], [3000, 2700],
+    ]
+    for (const [fx, fy] of forestFires) {
+      this.scene.add.image(fx, fy, 'campfire').setDepth(2).setOrigin(0.5, 1)
+    }
+
+    // Torches flanking town NPCs and path entries
+    const torchPositions: [number, number][] = [
+      // Around town campfire
+      [this.cx - 60, this.cy - 80], [this.cx + 60, this.cy - 80],
+      // Near Quest NPC
+      [this.cx - 210, this.cy - 70], [this.cx - 150, this.cy - 70],
+      // Near Merchant NPC
+      [this.cx + 150, this.cy - 70], [this.cx + 210, this.cy - 70],
+      // Path south gate
+      [this.cx - 50, this.cy + 240], [this.cx + 50, this.cy + 240],
+      // Path north gate
+      [this.cx - 50, this.cy - 240], [this.cx + 50, this.cy - 240],
+    ]
+    for (const [tx, ty] of torchPositions) {
+      this.scene.add.image(tx, ty, 'torch').setDepth(3).setOrigin(0.5, 1)
+    }
+
+    // Fence posts around town perimeter (every ~45° around the fence ring)
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+      const fx = this.cx + Math.cos(angle) * 312
+      const fy = this.cy + Math.sin(angle) * 312
+      this.scene.add.image(fx, fy, 'fence_post').setDepth(2).setOrigin(0.5, 1)
+    }
 
     // Stash chest — right of campfire
     const chestX = this.cx + 100, chestY = this.cy - 30
@@ -408,6 +514,58 @@ export class World {
     const glow = this.scene.add.graphics().setDepth(1.5)
     glow.fillStyle(0xff4400, 0.07)
     glow.fillCircle(this.cx, this.cy - 40, 65)
+  }
+
+  // ── Ambient light ─────────────────────────────────────────────────────────
+
+  private buildAmbientLight() {
+    const g = this.scene.add.graphics()
+      .setDepth(0.09)
+      .setBlendMode(Phaser.BlendModes.ADD)
+
+    // Town campfire — warm orange glow
+    this.addFireGlow(g, this.cx, this.cy - 40, 0xff5500, 130, 60, 0.045, 0.09)
+
+    // Forest campfires
+    const forestFires: [number, number][] = [
+      [800, 2850], [1600, 3100], [2600, 2950], [3000, 2700],
+    ]
+    for (const [fx, fy] of forestFires) {
+      this.addFireGlow(g, fx, fy, 0xff4400, 90, 40, 0.035, 0.07)
+    }
+
+    // Torch glows around town
+    const torchPositions: [number, number][] = [
+      [this.cx - 60, this.cy - 80], [this.cx + 60, this.cy - 80],
+      [this.cx - 210, this.cy - 70], [this.cx - 150, this.cy - 70],
+      [this.cx + 150, this.cy - 70], [this.cx + 210, this.cy - 70],
+      [this.cx - 50, this.cy + 240], [this.cx + 50, this.cy + 240],
+      [this.cx - 50, this.cy - 240], [this.cx + 50, this.cy - 240],
+    ]
+    for (const [tx, ty] of torchPositions) {
+      this.addFireGlow(g, tx, ty, 0xff6600, 55, 22, 0.03, 0.065)
+    }
+
+    // Dungeon portal glows — ominous purple
+    const portalPositions: [number, number][] = [
+      [1800, 3050], [1800, 580], [750, 1800], [2850, 1800],
+    ]
+    for (const [px, py] of portalPositions) {
+      this.addFireGlow(g, px, py - 20, 0x8833ff, 80, 35, 0.025, 0.05)
+    }
+  }
+
+  private addFireGlow(
+    g: Phaser.GameObjects.Graphics,
+    x: number, y: number,
+    color: number,
+    outerR: number, innerR: number,
+    outerAlpha: number, innerAlpha: number,
+  ) {
+    g.fillStyle(color, outerAlpha)
+    g.fillCircle(x, y, outerR)
+    g.fillStyle(color, innerAlpha)
+    g.fillCircle(x, y, innerR)
   }
 
   private scatter(

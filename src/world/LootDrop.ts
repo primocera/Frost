@@ -38,6 +38,51 @@ export class LootDrop {
 
     this.drawOrb()
 
+    // Spawn pop-in animation
+    this.container.setScale(0)
+    scene.tweens.add({
+      targets: this.container, scaleX: 1.3, scaleY: 1.3,
+      duration: 110, ease: 'Back.Out',
+      onComplete: () => {
+        scene.tweens.add({
+          targets: this.container, scaleX: 1, scaleY: 1,
+          duration: 90, ease: 'Power2',
+        })
+      },
+    })
+
+    // Burst particles for rare/epic items
+    if (item && (item.rarity === 'rare' || item.rarity === 'epic')) {
+      const burst = scene.add.particles(x, y, 'particle', {
+        speed:     { min: 60, max: item.rarity === 'epic' ? 200 : 130 },
+        scale:     { start: item.rarity === 'epic' ? 0.9 : 0.65, end: 0 },
+        alpha:     { start: 0.95, end: 0 },
+        lifespan:  item.rarity === 'epic' ? 550 : 400,
+        tint:      [RARITY_HEX[item.rarity]],
+        angle:     { min: 0, max: 360 },
+        blendMode: 'ADD',
+        emitting:  false,
+      }).setDepth(4)
+      burst.explode(item.rarity === 'epic' ? 20 : 10)
+      scene.time.delayedCall(700, () => { if (burst.active) burst.destroy() })
+    }
+
+    // Gold coin sparkle
+    if (gold !== undefined && gold >= 10) {
+      const coinBurst = scene.add.particles(x, y, 'particle', {
+        speed:     { min: 30, max: 80 },
+        scale:     { start: 0.5, end: 0 },
+        alpha:     { start: 0.85, end: 0 },
+        lifespan:  280,
+        tint:      [0xffdd00, 0xffbb00, 0xffffff],
+        angle:     { min: 0, max: 360 },
+        blendMode: 'ADD',
+        emitting:  false,
+      }).setDepth(4)
+      coinBurst.explode(gold >= 30 ? 10 : 5)
+      scene.time.delayedCall(400, () => { if (coinBurst.active) coinBurst.destroy() })
+    }
+
     // Bob animation
     scene.tweens.add({
       targets: this.container, y: y + 3,

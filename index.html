@@ -170,6 +170,55 @@
     }
     #btn-guest:hover { background: rgba(255, 255, 255, 0.12); }
 
+    /* Joystick selector */
+    .joy-section {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .joy-label {
+      font-size: 12px;
+      color: rgba(120, 180, 255, 0.5);
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+    .joy-toggle {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .joy-btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1.5px solid rgba(80, 170, 255, 0.2);
+      background: rgba(255,255,255,0.05);
+      color: rgba(160, 210, 255, 0.6);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .joy-btn.active {
+      background: rgba(20, 96, 176, 0.45);
+      border-color: rgba(80, 170, 255, 0.55);
+      color: #ffffff;
+    }
+
+    /* Intro blurb */
+    .intro-blurb {
+      font-size: 13px;
+      color: rgba(140, 190, 240, 0.55);
+      text-align: center;
+      line-height: 1.7;
+      margin-bottom: 20px;
+      letter-spacing: 0.2px;
+    }
+    .intro-blurb span {
+      color: rgba(180, 220, 255, 0.75);
+    }
+
     /* Footer */
     .landing-footer {
       position: absolute;
@@ -326,6 +375,11 @@
       <h1 class="app-title">FROST</h1>
       <p class="app-sub">A Mage's Journey</p>
 
+      <p class="intro-blurb">
+        You are an apprentice mage arriving in <span>Millhaven</span>.<br>
+        Slay monsters, master spells, and rise to <span>Archmage</span>.
+      </p>
+
       <input
         id="name-input"
         type="text"
@@ -335,6 +389,15 @@
         autocorrect="off"
         spellcheck="false"
       />
+
+      <!-- Joystick side — revealed on touch devices -->
+      <div class="joy-section" id="joystick-section" style="display:none;">
+        <p class="joy-label">Joystick Position</p>
+        <div class="joy-toggle">
+          <button class="joy-btn active" id="joy-left">◄ Left Hand</button>
+          <button class="joy-btn"        id="joy-right">Right Hand ►</button>
+        </div>
+      </div>
 
       <button class="btn" id="btn-start">Begin your journey</button>
       <button class="btn" id="btn-guest">Continue as Apprentice</button>
@@ -443,6 +506,24 @@
     })()
 
     // ── Landing page ─────────────────────────────────────────────────────────
+    window.__frostJoystickSide = 'left'
+
+    // Show joystick selector only on touch devices
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      document.getElementById('joystick-section').style.display = 'block'
+    }
+
+    document.getElementById('joy-left').addEventListener('click', function () {
+      window.__frostJoystickSide = 'left'
+      document.getElementById('joy-left').classList.add('active')
+      document.getElementById('joy-right').classList.remove('active')
+    })
+    document.getElementById('joy-right').addEventListener('click', function () {
+      window.__frostJoystickSide = 'right'
+      document.getElementById('joy-right').classList.add('active')
+      document.getElementById('joy-left').classList.remove('active')
+    })
+
     function launchGame(name) {
       const landing = document.getElementById('landing')
       landing.classList.add('fade-out')

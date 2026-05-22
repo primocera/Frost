@@ -95,6 +95,9 @@ export class GameScene extends Phaser.Scene {
   private questDefs:     { title: string; desc: string; target: number; xp: number; gold: number }[] = []
   private activeQuestIdx = -1
   private questKills     = 0
+  // Quest objective marker (world-space)
+  private questMarker:    Phaser.GameObjects.Graphics | null = null
+  private questMarkerTxt: Phaser.GameObjects.Text | null = null
   // Premium gate
   private premiumGateShown = false
 
@@ -171,6 +174,8 @@ export class GameScene extends Phaser.Scene {
       this.hud.hideControlsHint()
       this.cameras.main.setZoom(1.6)
 
+      const joystickSide = (this.registry.get('joystickSide') || 'left') as 'left' | 'right'
+
       this.mobileControls = new MobileControls(
         this,
         // Spell button taps (0=Q 1=E 2=R 3=F)
@@ -207,6 +212,7 @@ export class GameScene extends Phaser.Scene {
         },
         // Interact button — same as E key
         () => { if (!this.dead) this.handleEInteract() },
+        joystickSide,
       )
     }
 
@@ -473,6 +479,11 @@ export class GameScene extends Phaser.Scene {
       const color = d.phase === 3 ? '#ff3300' : '#ff9900'
       this.hud.showStreakText(`${d.name}  ${text}`, color, 26)
       this.screenFlash(d.phase === 3 ? 0xff3300 : 0xff9900, 0.13, 500)
+    })
+
+    // Auto-start first quest after a brief welcome moment
+    this.time.delayedCall(1800, () => {
+      if (!this.dead && this.activeQuestIdx < 0) this.autoStartFirstQuest()
     })
   }
 
@@ -935,11 +946,23 @@ export class GameScene extends Phaser.Scene {
         return
       }
       this.player.inventory.add(drop.item)
-      this.hud.showFloatingText(drop.x, drop.y - 20, drop.item.name, RARITY_COLOR[drop.item.rarity], 13)
+      const rarity = drop.item.rarity
+      const isRare = rarity === 'rare' || rarity === 'epic'
+      const sz  = rarity === 'epic' ? 20 : rarity === 'rare' ? 17 : 13
+      const col = RARITY_COLOR[rarity]
+      const pfx = rarity === 'epic' ? '★ ' : rarity === 'rare' ? '◆ ' : ''
+      this.hud.showFloatingText(drop.x, drop.y - 20, `${pfx}${drop.item.name}`, col, sz)
+      if (isRare) {
+        // Camera shake for rare+ drops
+        this.cameras.main.shake(rarity === 'epic' ? 120 : 60, rarity === 'epic' ? 0.006 : 0.003)
+        this.screenFlash(rarity === 'epic' ? 0xaa44ff : 0x4488ff, 0.08, 300)
+      }
     } else if (drop.gold !== undefined) {
       this.player.inventory.gold += drop.gold
       this.progression.onGoldCollected(drop.gold)
-      this.hud.showFloatingText(drop.x, drop.y - 20, `+${drop.gold}g`, '#ffdd00', 13)
+      const sz  = drop.gold >= 20 ? 16 : 13
+      const col = drop.gold >= 20 ? '#ffee44' : '#ffdd00'
+      this.hud.showFloatingText(drop.x, drop.y - 20, `+${drop.gold}g`, col, sz)
     }
     const i = this.lootDrops.indexOf(drop)
     if (i !== -1) this.lootDrops.splice(i, 1)
@@ -1139,7 +1162,10 @@ export class GameScene extends Phaser.Scene {
     this.screenFlash(0xffdd00, 0.35, 700)
 
     // Big animated "LEVEL X" text
-    const lvText = this.add.text(this.scale.width / 2, this.scale.height / 2, `LEVEL  ${this.player.stats.level}`, {
+    const Z   = this.cameras.main.zoom || 1
+    const W   = this.scale.width  / Z
+    const H   = this.scale.height / Z
+    const lvText = this.add.text(W / 2, H / 2, `LEVEL  ${this.player.stats.level}`, {
       fontSize:        '58px',
       color:           '#ffdd00',
       fontFamily:      'monospace',
@@ -1152,26 +1178,40 @@ export class GameScene extends Phaser.Scene {
       duration: 240, ease: 'Back.Out',
       onComplete: () => {
         this.tweens.add({
-          targets: lvText, y: 220, alpha: 0,
+          targets: lvText, y: H * 0.34, alpha: 0,
           duration: 1100, delay: 650, ease: 'Power2',
           onComplete: () => lvText.destroy(),
         })
       },
     })
 
+    // Expanding ring from player
+    const ringGfx = this.add.graphics().setDepth(11)
+    let ringR = 10
+    const ringTimer = this.time.addEvent({
+      delay: 16, repeat: 40,
+      callback: () => {
+        ringR += 8
+        ringGfx.clear()
+        ringGfx.lineStyle(4, 0xffdd00, Math.max(0, 1 - ringR / 340))
+        ringGfx.strokeCircle(this.player.x, this.player.y, ringR)
+      },
+    })
+    this.time.delayedCall(700, () => { ringGfx.destroy() })
+
     // Gold particle burst from player
     const burst = this.add.particles(this.player.x, this.player.y, 'particle', {
-      speed:     { min: 90, max: 380 },
-      scale:     { start: 1.6, end: 0 },
+      speed:     { min: 100, max: 420 },
+      scale:     { start: 1.8, end: 0 },
       alpha:     { start: 1, end: 0 },
-      lifespan:  900,
+      lifespan:  1000,
       blendMode: 'ADD',
       tint:      [0xffdd00, 0xffffff, 0xff8800, 0xffcc00],
       angle:     { min: 0, max: 360 },
       emitting:  false,
     }).setDepth(10)
-    burst.explode(Device.particleCount(48))
-    this.time.delayedCall(1000, () => { if (burst.active) burst.destroy() })
+    burst.explode(Device.particleCount(56))
+    this.time.delayedCall(1100, () => { if (burst.active) burst.destroy() })
   }
 
   // ── Spawning ──────────────────────────────────────────────────────────────
@@ -1577,19 +1617,88 @@ export class GameScene extends Phaser.Scene {
       this.player.gainXP(q.xp)
       this.player.inventory.gold += q.gold
       this.hud.showQuestUpdate(`Quest complete!\n+${q.xp} XP  +${q.gold} gold`, '#ffdd44')
+      this.hideQuestObjectiveMarker()
       const next = this.activeQuestIdx + 1
       if (next < this.questDefs.length) {
         this.activeQuestIdx = next
         this.questKills = 0
         this.updateQuestHUD()
+        // Quest 1: explore other zones; show a broader marker
+        if (next === 1) this.showQuestObjectiveMarker(900, 1760, '▼ Explore Zones')
         this.time.delayedCall(2800, () => {
           this.hud.showQuestUpdate('New quest!\n' + this.questDefs[next].title, '#aadd44')
         })
       } else {
         this.activeQuestIdx = -2
         this.hud.setQuestText('All quests complete!')
+        this.hideQuestObjectiveMarker()
       }
     }
+  }
+
+  // ── Quest objective marker ────────────────────────────────────────────────
+
+  private showQuestObjectiveMarker(wx: number, wy: number, label: string) {
+    this.questMarker?.destroy()
+    this.questMarkerTxt?.destroy()
+
+    const g = this.add.graphics().setDepth(3.5)
+    this.questMarker = g
+
+    g.lineStyle(3, 0x66ff33, 0.55)
+    g.strokeCircle(wx, wy, 190)
+    g.lineStyle(2, 0x33ff00, 0.22)
+    g.strokeCircle(wx, wy, 240)
+
+    this.tweens.add({
+      targets: g,
+      alpha: { from: 0.35, to: 1 },
+      duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    })
+
+    this.questMarkerTxt = this.add.text(wx, wy - 210, label, {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      color: '#88ff44', stroke: '#000000', strokeThickness: 4,
+    }).setDepth(3.5).setOrigin(0.5)
+  }
+
+  private hideQuestObjectiveMarker() {
+    this.questMarker?.destroy();    this.questMarker    = null
+    this.questMarkerTxt?.destroy(); this.questMarkerTxt = null
+  }
+
+  private autoStartFirstQuest() {
+    this.activeQuestIdx = 0
+    this.questKills = 0
+    this.updateQuestHUD()
+
+    // Pulsing ring in the Beginner Forest
+    this.showQuestObjectiveMarker(1800, 2900, '▼ Quest Zone')
+
+    // Welcome NPC dialog
+    const frostModal = (window as any).__frostModal
+    if (frostModal) {
+      frostModal.show({
+        title: 'Elder Mirwen',
+        lines: [
+          '"Ah, a new mage arrives in Millhaven!"',
+          '"The Beginner Forest lies to the south."',
+          '"Slimes and ghouls stir in the shadows."',
+          '"Prove yourself worthy — then return."',
+          '',
+          'Quest: First Blood',
+          'Slay 5 creatures in Beginner Forest.',
+        ],
+        buttons: [{ label: 'I\'m ready!', primary: true, onClick: () => {} }],
+        onClose: () => {},
+      })
+    }
+
+    this.hud.showQuestUpdate(
+      'Quest accepted!\nFirst Blood — go south to Beginner Forest',
+      '#aadd44'
+    )
   }
 
   // ── Quests ────────────────────────────────────────────────────────────────
