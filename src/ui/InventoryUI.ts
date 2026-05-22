@@ -64,7 +64,7 @@ export class InventoryUI {
     this.backdrop.addEventListener('mousemove', this.onMouseMove)
     this.backdrop.addEventListener('mouseleave', () => window.__gpTooltip.hide())
 
-    inv.onChange = () => this.refresh()
+    inv.addChangeListener(() => this.refresh())
   }
 
   isOpen()  { return this.visible }

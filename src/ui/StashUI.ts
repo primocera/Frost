@@ -66,7 +66,7 @@ export class StashUI {
     this.backdrop.addEventListener('mouseleave', () => window.__gpTooltip.hide())
 
     stash.onChange = () => this.refresh()
-    inv.onChange   = () => this.refresh()
+    inv.addChangeListener(() => this.refresh())
   }
 
   isOpen()  { return this.visible }
@@ -132,7 +132,7 @@ export class StashUI {
       if (item && !this.stash.isFull) {
         this.inv.items[idx] = null
         this.stash.add(item)
-        this.inv.onChange?.()
+        this.inv.notifyChange()
       }
     }
   }

@@ -7,8 +7,13 @@ export class Inventory {
   readonly equipped: Record<EquipSlot, Item | null>
   gold = 0
 
-  /** Called after any equip/unequip/add change — set by InventoryUI to trigger a redraw. */
-  onChange?: () => void
+  private _listeners: (() => void)[] = []
+
+  /** Register a callback fired after any equip/unequip/add change. */
+  addChangeListener(fn: () => void) { this._listeners.push(fn) }
+
+  /** Fire all registered change listeners. */
+  notifyChange() { for (const fn of this._listeners) fn() }
 
   private _gearStats: ItemStats = {}
   get gearStats(): Readonly<ItemStats> { return this._gearStats }
@@ -52,7 +57,7 @@ export class Inventory {
     this.equipped[target] = item
     this.items[invIdx]    = displaced
     this.recompute()
-    this.onChange?.()
+    this.notifyChange()
     return displaced
   }
 
@@ -66,7 +71,7 @@ export class Inventory {
     if (!this.add(item)) return false
     this.equipped[slot] = null
     this.recompute()
-    this.onChange?.()
+    this.notifyChange()
     return true
   }
 

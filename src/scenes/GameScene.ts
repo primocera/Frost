@@ -663,7 +663,7 @@ export class GameScene extends Phaser.Scene {
     spawnFrostCastEffect(this, this.player.x, this.player.y)
     const bolt = spawnFrostbolt(this, this.bolts, this.player.x, this.player.y, worldX, worldY, this.player.effectiveSpellDamage)
     bolt.setData('castZone', getZoneAt(this.player.x, this.player.y)?.name ?? '__town__')
-    this.sfx.onFireboltCast()
+    this.sfx.onFrostboltCast()
   }
 
   private castArcaneExplosion() {
@@ -1003,7 +1003,7 @@ export class GameScene extends Phaser.Scene {
         return
       }
       this.player.inventory.add(drop.item)
-      this.player.inventory.onChange?.()
+      this.player.inventory.notifyChange()
       const rarity = drop.item.rarity
       const isRare = rarity === 'rare' || rarity === 'epic'
       const sz  = rarity === 'epic' ? 20 : rarity === 'rare' ? 17 : 13
@@ -1017,7 +1017,7 @@ export class GameScene extends Phaser.Scene {
       }
     } else if (drop.gold !== undefined) {
       this.player.inventory.gold += drop.gold
-      this.player.inventory.onChange?.()
+      this.player.inventory.notifyChange()
       this.progression.onGoldCollected(drop.gold)
       const sz  = drop.gold >= 100 ? 16 : 13
       const col = drop.gold >= 100 ? '#ffee44' : '#ffdd00'
@@ -1831,7 +1831,7 @@ export class GameScene extends Phaser.Scene {
     const item = this.player.inventory.items[idx]
     if (!item) return
     this.player.inventory.items[idx] = null
-    this.player.inventory.onChange?.()
+    this.player.inventory.notifyChange()
     this.lootDrops.push(new LootDrop(this, this.player.x + Phaser.Math.Between(-20, 20), this.player.y + 16, item))
     this.hud.showFloatingText(this.player.x, this.player.y - 30, `Dropped ${item.name}`, '#888888', 13)
   }
@@ -2080,7 +2080,7 @@ export class GameScene extends Phaser.Scene {
       // Collect reward
       this.player.gainXP(q.xp)
       this.player.inventory.gold += q.gold
-      this.player.inventory.onChange?.()
+      this.player.inventory.notifyChange()
       this.hud.showQuestUpdate(`Quest complete!\n+${q.xp} XP  +${formatCopper(q.gold)}`, '#ffdd44')
       this.hideQuestObjectiveMarker()
       const next = this.activeQuestIdx + 1

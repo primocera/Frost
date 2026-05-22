@@ -147,7 +147,7 @@ export class ShopUI {
     this.inv.gold -= entry.price
     this.inv.add(entry.item)
     entry.sold = true
-    this.inv.onChange?.()
+    this.inv.notifyChange()
     this.render()
   }
 
