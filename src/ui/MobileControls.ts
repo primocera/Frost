@@ -8,7 +8,7 @@ const JY     = 530
 const BASE_R = 74
 const KNOB_R = 28
 
-// Spell buttons — bottom-right, clear of the HUD rings at y≈596
+// Spell buttons — bottom-right
 const SPELL_DEFS = [
   { key: 'Q', label: 'ArcEx',    color: 0xcc44ff, cx: 746, cy: 480 },
   { key: 'E', label: 'FrNova',   color: 0x44aaff, cx: 820, cy: 480 },
@@ -17,7 +17,13 @@ const SPELL_DEFS = [
 ] as const
 const SPELL_R = 31
 
-// Menu buttons — top-right column (replaces keyboard-hint text on mobile)
+// Interact button — bottom-center, shown contextually
+const IX     = 480
+const IY     = 556
+const IRAD   = 38
+const ICOL   = 0x33bb77
+
+// Menu buttons — top-right column
 const MENU_DEFS = [
   { key: 'I', cx: 930, cy: 52  },
   { key: 'T', cx: 930, cy: 82  },
@@ -33,13 +39,16 @@ export class MobileControls {
   /** Normalised joystick direction — magnitude 0..1. */
   readonly dir = { x: 0, y: 0 }
 
-  private gfx:        Phaser.GameObjects.Graphics
-  private spellTexts: Phaser.GameObjects.Text[]
-  private menuTexts:  Phaser.GameObjects.Text[]
+  private gfx:          Phaser.GameObjects.Graphics
+  private spellTexts:   Phaser.GameObjects.Text[]
+  private menuTexts:    Phaser.GameObjects.Text[]
+  private interactText: Phaser.GameObjects.Text
 
   private joystickPtrId: number | null = null
   private knobX = JX
   private knobY = JY
+
+  private interactLabel: string | null = null
 
   // [cd, max] for each spell — updated each frame by GameScene
   private cooldowns: SpellCooldown[] = [
@@ -48,9 +57,10 @@ export class MobileControls {
   ]
 
   constructor(
-    private scene:   Phaser.Scene,
-    private onSpell: (idx: number) => void,   // 0=Q 1=E 2=R 3=F
-    private onMenu:  (key: string) => void,   // 'I'|'T'|'P'
+    private scene:      Phaser.Scene,
+    private onSpell:    (idx: number) => void,   // 0=Q 1=E 2=R 3=F
+    private onMenu:     (key: string) => void,   // 'I'|'T'|'P'
+    private onInteract: () => void,               // contextual E-key action
   ) {
     // Support up to 5 simultaneous touches (joystick + 4 spell buttons)
     scene.input.addPointer(4)
@@ -71,6 +81,13 @@ export class MobileControls {
       }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0.5)
     )
 
+    // Interact button label — hidden until showInteract() is called
+    this.interactText = scene.add.text(IX, IY, '', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      color: '#ffffff',
+    }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0.5).setVisible(false)
+
     scene.input.on('pointerdown', this.onDown, this)
     scene.input.on('pointermove', this.onMove, this)
     scene.input.on('pointerup',   this.onUp,   this)
@@ -84,7 +101,7 @@ export class MobileControls {
   /** True if canvas-x is inside the joystick zone (don't fire Firebolt here). */
   isJoystickZone(x: number): boolean { return x < JX + BASE_R + 28 }
 
-  /** True if the tap lands on any control button (spell or menu) — block Firebolt. */
+  /** True if the tap lands on any control button (spell, menu, or interact) — block Firebolt. */
   isControlTap(x: number, y: number): boolean {
     for (const s of SPELL_DEFS) {
       if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= SPELL_R + 10) return true
@@ -92,11 +109,24 @@ export class MobileControls {
     for (const m of MENU_DEFS) {
       if (Phaser.Math.Distance.Between(x, y, m.cx, m.cy) <= MENU_R + 10) return true
     }
+    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, IX, IY) <= IRAD + 12) return true
     return false
   }
 
   /** Update spell cooldown data — call once per frame before update(). */
   setCooldowns(data: SpellCooldown[]) { this.cooldowns = data }
+
+  /** Show the contextual interact button with the given label. */
+  showInteract(label: string) {
+    this.interactLabel = label
+    this.interactText.setText(label).setVisible(true)
+  }
+
+  /** Hide the interact button. */
+  hideInteract() {
+    this.interactLabel = null
+    this.interactText.setVisible(false)
+  }
 
   /** Redraw the controls — call from GameScene.update(). */
   update() { this.redraw() }
@@ -108,6 +138,7 @@ export class MobileControls {
     this.gfx.destroy()
     this.spellTexts.forEach(t => t.destroy())
     this.menuTexts.forEach(t => t.destroy())
+    this.interactText.destroy()
   }
 
   // ── Pointer handlers ───────────────────────────────────────────────────────
@@ -121,6 +152,12 @@ export class MobileControls {
         this.onMenu(m.key)
         return
       }
+    }
+
+    // Interact button — contextual E action
+    if (this.interactLabel && Phaser.Math.Distance.Between(x, y, IX, IY) <= IRAD + 12) {
+      this.onInteract()
+      return
     }
 
     // Spell buttons
@@ -243,6 +280,18 @@ export class MobileControls {
 
         this.spellTexts[i].setText((cd / 1000).toFixed(1) + 's').setColor('#555555')
       }
+    }
+
+    // ── Interact button (contextual E) ────────────────────────────────────
+    if (this.interactLabel) {
+      g.fillStyle(0x000000, 0.55)
+      g.fillCircle(IX, IY, IRAD + 4)
+      g.fillStyle(ICOL, 0.88)
+      g.fillCircle(IX, IY, IRAD)
+      g.fillStyle(0xffffff, 0.18)
+      g.fillCircle(IX - 10, IY - 10, 10)
+      g.lineStyle(2, 0x66ffaa, 0.5)
+      g.strokeCircle(IX, IY, IRAD)
     }
 
     // ── Menu buttons (I / T / P) ───────────────────────────────────────────

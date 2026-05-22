@@ -169,6 +169,7 @@ export class GameScene extends Phaser.Scene {
     Device.isMobile = this.sys.game.device.input.touch
     if (Device.isMobile) {
       this.hud.hideControlsHint()
+      this.cameras.main.setZoom(1.6)
 
       this.mobileControls = new MobileControls(
         this,
@@ -204,8 +205,9 @@ export class GameScene extends Phaser.Scene {
               break
           }
         },
+        // Interact button — same as E key
+        () => { if (!this.dead) this.handleEInteract() },
       )
-
     }
 
     // ── Social systems ────────────────────────────────────────────────────
@@ -532,25 +534,7 @@ export class GameScene extends Phaser.Scene {
     this.updateDungeonProximity()
     this.updateStashProximity()
 
-    if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
-      if (this.nearNPC) {
-        if (this.dialogOpen) {
-          ;(window as any).__frostModal?.hide()
-          this.dismissDialog()
-        } else if (this.nearNPC === 'quest') this.openQuestDialog()
-        else this.openMerchantDialog()
-      } else if (this.nearStash) {
-        if (this.stashUI.isOpen()) this.stashUI.hide()
-        else {
-          this.inventoryUI.isOpen() && this.inventoryUI.hide()
-          this.talentUI.isOpen()    && this.talentUI.hide()
-          this.progressionUI.isOpen() && this.progressionUI.hide()
-          this.stashUI.show()
-        }
-      } else if (this.nearDungeon && !this.dialogOpen && !this.activeBoss) {
-        this.enterDungeon(this.nearDungeon)
-      }
-    }
+    if (Phaser.Input.Keyboard.JustDown(this.eKey)) this.handleEInteract()
 
     const anyUIOpen = this.inventoryUI.isOpen() || this.talentUI.isOpen() || this.progressionUI.isOpen() || this.dialogOpen || this.stashUI.isOpen()
     if (!anyUIOpen) {
@@ -1326,6 +1310,8 @@ export class GameScene extends Phaser.Scene {
     )
     this.nearStash = d < 100
     this.stashPrompt.setVisible(this.nearStash && !this.stashUI.isOpen())
+    if (this.nearStash && !this.nearNPC) this.mobileControls?.showInteract('Stash')
+    else if (!this.nearNPC && !this.nearDungeon)  this.mobileControls?.hideInteract()
   }
 
   private dropInventoryItem(idx: number) {
@@ -1365,8 +1351,12 @@ export class GameScene extends Phaser.Scene {
           .setText(`[E] Enter ${cfg.name}'s dungeon`)
           .setPosition(entrance.x, entrance.y - 72)
           .setVisible(true)
+        if (!this.nearNPC) this.mobileControls?.showInteract('Enter')
         break
       }
+    }
+    if (!this.nearDungeon && !this.nearNPC && !this.nearStash) {
+      this.mobileControls?.hideInteract()
     }
   }
 
@@ -1378,6 +1368,28 @@ export class GameScene extends Phaser.Scene {
       if (!this.dead && !this.activeBoss && !this.bossDefeated.has(cfg.zoneId))
         this.spawnBoss(cfg)
     })
+  }
+
+  // ── E-key / interact ─────────────────────────────────────────────────────
+
+  private handleEInteract() {
+    if (this.nearNPC) {
+      if (this.dialogOpen) {
+        ;(window as any).__frostModal?.hide()
+        this.dismissDialog()
+      } else if (this.nearNPC === 'quest') this.openQuestDialog()
+      else this.openMerchantDialog()
+    } else if (this.nearStash) {
+      if (this.stashUI.isOpen()) this.stashUI.hide()
+      else {
+        this.inventoryUI.isOpen() && this.inventoryUI.hide()
+        this.talentUI.isOpen()    && this.talentUI.hide()
+        this.progressionUI.isOpen() && this.progressionUI.hide()
+        this.stashUI.show()
+      }
+    } else if (this.nearDungeon && !this.dialogOpen && !this.activeBoss) {
+      this.enterDungeon(this.nearDungeon)
+    }
   }
 
   // ── NPCs ──────────────────────────────────────────────────────────────────
@@ -1432,12 +1444,15 @@ export class GameScene extends Phaser.Scene {
     if (dQ < 90) {
       this.nearNPC = 'quest'
       this.npcPrompt.setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
     } else if (dM < 90) {
       this.nearNPC = 'merchant'
       this.npcPrompt.setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
     } else {
       this.nearNPC = null
       if (!this.dialogOpen) this.npcPrompt.setVisible(false)
+      if (!this.nearStash && !this.nearDungeon) this.mobileControls?.hideInteract()
     }
   }
 
