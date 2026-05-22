@@ -174,8 +174,6 @@ export class GameScene extends Phaser.Scene {
       this.hud.hideControlsHint()
       this.cameras.main.setZoom(1.6)
 
-      const joystickSide = (this.registry.get('joystickSide') || 'left') as 'left' | 'right'
-
       this.mobileControls = new MobileControls(
         this,
         // Spell button taps (0=Q 1=E 2=R 3=F)
@@ -212,7 +210,6 @@ export class GameScene extends Phaser.Scene {
         },
         // Interact button — same as E key
         () => { if (!this.dead) this.handleEInteract() },
-        joystickSide,
       )
     }
 

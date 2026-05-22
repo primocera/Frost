@@ -23,7 +23,5 @@ import { GameScene } from './scenes/GameScene'
     scene: [BootScene, GameScene],
   })
 
-  const joystickSide: string = (window as any).__frostJoystickSide || 'left'
   game.registry.set('playerName', playerName)
-  game.registry.set('joystickSide', joystickSide)
 }
