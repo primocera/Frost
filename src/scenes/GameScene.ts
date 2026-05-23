@@ -1927,16 +1927,25 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (style.item === 'dagger') {
-      const hy = by + 34
-      ctx.fillStyle = '#cdd6e0'
+      // Angled short sword — diagonal hold makes it clearly a blade, not a staff
+      ctx.save()
+      ctx.translate(sx - 1, by + 26)
+      ctx.rotate(0.42)
+      // Blade
+      ctx.fillStyle = '#c8d4e2'
       ctx.beginPath()
-      ctx.moveTo(sx, hy); ctx.lineTo(sx - 2.5, hy - 2); ctx.lineTo(sx - 1.5, hy - 13)
-      ctx.lineTo(sx, hy - 15); ctx.lineTo(sx + 1.5, hy - 13); ctx.lineTo(sx + 2.5, hy - 2)
+      ctx.moveTo(-3, 0); ctx.lineTo(-1.5, -14); ctx.lineTo(0, -18)
+      ctx.lineTo(1.5, -14); ctx.lineTo(3, 0)
       ctx.closePath(); ctx.fill()
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.6
-      ctx.beginPath(); ctx.moveTo(sx, hy - 2); ctx.lineTo(sx, hy - 14); ctx.stroke()
-      ctx.fillStyle = '#6a4a2a'; ctx.fillRect(sx - 3, hy, 6, 1.6)       // crossguard
-      ctx.fillStyle = '#4a3318'; ctx.fillRect(sx - 1, hy + 1.6, 2, 4)   // hilt
+      ctx.strokeStyle = '#eef4ff'; ctx.lineWidth = 0.5
+      ctx.beginPath(); ctx.moveTo(0, -1); ctx.lineTo(0, -15); ctx.stroke()  // edge gleam
+      // Crossguard
+      ctx.fillStyle = '#9a7030'
+      ctx.fillRect(-5, 0, 10, 2.5)
+      // Grip
+      ctx.fillStyle = '#4a2e10'
+      ctx.fillRect(-2, 2.5, 4, 8)
+      ctx.restore()
       return
     }
 
