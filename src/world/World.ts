@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Wolf, Spider, Bandit, Bear, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Wolf, Spider, Bandit, Bear, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, DefiasCaster } from '../entities/EnemyTypes'
 
 export interface SpawnZone {
   cx: number
@@ -1782,111 +1782,116 @@ export class World {
     const push = (cx: number, cy: number, radius: number, table: EnemyConfig[], maxEnemies: number) =>
       this.spawnZones.push({ cx, cy, radius, table, maxEnemies, zoneBounds: zoneBoundsFor(cx, cy) })
 
-    // ── Beginner Forest (y: 2500–3600) — danger 1 ────────────────────────
-    // Entry camps (y: 2520–2700) — slimes + a skittering spider, low density
+    // ── Beginner Forest (y: 2500–3600, x: 0–3600) — danger 1 ────────────
+    // Dungeon entrance at (1800, 3050) — camps stay 400px clear of it.
+    // Entry camps — near the south border of town, first enemies player sees
     for (const [cx, cy] of [
-      [900,  2560], [1800, 2580], [2700, 2560],
+      [ 450, 2580], [1100, 2560], [2200, 2570], [3100, 2590],
     ] as [number, number][]) {
       push(cx, cy, 160, [Slime, Slime, Spider], 2)
     }
-    // Core camps (y: 2750–3150) — slimes, spiders, wolves + roving bandits
+    // Core camps — spread across mid-forest, avoiding the dungeon column
     for (const [cx, cy] of [
-      [500, 2900], [1200, 2850], [1800, 3050],
-      [2500, 2950], [3100, 2900],
+      [ 280, 2860], [ 950, 2920], [2500, 2880],
+      [3300, 2840], [1350, 3120], [2900, 3140],
     ] as [number, number][]) {
-      push(cx, cy, 240, [Slime, Spider, Wolf, Bandit], 3)
+      push(cx, cy, 240, [Slime, Spider, Bandit, Bandit], 3)
     }
-    // Deep camps (y: 3200–3520) — wolf packs, bandits + a lumbering bear; Thornback roams here
-    for (const [cx, cy] of [
-      [800, 3300], [1800, 3420], [2900, 3280],
-    ] as [number, number][]) {
-      push(cx, cy, 250, [Wolf, Bandit, Bear, Spider, Bandit, Thornback], 4)
-    }
+    // Deep camps — far south, clear of dungeon at (1800,3050)
+    // Alternate between pure-melee brawler camps and mixed caster camps
+    push( 550, 3340, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
+    push(1400, 3440, 250, [Bandit, DefiasCaster, Bear, Bandit, Thornback], 4)
+    push(2600, 3380, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
+    push(3250, 3320, 250, [Bandit, DefiasCaster, Bandit, Bear, Thornback], 4)
 
-    // ── Frozen Ruins (y: 0–1100) — danger 2 ───────────────────────────────
-    // Entry camps (y: 870–1060) — Ghouls + a Wraith, smaller packs
+    // ── Frozen Ruins (y: 0–1100, x: 0–3600) — danger 2 ───────────────────
+    // Dungeon entrance at (1800, 580) — camps stay 400px clear.
+    // Entry camps — near the south border (y≈900–1060), spread west to east
+    // Two melee-only, two mixed — not every camp has a caster
+    push( 380, 1000, 280, [Ghoul, Ghoul, Brute], 3)
+    push( 950,  960, 280, [Ghoul, Ghoul, Wraith], 3)
+    push(2700,  970, 280, [Ghoul, Ghoul, Brute], 3)
+    push(3300,  990, 280, [Ghoul, Ghoul, Wraith], 3)
+    // Core camps — mid-zone, flanking wide of dungeon column
+    // Alternate melee-heavy and wraith-supported camps
+    push( 260,  680, 320, [Ghoul, Ghoul, Brute, Brute], 4)
+    push( 820,  720, 320, [Ghoul, Wraith, Brute, Ghoul], 4)
+    push(2400,  700, 320, [Ghoul, Ghoul, Brute, Brute], 4)
+    push(3100,  650, 320, [Ghoul, Wraith, Wraith, Brute], 4)
+    push(1300,  900, 320, [Ghoul, Ghoul, Brute, Ghoul], 4)
+    push(2900,  860, 320, [Ghoul, Wraith, Wraith, Brute, Ghoul], 5)
+    // Deep camps — deep north (y: 40–300), Frost Warden patrols
     for (const [cx, cy] of [
-      [600, 980], [1800, 940], [3000, 980],
-    ] as [number, number][]) {
-      push(cx, cy, 280, [Ghoul, Ghoul, Wraith], 3)
-    }
-    // Core camps (y: 420–870)
-    for (const [cx, cy] of [
-      [380, 640], [1200, 700], [1800, 480],
-      [2500, 660], [3200, 520],
-    ] as [number, number][]) {
-      push(cx, cy, 320, [Ghoul, Ghoul, Wraith, Wraith, Brute], 5)
-    }
-    // Deep camps (y: 40–420) — most dangerous, Brute-heavy; Frost Warden patrols here
-    for (const [cx, cy] of [
-      [700, 220], [1800, 180], [3000, 240],
+      [ 500,  200], [1200,  160], [2500,  220], [3300,  180],
     ] as [number, number][]) {
       push(cx, cy, 320, [Wraith, Wraith, Brute, Brute, Ghoul, FrostWarden], 6)
     }
 
     // ── Corrupted Fields (x: 0–1500, y: 1100–2500) — danger 3 ────────────
-    // Entry camps (x: 1080–1460) — Imps + a Ghoul, player meets them first
+    // Dungeon entrance at (750, 1800) — camps stay 400px clear.
+    // Entry camps — east edge (x≈1200–1450), player enters from right
     for (const [cx, cy] of [
-      [1360, 1440], [1300, 1900], [1350, 2360],
+      [1380, 1320], [1420, 1920], [1360, 2380],
     ] as [number, number][]) {
       push(cx, cy, 260, [Imp, Imp, Ghoul], 3)
     }
-    // Core camps
+    // Core camps — spread north/south of dungeon, not near (750,1800)
     for (const [cx, cy] of [
-      [800, 1600], [480, 2000], [900, 2300],
+      [ 900, 1300], [ 350, 1440], [1100, 2180],
+      [ 400, 2350], [ 920, 2450],
     ] as [number, number][]) {
       push(cx, cy, 300, [Imp, Imp, Imp, Ghoul, Brute], 5)
     }
-    // Deep camps (far west) — Corrupted Mage lurks here
+    // Deep camps — far west, Corrupted Mage lurks here
     for (const [cx, cy] of [
-      [240, 1560], [280, 2200],
+      [ 160, 1300], [ 200, 1920], [ 140, 2380],
     ] as [number, number][]) {
       push(cx, cy, 300, [Imp, Ghoul, Brute, Brute, Imp, CorruptedMage], 6)
     }
 
     // ── Arcane Caves (x: 2100–3600, y: 1100–2500) — danger 4 ─────────────
-    // Entry camps (x: 2100–2560) — Wraithes + Ghouls
+    // Dungeon entrance at (2850, 1800) — camps stay 400px clear.
+    // Entry camps — west edge (x≈2100–2400), player enters from left
+    // Mix melee and caster — not all Wraith
+    push(2180, 1320, 280, [Ghoul, Ghoul, Brute], 3)
+    push(2150, 1940, 280, [Wraith, Wraith, Ghoul], 3)
+    push(2220, 2420, 280, [Ghoul, Ghoul, Brute], 3)
+    // Core camps — north/south of dungeon and far east, not near (2850,1800)
     for (const [cx, cy] of [
-      [2300, 1440], [2260, 1900], [2380, 2360],
-    ] as [number, number][]) {
-      push(cx, cy, 280, [Wraith, Wraith, Ghoul], 3)
-    }
-    // Core camps
-    for (const [cx, cy] of [
-      [2800, 1580], [3100, 2020], [2900, 2320],
+      [2650, 1280], [3200, 1480], [2700, 2380],
+      [3300, 2200], [2500, 2480],
     ] as [number, number][]) {
       push(cx, cy, 300, [Wraith, Wraith, Brute, Ghoul], 4)
     }
-    // Deep camps (far east) — Arcane Lich haunts these ruins
+    // Deep camps — far east, Arcane Lich haunts these ruins
     for (const [cx, cy] of [
-      [3360, 1580], [3400, 2120],
+      [3450, 1320], [3500, 1900], [3480, 2380],
     ] as [number, number][]) {
       push(cx, cy, 300, [Wraith, Brute, Brute, Ghoul, Elite, ArcaneLich], 5)
     }
 
-    // ── Volcanic Wastes (x: 3600–5400) — danger 5 ────────────────────────────
-    // Approach (y: 2500–3600) — Brutes + Elites, first taste of volcanic difficulty
+    // ── Volcanic Wastes (x: 3600–5400, y: 0–3600) — danger 5 ────────────
+    // No dungeon here — spread camps freely across the large area.
+    // Approach (y: 2500–3600) — Brutes + Elites
     for (const [cx, cy] of [
-      [3800, 2720], [4200, 2880], [4650, 2760],
-      [4050, 3200], [3860, 3380], [4750, 3300],
+      [3750, 2680], [4300, 2820], [4900, 2720],
+      [3900, 3260], [4600, 3150], [5200, 3300],
     ] as [number, number][]) {
       push(cx, cy, 270, [Ghoul, Brute, Brute, Imp, Elite], 4)
     }
-
-    // Core (y: 1100–2500) — high Elite density; Ashen Giant roams the lava fields
+    // Core (y: 1100–2500) — high Elite density; Ashen Giant roams
     for (const [cx, cy] of [
-      [3820, 1480], [4260, 1720], [4720, 1500],
-      [4050, 2050], [4800, 1940], [4150, 2320],
-      [5100, 1650], [5200, 2200],
+      [3780, 1420], [4350, 1680], [4900, 1460],
+      [3950, 2080], [4700, 2020], [5200, 1720],
+      [4150, 2400], [5050, 2350],
     ] as [number, number][]) {
       push(cx, cy, 300, [Elite, Elite, Brute, Wraith, Ghoul, AshenGiant], 5)
     }
-
-    // Summit (y: 0–1100) — maximum danger, dense Elite packs for endgame farming
+    // Summit (y: 0–1100) — maximum danger, endgame farming
     for (const [cx, cy] of [
-      [3850, 420], [4280, 260], [4800, 680],
-      [5150, 350], [4100, 900], [5000, 140],
-      [4520, 950],
+      [3820, 880], [4280, 420], [4850, 680],
+      [5180, 260], [4100, 200], [5000, 920],
+      [4550, 980], [3950, 100],
     ] as [number, number][]) {
       push(cx, cy, 320, [Elite, Elite, Elite, Brute, Wraith, Wraith, AshenGiant], 6)
     }

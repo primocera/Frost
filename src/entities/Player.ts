@@ -15,8 +15,8 @@ export interface Stats {
   spellDamage: number
 }
 
-/** Levels at which non-Firebolt spells become available. */
-const SPELL_UNLOCK: Record<string, number> = {
+/** Minimum level required to train each spell at the trainer. */
+export const SPELL_TRAIN_LEVEL: Record<string, number> = {
   arcaneExplosion: 4,
   frostNova:       8,
   blizzard:        14,
@@ -34,6 +34,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   frostNovaCooldown       = 0
   blizzardCooldown        = 0
 
+  /** Spells trained at the trainer. 'bolt' is always known. */
+  readonly learnedSpells: Set<string> = new Set(['bolt'])
+
   /** Which bolt spell the F key and left-click currently fire. */
   activeBolt: 'fire' | 'frost' = 'fire'
 
@@ -42,8 +45,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** True when the free-tier level cap (5) has been hit. Read by GameScene. */
   premiumGateReached = false
 
-  /** Returns true when the player has unlocked the named spell. */
-  hasSpell(name: string): boolean { return this.stats.level >= (SPELL_UNLOCK[name] ?? 1) }
+  /** Returns true when the player has trained this spell. Bolt is always available. */
+  hasSpell(name: string): boolean { return name === 'bolt' || this.learnedSpells.has(name) }
+
+  /** Learn a spell (call after verifying level + gold). */
+  learnSpell(name: string): void { this.learnedSpells.add(name) }
 
   // ── Effective stats (base + gear) ─────────────────────────────────────────
 

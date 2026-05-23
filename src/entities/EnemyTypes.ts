@@ -19,6 +19,7 @@ export interface EnemyConfig {
   projectileDamage?: number
   projectileSpeed?:  number
   projectileRange?:  number
+  projectileTex?:    string  // bolt texture key; defaults to 'wraith_bolt' (purple)
 
   // Tank-specific: wind-up before the heavy hit lands
   telegraphMs?: number
@@ -43,14 +44,14 @@ export interface EnemyConfig {
 
 export const Slime: EnemyConfig = {
   key: 'slime', color: 0x44cc44, radius: 10, aiType: 'melee',
-  hp: 60,  speed: 120, damage: 12, xpReward: 40,
+  hp: 60,  speed: 120, damage: 3, xpReward: 40,
   aggroRange: 220, attackRange: 46, attackRate: 1200,
   wanderRadius: 90, idleTime: [2000, 5000],
 }
 
 export const Ghoul: EnemyConfig = {
   key: 'ghoul', color: 0xaa6633, radius: 13, aiType: 'melee',
-  hp: 120, speed: 148, damage: 20, xpReward: 85,
+  hp: 120, speed: 148, damage: 5, xpReward: 85,
   aggroRange: 270, attackRange: 52, attackRate: 1000,
   wanderRadius: 130, idleTime: [1200, 3000],
 }
@@ -58,7 +59,7 @@ export const Ghoul: EnemyConfig = {
 /** Fast and fragile — rushes in packs, dies to one good AoE. */
 export const Imp: EnemyConfig = {
   key: 'imp', color: 0xff3322, radius: 8, aiType: 'swarm',
-  hp: 28,  speed: 255, damage: 8,  xpReward: 30,
+  hp: 28,  speed: 255, damage: 2,  xpReward: 30,
   aggroRange: 280, attackRange: 20, attackRate: 820,
   wanderRadius: 140, idleTime: [200, 700],
 }
@@ -79,6 +80,7 @@ export const Wraith: EnemyConfig = {
   aggroRange: 290, attackRange: 0, attackRate: 99999,
   wanderRadius: 120, idleTime: [600, 1800],
   projectileDamage: 16, projectileSpeed: 240, projectileRange: 280,
+  projectileTex: 'wraith_bolt',
 }
 
 /** Rare, dangerous — charges across the room, guaranteed good loot. */
@@ -98,7 +100,7 @@ export const Elite: EnemyConfig = {
 /** Fast pack hunter — closes distance quickly (melee archetype, faster). */
 export const Wolf: EnemyConfig = {
   key: 'wolf', color: 0x9a9088, radius: 12, aiType: 'melee',
-  hp: 100, speed: 178, damage: 18, xpReward: 80,
+  hp: 100, speed: 178, damage: 4, xpReward: 80,
   aggroRange: 300, attackRange: 48, attackRate: 950,
   wanderRadius: 160, idleTime: [800, 2200],
 }
@@ -106,7 +108,7 @@ export const Wolf: EnemyConfig = {
 /** Skittering swarm — fragile, rushes in numbers (swarm archetype). */
 export const Spider: EnemyConfig = {
   key: 'spider', color: 0x4a3a55, radius: 9, aiType: 'swarm',
-  hp: 34, speed: 235, damage: 9, xpReward: 34,
+  hp: 34, speed: 235, damage: 2, xpReward: 34,
   aggroRange: 280, attackRange: 22, attackRate: 820,
   wanderRadius: 150, idleTime: [200, 800],
 }
@@ -114,31 +116,44 @@ export const Spider: EnemyConfig = {
 /** Outlaw bruiser — standard blade-wielding melee threat (melee archetype). */
 export const Bandit: EnemyConfig = {
   key: 'bandit', color: 0x8a6a44, radius: 12, aiType: 'melee',
-  hp: 135, speed: 150, damage: 22, xpReward: 95,
+  hp: 135, speed: 150, damage: 5, xpReward: 95,
   aggroRange: 270, attackRange: 52, attackRate: 1000,
   wanderRadius: 130, idleTime: [1000, 2800],
   humanoid: true,
 }
 
-/** Forest bruiser — big, slow, telegraphed swipe (tank archetype, lighter). */
+/** Forest heavy thug — big slow humanoid, telegraphed heavy hit (tank archetype). */
 export const Bear: EnemyConfig = {
-  key: 'bear', color: 0x6b4a2e, radius: 18, aiType: 'tank',
-  hp: 240, speed: 88, damage: 26, xpReward: 140,
-  aggroRange: 250, attackRange: 58, attackRate: 2200,
+  key: 'bear', color: 0x6b4a2e, radius: 14, aiType: 'tank',
+  hp: 240, speed: 88, damage: 8, xpReward: 140,
+  aggroRange: 250, attackRange: 56, attackRate: 2200,
   wanderRadius: 100, idleTime: [1400, 3200],
   telegraphMs: 520,
+  humanoid: true,
 }
 
 // ── Rare roaming elites ─────────────────────────────────────────────────────
 
-/** Forest rare — spiked brute, charges and pins you. */
+/** Forest rare — elite bandit commander who charges and pins you. */
 export const Thornback: EnemyConfig = {
-  key: 'thornback', label: 'Thornback', color: 0x228833, radius: 24, aiType: 'elite',
+  key: 'thornback', label: 'Thornback', color: 0x228833, radius: 14, aiType: 'elite',
   hp: 480, speed: 98, damage: 28, xpReward: 380,
-  aggroRange: 310, attackRange: 70, attackRate: 1600,
+  aggroRange: 310, attackRange: 60, attackRate: 1600,
   wanderRadius: 200, idleTime: [1000, 3000],
   chargeMs: 600, chargeCooldownMs: 6000, chargeMult: 3.2,
   rare: true, lootMultiplier: 3, guaranteedDrop: true,
+  humanoid: true,
+}
+
+/** Defias-style bandit caster — keeps distance, fires dark bolts. */
+export const DefiasCaster: EnemyConfig = {
+  key: 'defias_caster', color: 0x7722cc, radius: 11, aiType: 'ranged',
+  hp: 55, speed: 90, damage: 0, xpReward: 70,
+  aggroRange: 300, attackRange: 0, attackRate: 99999,
+  wanderRadius: 120, idleTime: [600, 1800],
+  projectileDamage: 5, projectileSpeed: 200, projectileRange: 280,
+  projectileTex: 'enemy_fire_bolt',
+  humanoid: true,
 }
 
 /** Frozen Ruins rare — ice guardian, fires slowing bolts and soaks damage. */
@@ -148,6 +163,7 @@ export const FrostWarden: EnemyConfig = {
   aggroRange: 360, attackRange: 0, attackRate: 99999,
   wanderRadius: 160, idleTime: [800, 2400],
   projectileDamage: 30, projectileSpeed: 200, projectileRange: 340,
+  projectileTex: 'enemy_frost_bolt',
   rare: true, lootMultiplier: 3, guaranteedDrop: true,
 }
 
@@ -158,6 +174,7 @@ export const CorruptedMage: EnemyConfig = {
   aggroRange: 380, attackRange: 0, attackRate: 99999,
   wanderRadius: 140, idleTime: [600, 2000],
   projectileDamage: 36, projectileSpeed: 300, projectileRange: 360,
+  projectileTex: 'wraith_bolt',
   rare: true, lootMultiplier: 3, guaranteedDrop: true,
 }
 
@@ -188,6 +205,6 @@ export const ALL_RARE_ENEMIES: EnemyConfig[] = [
 /** Every enemy config — used to pre-generate all textures at boot. */
 export const ALL_ENEMIES: EnemyConfig[] = [
   Slime, Ghoul, Imp, Brute, Wraith, Elite,
-  Wolf, Spider, Bandit, Bear,
+  Wolf, Spider, Bandit, Bear, DefiasCaster,
   ...ALL_RARE_ENEMIES,
 ]

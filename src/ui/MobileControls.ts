@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 
 const SPELL_COLORS = [0xcc44ff, 0x44aaff, 0x0088dd, 0xff8800] as const
 const SPELL_KEYS   = ['Q', 'E', 'R', 'F'] as const
+const SPELL_IDS    = ['arcaneExplosion', 'frostNova', 'blizzard', 'bolt'] as const
 const MENU_KEYS    = ['I', 'T', 'P', '?'] as const
 const ICOL         = 0x33bb77
 
@@ -45,6 +46,8 @@ export class MobileControls {
     { cd: 0, max: 1 }, { cd: 0, max: 1 },
     { cd: 0, max: 1 }, { cd: 0, max: 1 },
   ]
+
+  private learnedSpells: Set<string> = new Set(['bolt'])
 
   constructor(
     private scene:      Phaser.Scene,
@@ -169,8 +172,11 @@ export class MobileControls {
   /** True if a screen-pixel tap lands on any control button (spell/menu/interact). */
   isControlTap(screenX: number, screenY: number): boolean {
     const L = this.getLayout()
-    for (const s of L.spells)
+    for (let i = 0; i < L.spells.length; i++) {
+      if (!this.learnedSpells.has(SPELL_IDS[i])) continue
+      const s = L.spells[i]
       if (Phaser.Math.Distance.Between(screenX, screenY, s.cx, s.cy) <= L.spellR + 12) return true
+    }
     for (const m of L.menus)
       if (Phaser.Math.Distance.Between(screenX, screenY, m.cx, m.cy) <= L.menuR + 12) return true
     if (this.interactLabel && Phaser.Math.Distance.Between(screenX, screenY, L.ix, L.iy) <= L.iRad + 14)
@@ -182,6 +188,8 @@ export class MobileControls {
   setCooldowns(data: SpellCooldown[]) { this.cooldowns = data }
 
   setActiveBolt(bolt: 'fire' | 'frost') { this.activeBolt = bolt }
+
+  setLearnedSpells(learned: Set<string>) { this.learnedSpells = learned }
 
   showInteract(label: string) {
     this.interactLabel = label
@@ -234,8 +242,9 @@ export class MobileControls {
       return
     }
 
-    // Spell buttons
+    // Spell buttons — only learned spells are tappable
     for (let i = 0; i < L.spells.length; i++) {
+      if (!this.learnedSpells.has(SPELL_IDS[i])) continue
       const s = L.spells[i]
       if (Phaser.Math.Distance.Between(x, y, s.cx, s.cy) <= L.spellR + 12) {
         this.onSpell(i)
@@ -324,8 +333,12 @@ export class MobileControls {
       g.fillCircle(knobGX - gl, knobGY - gl, Math.max(2, gl))
     }
 
-    // Spell buttons
+    // Spell buttons — skip slots for spells not yet trained
     for (let i = 0; i < L.spells.length; i++) {
+      if (!this.learnedSpells.has(SPELL_IDS[i])) {
+        this.spellTexts[i].setText('').setVisible(false)
+        continue
+      }
       const { cx, cy }  = L.spells[i]
       const { cd, max } = this.cooldowns[i]
       const ready        = cd <= 0
@@ -345,7 +358,7 @@ export class MobileControls {
         g.fillCircle(cgx, cgy, sr)
         g.fillStyle(0xffffff, 0.22)
         g.fillCircle(cgx - Math.round(sr * 0.44), cgy - Math.round(sr * 0.44), Math.max(2, Math.round(sr * 0.33)))
-        this.spellTexts[i].setText(SPELL_KEYS[i]).setColor('#dddddd')
+        this.spellTexts[i].setText(SPELL_KEYS[i]).setColor('#dddddd').setVisible(true)
       } else {
         g.fillStyle(0x0d0d0d)
         g.fillCircle(cgx, cgy, sr)
@@ -355,7 +368,7 @@ export class MobileControls {
           g.slice(cgx, cgy, sr, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2, false)
           g.fillPath()
         }
-        this.spellTexts[i].setText((cd / 1000).toFixed(1) + 's').setColor('#555555')
+        this.spellTexts[i].setText((cd / 1000).toFixed(1) + 's').setColor('#555555').setVisible(true)
       }
 
       // Position label below the circle

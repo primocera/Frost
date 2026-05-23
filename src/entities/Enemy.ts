@@ -297,9 +297,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private doShoot(player: Player) {
     const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
     const spd   = this.cfg.projectileSpeed ?? 230
+    const tex   = this.cfg.projectileTex ?? 'wraith_bolt'
 
-    // Brief cast pulse
-    this.setTint(0xdd88ff)
+    // Cast flash colour matches the bolt type
+    const castTint = tex === 'enemy_frost_bolt' ? 0x44ddff
+                   : tex === 'enemy_fire_bolt'  ? 0xff8822
+                   : 0xdd88ff  // purple default (wraith / arcane)
+    this.setTint(castTint)
     this.scene.tweens.add({
       targets: this, scaleX: 0.82, scaleY: 0.82,
       duration: 170, yoyo: true,
@@ -311,6 +315,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       vx: Math.cos(angle) * spd,
       vy: Math.sin(angle) * spd,
       damage: this.cfg.projectileDamage ?? 12,
+      key: tex,
     })
   }
 

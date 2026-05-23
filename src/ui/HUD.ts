@@ -51,7 +51,6 @@ export class HUD {
   private get W()       { return this.scene.scale.width }
   private get H()       { return this.scene.scale.height }
   private get RING_CY() { return this.H - 44 }
-  private get RING_X0() { return this.W / 2 - RING_STEP * 1.5 }
 
   constructor(private scene: Phaser.Scene) {
     const d = 20
@@ -90,7 +89,7 @@ export class HUD {
     }).setScrollFactor(0).setDepth(d)
 
     this.controls = scene.add.text(0, 10,
-      'WASD move\nF/Click  Bolt\nX  Swap bolt\nQ  Arcane Exp\nE  Frost Nova\nR  Blizzard\nI  Inventory\nT  Talents\nP  Progress', {
+      'WASD move\nF/Click  Bolt\nX  Swap bolt\nQ/E/R  Spells\nI  Inventory\nT  Talents\nP  Progress\nE  Trainer/NPCs', {
         fontSize: '11px', color: '#555555', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', align: 'right',
       }).setScrollFactor(0).setDepth(d).setOrigin(1, 0)
 
@@ -214,9 +213,6 @@ export class HUD {
     this.controls.setX(this.W - 10)
     this.bossNameText.setX(this.W / 2)
     if (this.mobile) this.questText.setX(this.W - 58)
-    for (let i = 0; i < RINGS_BASE.length; i++) {
-      this.ringLabels[i].setPosition(this.RING_X0 + i * RING_STEP, this.RING_CY + RING_R + 7)
-    }
 
     const effMaxMana = player.effectiveMaxMana
 
@@ -303,13 +299,13 @@ export class HUD {
       g.fillRect(this.W - 52, 52, 52, this.H - 104)
     }
 
-    // ── Spell rings ───────────────────────────────────────────────────────
+    // ── Spell rings — only show learned spells ────────────────────────────
     const isFrost = player.activeBolt === 'frost'
-    const RINGS: RingDef[] = [
-      { key: 'Q', name: 'ArcEx',                                   color: 0xcc44ff },
-      { key: 'E', name: 'FrNova',                                   color: 0x44aaff },
-      { key: 'R', name: 'Blizzard',                                 color: 0x0088dd },
-      { key: 'F', name: isFrost ? 'Ice Lance' : 'Firebolt',         color: isFrost ? 0x44ccff : 0xff8800 },
+    const ALL_RING_DEFS = [
+      { key: 'Q', name: 'ArcEx',                                    color: 0xcc44ff, spell: 'arcaneExplosion', cdIdx: 0 },
+      { key: 'E', name: 'FrNova',                                    color: 0x44aaff, spell: 'frostNova',       cdIdx: 1 },
+      { key: 'R', name: 'Blizzard',                                  color: 0x0088dd, spell: 'blizzard',        cdIdx: 2 },
+      { key: 'F', name: isFrost ? 'Ice Lance' : 'Firebolt',          color: isFrost ? 0x44ccff : 0xff8800, spell: 'bolt', cdIdx: 3 },
     ]
     const boltCd    = isFrost ? player.frostboltCooldown  : player.fireboltCooldown
     const boltCdMax = isFrost ? player.frostboltCooldownMax : player.fireboltCooldownMax
@@ -320,35 +316,33 @@ export class HUD {
       { cd: boltCd,                         max: boltCdMax },
     ]
 
-    // Unlock level per ring [ArcEx, FrostNova, Blizzard, Bolt]
-    const UNLOCK_LVL = [4, 8, 14, 1]
+    // Hide all labels; only re-show the ones that get drawn
+    this.ringLabels.forEach(l => l.setVisible(false))
 
-    for (let i = 0; i < RINGS.length; i++) {
-      const cx  = this.RING_X0 + i * RING_STEP
-      const rng = RINGS[i]
-      const { cd, max } = cooldowns[i]
-      const locked = stats.level < UNLOCK_LVL[i]
+    const visibleRings = ALL_RING_DEFS.filter(r => player.hasSpell(r.spell))
+    const ringX0 = this.W / 2 - RING_STEP * (visibleRings.length - 1) / 2
 
-      if (locked) {
-        g.fillStyle(0x111111, 0.55)
-        g.fillRect(cx - RING_R - 3, this.RING_CY - RING_R - 3, (RING_R + 3) * 2, (RING_R + 3) * 2)
-        g.fillStyle(0x1a1a1a)
-        g.fillRect(cx - RING_R, this.RING_CY - RING_R, RING_R * 2, RING_R * 2)
-        this.ringLabels[i].setText(`Lv ${UNLOCK_LVL[i]}`).setColor('#333344')
+    for (let vi = 0; vi < visibleRings.length; vi++) {
+      const rng = visibleRings[vi]
+      const cx  = ringX0 + vi * RING_STEP
+      const { cd, max } = cooldowns[rng.cdIdx]
+
+      this.drawSlot(g, cx, this.RING_CY, RING_R, cd, max, rng.color)
+
+      // Red flash border on failed cast attempt (origIdx maps to failedCastAt slot)
+      const origIdx = ALL_RING_DEFS.indexOf(rng)
+      const failAge = now - this.failedCastAt[origIdx]
+      if (failAge < 380) {
+        g.lineStyle(3, 0xff2222, 0.75 * (1 - failAge / 380))
+        g.strokeRect(cx - RING_R - 3, this.RING_CY - RING_R - 3, (RING_R + 3) * 2, (RING_R + 3) * 2)
+      }
+
+      const lbl = this.ringLabels[origIdx]
+      lbl.setPosition(cx, this.RING_CY + RING_R + 7).setVisible(true)
+      if (cd <= 0) {
+        lbl.setText(`${rng.key} ${rng.name}`).setColor('#cccccc')
       } else {
-        this.drawSlot(g, cx, this.RING_CY, RING_R, cd, max, rng.color)
-        // Red flash border on failed cast attempt
-        const failAge = now - this.failedCastAt[i]
-        if (failAge < 380) {
-          g.lineStyle(3, 0xff2222, 0.75 * (1 - failAge / 380))
-          g.strokeRect(cx - RING_R - 3, this.RING_CY - RING_R - 3, (RING_R + 3) * 2, (RING_R + 3) * 2)
-        }
-        if (cd <= 0) {
-          this.ringLabels[i].setText(`${rng.key} ${rng.name}`).setColor('#cccccc')
-        } else {
-          const secs = (cd / 1000).toFixed(1)
-          this.ringLabels[i].setText(secs + 's').setColor('#555555')
-        }
+        lbl.setText((cd / 1000).toFixed(1) + 's').setColor('#555555')
       }
     }
   }

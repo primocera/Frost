@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { Player } from '../entities/Player'
+import { Player, SPELL_TRAIN_LEVEL } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { EnemyConfig, ALL_ENEMIES } from '../entities/EnemyTypes'
 import { Boss } from '../entities/Boss'
@@ -34,7 +34,8 @@ import { Device } from '../config/DeviceConfig'
 
 const WORLD       = 3600   // world height; also sets town center at WORLD/2
 const WORLD_W     = 5400   // total world width (expanded eastward for Volcanic Wastes)
-const RESPAWN_MS  = 6000
+const RESPAWN_MIN = 240_000   // 4 minutes
+const RESPAWN_MAX = 300_000   // 5 minutes
 
 // ── Humanoid sprite styling ───────────────────────────────────────────────────
 // The player mage and all humanoid NPCs / the bandit share one 32×48 figure;
@@ -132,6 +133,30 @@ const HUMANOID_STYLES: Record<string, HumanoidStyle> = {
     headwear: 'bandana', hwMain: '#b02828', hwDark: '#7a1818',
     item: 'dagger', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
   },
+  // Bear → heavy thug — dark brown leather, hood, bare hands (imposing bruiser)
+  bear: {
+    robe: ['#5e3a1e', '#482c12', '#2e180a'], robeHi: '#7a5030', fold: '#1c0e06',
+    belt: '#8a5a30', sleeve: '#482c12', hand: '#c89060', head: ['#d8a070', '#b07040'],
+    eye: '#1a1008', beard: 'none', beardCol: ['#2a2018', '#1a1408'],
+    headwear: 'hood', hwMain: '#3a2010', hwDark: '#1e0e06',
+    item: 'none', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Thornback → elite bandit commander — dark scarred leather, near-black bandana, dagger
+  thornback: {
+    robe: ['#3a2610', '#28180a', '#160c04'], robeHi: '#524030', fold: '#0e0804',
+    belt: '#6a1010', sleeve: '#28180a', hand: '#d0a068', head: ['#e0a870', '#b07848'],
+    eye: '#1a1008', beard: 'none', beardCol: ['#1a1208', '#100c04'],
+    headwear: 'bandana', hwMain: '#6a0808', hwDark: '#400404',
+    item: 'dagger', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // DefiasCaster → dark-robed bandit mage — deep purple hood + dark staff
+  defias_caster: {
+    robe: ['#3a1a58', '#2a1042', '#180828'], robeHi: '#5a2a88', fold: '#0e0420',
+    belt: '#6622aa', sleeve: '#2a1042', hand: '#d8a878', head: ['#e8b888', '#c08a5e'],
+    eye: '#cc44ff', beard: 'none', beardCol: ['#3a2a4a', '#2a1a3a'],
+    headwear: 'hood', hwMain: '#1e0a32', hwDark: '#0e0418',
+    item: 'staff', crystal: '#aa44ff', glow: true, glowRgb: '150,50,220',
+  },
 }
 
 export class GameScene extends Phaser.Scene {
@@ -198,8 +223,9 @@ export class GameScene extends Phaser.Scene {
   private npcQuest!:    Phaser.GameObjects.Image
   private npcMerchant!: Phaser.GameObjects.Image
   private npcFarmer!:   Phaser.GameObjects.Image
+  private npcTrainer!:  Phaser.GameObjects.Image
   private npcPrompt!:   Phaser.GameObjects.Text
-  private nearNPC:      'quest' | 'merchant' | 'zone' | 'farmer' | null = null
+  private nearNPC:      'quest' | 'merchant' | 'zone' | 'farmer' | 'trainer' | null = null
   private nearZoneNPCIdx = -1
   private nearChicken    = false
   private zoneNPCs:     Array<{ sprite: Phaser.GameObjects.Image; travelZone: string; name: string }> = []
@@ -361,6 +387,7 @@ export class GameScene extends Phaser.Scene {
         },
       )
       this.hud.setMobile(this.mobileControls)
+      this.mobileControls.setLearnedSpells(this.player.learnedSpells)
     }
 
     // ── Social systems ────────────────────────────────────────────────────
@@ -516,12 +543,12 @@ export class GameScene extends Phaser.Scene {
       this.hud.showFloatingText(this.player.x, this.player.y - 20, `-${_dmg}`, '#ff4444', 22)
     })
 
-    // Enemy (Wraith) fires a projectile
-    this.events.on('enemy-shoot', (d: { x: number; y: number; vx: number; vy: number; damage: number }) => {
+    // Enemy (ranged) fires a projectile — bolt texture/colour varies by enemy type
+    this.events.on('enemy-shoot', (d: { x: number; y: number; vx: number; vy: number; damage: number; key: string }) => {
       if (this.dead) return
-      // Cap active bolts so a pack of Wraithes can't fill the screen
-      if (this.wraithBolts.getLength() >= 8) return
-      const bolt = this.wraithBolts.create(d.x, d.y, 'wraith_bolt') as Phaser.Physics.Arcade.Sprite
+      // Cap active bolts so ranged packs can't flood the screen
+      if (this.wraithBolts.getLength() >= 10) return
+      const bolt = this.wraithBolts.create(d.x, d.y, d.key) as Phaser.Physics.Arcade.Sprite
       bolt.setData('damage', d.damage)
       ;(bolt.body as Phaser.Physics.Arcade.Body).setCircle(5, 1, 1)
       bolt.setDepth(6)
@@ -861,7 +888,7 @@ export class GameScene extends Phaser.Scene {
 
   private castArcaneExplosion() {
     if (!this.player.hasSpell('arcaneExplosion')) {
-      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Arcane Explosion — unlocks at level 4', '#8866aa', 13)
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Train Arcane Explosion at the Spell Trainer!', '#8866aa', 13)
       return
     }
     if (!this.player.canCastArcaneExplosion()) {
@@ -911,7 +938,7 @@ export class GameScene extends Phaser.Scene {
 
   private castFrostNova() {
     if (!this.player.hasSpell('frostNova')) {
-      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Frost Nova — unlocks at level 8', '#4488cc', 13)
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Train Frost Nova at the Spell Trainer!', '#4488cc', 13)
       return
     }
     if (!this.player.canCastFrostNova()) {
@@ -950,7 +977,7 @@ export class GameScene extends Phaser.Scene {
 
   private castBlizzard(worldX: number, worldY: number) {
     if (!this.player.hasSpell('blizzard')) {
-      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Blizzard — unlocks at level 14', '#44aadd', 13)
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Train Blizzard at the Spell Trainer!', '#44aadd', 13)
       return
     }
     if (!this.player.canCastBlizzard()) {
@@ -1127,7 +1154,7 @@ export class GameScene extends Phaser.Scene {
     if (zone) {
       const prev = this.zoneCounts.get(zone) ?? 1
       this.zoneCounts.set(zone, prev - 1)
-      this.time.delayedCall(RESPAWN_MS, () => {
+      this.time.delayedCall(Phaser.Math.Between(RESPAWN_MIN, RESPAWN_MAX), () => {
         if (!this.dead && (this.zoneCounts.get(zone) ?? 0) < zone.maxEnemies) {
           this.spawnFromZone(zone)
         }
@@ -1506,8 +1533,9 @@ export class GameScene extends Phaser.Scene {
   // ── Spawning ──────────────────────────────────────────────────────────────
 
   private spawnFromZone(zone: SpawnZone) {
+    // Spawn tightly at the camp centre so enemies visibly cluster there
     const angle = Math.random() * Math.PI * 2
-    const r     = Phaser.Math.FloatBetween(zone.radius * 0.3, zone.radius)
+    const r     = Phaser.Math.FloatBetween(0, 32)
     const x     = Phaser.Math.Clamp(zone.cx + Math.cos(angle) * r, 80, WORLD_W - 80)
     const y     = Phaser.Math.Clamp(zone.cy + Math.sin(angle) * r, 80, WORLD - 80)
 
@@ -1597,12 +1625,32 @@ export class GameScene extends Phaser.Scene {
     g.generateTexture('boss_bolt', 16, 16)
     g.clear()
 
-    // Wraith bolt: small purple orb
+    // Wraith bolt: small purple orb (Wraith, CorruptedMage)
     g.fillStyle(0xbb44ee)
     g.fillCircle(6, 6, 6)
     g.fillStyle(0xffffff, 0.5)
     g.fillCircle(4, 4, 2)
     g.generateTexture('wraith_bolt', 12, 12)
+    g.clear()
+
+    // Enemy frost bolt: icy blue orb (FrostWarden)
+    g.fillStyle(0x22aaee)
+    g.fillCircle(6, 6, 6)
+    g.fillStyle(0x88eeff, 0.75)
+    g.fillCircle(6, 6, 3.5)
+    g.fillStyle(0xffffff, 0.6)
+    g.fillCircle(4, 4, 1.5)
+    g.generateTexture('enemy_frost_bolt', 12, 12)
+    g.clear()
+
+    // Enemy fire bolt: orange-red orb (DefiasCaster)
+    g.fillStyle(0xdd3300)
+    g.fillCircle(6, 6, 6)
+    g.fillStyle(0xff8800, 0.8)
+    g.fillCircle(6, 6, 3.5)
+    g.fillStyle(0xffee44, 0.6)
+    g.fillCircle(5, 5, 1.8)
+    g.generateTexture('enemy_fire_bolt', 12, 12)
     g.clear()
 
     // Firebolt — bright hot core with additive-ready edges
@@ -2057,61 +2105,76 @@ export class GameScene extends Phaser.Scene {
         break
       }
       case 'wolf': {
-        // Dire wolf — side profile facing right, hunched aggressive stance,
-        // dark fur with pale underbelly, raised hackles, snarling muzzle.
-        const by = c + r * 0.18
-        const D  = 0x4f4a45, M = 0x6e665d, L = 0x8b837a   // dark / mid / light fur
+        // Dire wolf — side profile facing right. Texture is (r*2+16)px square, c=center.
+        // Body is shifted r*0.2 left so the snout fits without clipping.
+        const bx = c - r * 0.2   // horizontal body centre
+        const by = c + r * 0.08  // vertical body centre
+        const D = 0x2e2925, M = 0x5c5248, L = 0x9e9080
 
-        // Bushy raised tail (back-left)
+        // Bushy tail — swept upward at rear
         g.fillStyle(M)
-        g.fillTriangle(c - r * 0.55, by - r * 0.15, c - r * 1.4, by - r * 1.0, c - r * 1.25, by + r * 0.05)
+        g.fillTriangle(bx - r * 0.52, by - r * 0.05, bx - r * 1.48, by - r * 1.08, bx - r * 0.48, by + r * 0.32)
+        g.fillStyle(L, 0.75)
+        g.fillTriangle(bx - r * 0.92, by - r * 0.42, bx - r * 1.48, by - r * 1.08, bx - r * 1.22, by - r * 0.48)
         g.fillStyle(D)
-        g.fillTriangle(c - r * 0.95, by - r * 0.5, c - r * 1.4, by - r * 1.0, c - r * 1.2, by - r * 0.35)
+        g.fillCircle(bx - r * 1.42, by - r * 1.05, r * 0.16)  // dark tail tip
 
-        // Legs (darker, with paws)
+        // Legs — 4 pillars with oval paws
         g.fillStyle(D)
-        for (const lx of [-0.8, -0.25, 0.35, 0.78]) {
-          g.fillRect(c + lx * r, by + r * 0.5, r * 0.28, r * 1.0)
-          g.fillEllipse(c + lx * r + r * 0.14, by + r * 1.5, r * 0.4, r * 0.22)  // paw
+        for (const lx of [-0.72, -0.28, 0.22, 0.62]) {
+          g.fillRect(bx + lx * r - r * 0.11, by + r * 0.46, r * 0.26, r * 0.84)
+          g.fillEllipse(bx + lx * r, by + r * 1.3, r * 0.42, r * 0.22)
         }
 
-        // Body (mid fur)
+        // Body — main mass
         g.fillStyle(M)
-        g.fillEllipse(c, by, r * 2.05, r * 1.3)
+        g.fillEllipse(bx, by + r * 0.08, r * 2.05, r * 1.26)
         // Pale underbelly
-        g.fillStyle(L, 0.55)
-        g.fillEllipse(c, by + r * 0.4, r * 1.6, r * 0.55)
-        // Raised hackles along the back (dark spikes)
+        g.fillStyle(0xb8aea4, 0.38)
+        g.fillEllipse(bx + r * 0.1, by + r * 0.44, r * 1.45, r * 0.52)
+
+        // Raised hackles along spine
         g.fillStyle(D)
-        for (let k = -3; k <= 1; k++) {
-          const hx = c + k * r * 0.34
-          g.fillTriangle(hx - r * 0.14, by - r * 0.5, hx + r * 0.14, by - r * 0.5, hx, by - r * 0.95)
+        for (let k = 0; k < 5; k++) {
+          const hx = bx - r * 0.78 + k * r * 0.36
+          g.fillTriangle(hx - r * 0.12, by - r * 0.52, hx + r * 0.12, by - r * 0.52, hx, by - r * 0.98)
         }
 
-        // Neck + head (lowered, hunting posture)
+        // Neck
         g.fillStyle(M)
-        g.fillCircle(c + r * 0.9, by - r * 0.2, r * 0.62)
-        // Muzzle
+        g.fillEllipse(bx + r * 0.74, by - r * 0.22, r * 0.66, r * 0.92)
+
+        // Head
+        g.fillStyle(M)
+        g.fillEllipse(bx + r * 1.04, by - r * 0.26, r * 0.88, r * 0.76)
+
+        // Ears — pointed, alert
+        g.fillStyle(M)
+        g.fillTriangle(bx + r * 0.68, by - r * 0.60, bx + r * 0.90, by - r * 0.60, bx + r * 0.72, by - r * 1.16)
+        g.fillTriangle(bx + r * 0.96, by - r * 0.60, bx + r * 1.18, by - r * 0.60, bx + r * 1.14, by - r * 1.12)
+        g.fillStyle(0x7a4242)  // pink inner ear
+        g.fillTriangle(bx + r * 0.73, by - r * 0.66, bx + r * 0.87, by - r * 0.66, bx + r * 0.76, by - r * 0.98)
+        g.fillTriangle(bx + r * 0.99, by - r * 0.66, bx + r * 1.14, by - r * 0.66, bx + r * 1.11, by - r * 0.96)
+
+        // Muzzle / snout (dark wedge)
         g.fillStyle(D)
-        g.fillTriangle(c + r * 1.15, by - r * 0.42, c + r * 1.85, by - r * 0.02, c + r * 1.15, by + r * 0.18)
-        // Nose
-        g.fillStyle(0x1a1714)
-        g.fillCircle(c + r * 1.8, by - r * 0.02, r * 0.12)
-        // Ears (pointed, alert)
-        g.fillStyle(M)
-        g.fillTriangle(c + r * 0.6, by - r * 0.7, c + r * 0.9, by - r * 0.7, c + r * 0.66, by - r * 1.35)
-        g.fillTriangle(c + r * 0.98, by - r * 0.7, c + r * 1.26, by - r * 0.7, c + r * 1.2, by - r * 1.28)
-        g.fillStyle(D)   // inner ear
-        g.fillTriangle(c + r * 0.72, by - r * 0.75, c + r * 0.86, by - r * 0.75, c + r * 0.74, by - r * 1.1)
-        // Amber glaring eye
-        g.fillStyle(0xffcc33)
-        g.fillCircle(c + r * 1.0, by - r * 0.3, r * 0.14)
-        g.fillStyle(0x111111)
-        g.fillCircle(c + r * 1.03, by - r * 0.3, r * 0.06)
-        // Snarl fangs
-        g.fillStyle(0xffffff)
-        g.fillTriangle(c + r * 1.3, by + r * 0.05, c + r * 1.44, by + r * 0.05, c + r * 1.37, by + r * 0.3)
-        g.fillTriangle(c + r * 1.5, by + r * 0.05, c + r * 1.62, by + r * 0.05, c + r * 1.56, by + r * 0.26)
+        g.fillEllipse(bx + r * 1.44, by - r * 0.12, r * 0.72, r * 0.44)
+        g.fillStyle(L, 0.45)  // top-muzzle highlight
+        g.fillEllipse(bx + r * 1.38, by - r * 0.25, r * 0.46, r * 0.22)
+        // Nose (stays within texture: bx + r*1.75 = c - r*0.2 + r*1.75 = c + r*1.55 = c+18.6 < 39 ✓)
+        g.fillStyle(0x0e0c0a)
+        g.fillEllipse(bx + r * 1.72, by - r * 0.18, r * 0.24, r * 0.18)
+
+        // Amber eye
+        g.fillStyle(0xffcc22)
+        g.fillCircle(bx + r * 1.1, by - r * 0.38, r * 0.17)
+        g.fillStyle(0x0e0c0a)
+        g.fillEllipse(bx + r * 1.12, by - r * 0.38, r * 0.08, r * 0.14)
+
+        // Snarl fangs (bottom jaw)
+        g.fillStyle(0xf0ece4)
+        g.fillTriangle(bx + r * 1.28, by + r * 0.06, bx + r * 1.42, by + r * 0.06, bx + r * 1.35, by + r * 0.30)
+        g.fillTriangle(bx + r * 1.46, by + r * 0.06, bx + r * 1.60, by + r * 0.06, bx + r * 1.53, by + r * 0.27)
         break
       }
       case 'bear': {
@@ -2168,40 +2231,91 @@ export class GameScene extends Phaser.Scene {
         break
       }
       case 'spider': {
-        // Top-down spider — bulbous abdomen, 8 bent legs, red eye cluster
-        g.lineStyle(Math.max(1.5, r * 0.18), 0x261d30, 1)
-        const legSpread = [-0.95, -0.32, 0.32, 0.95]
+        // Black widow — top-down, glossy black with red hourglass, 8 bent legs.
+        // Texture (r*2+16)px, r=9, size=34, c=17. Legs safely within ±(r+7).
+        const lw = Math.max(2, r * 0.28)
+
+        // === 8 legs (4 per side) — two segments, bent outward ===
+        g.lineStyle(lw, 0x140d1a)
+        const legY = [-0.82, -0.24, 0.28, 0.72]  // attachment y offsets on body
         for (const sign of [-1, 1]) {
-          for (const a of legSpread) {
-            const baseX = c + sign * r * 0.35
-            const baseY = c + a * r * 0.55
-            const kneeX = c + sign * r * 1.2
-            const kneeY = c + a * r * 1.05
-            const footX = c + sign * r * 1.75
-            const footY = c + a * r * 1.5
-            g.lineBetween(baseX, baseY, kneeX, kneeY)
-            g.lineBetween(kneeX, kneeY, footX, footY)
+          for (let i = 0; i < 4; i++) {
+            const ay = legY[i]
+            // Attachment on body edge
+            const ax = c + sign * r * 0.32
+            const ay_ = c + ay * r
+            // Knee — bent outward
+            const spread = 1.08 + Math.abs(ay) * 0.18
+            const kx = c + sign * r * spread
+            const ky = c + ay * r * 0.55 + (i < 2 ? -r * 0.18 : r * 0.12)
+            // Foot tip — angles back inward
+            const fx = c + sign * r * 1.58
+            const fy = c + ay * r * 1.32
+            g.lineBetween(ax, ay_, kx, ky)
+            g.lineBetween(kx, ky, fx, fy)
           }
         }
-        // Abdomen (rear)
-        g.fillStyle(0x3a2d48)
-        g.fillEllipse(c, c + r * 0.4, r * 1.55, r * 1.35)
-        // Pale marking
-        g.fillStyle(0x7a5a8c, 0.85)
-        g.fillEllipse(c, c + r * 0.45, r * 0.55, r * 0.85)
-        // Cephalothorax (front)
-        g.fillStyle(0x4a3a5c)
-        g.fillCircle(c, c - r * 0.5, r * 0.68)
-        // Red eye cluster
-        g.fillStyle(0xff3322)
-        g.fillCircle(c - r * 0.25, c - r * 0.6, r * 0.13)
-        g.fillCircle(c + r * 0.25, c - r * 0.6, r * 0.13)
-        g.fillCircle(c - r * 0.1,  c - r * 0.78, r * 0.08)
-        g.fillCircle(c + r * 0.1,  c - r * 0.78, r * 0.08)
-        // Fangs (very front)
-        g.fillStyle(0x160f1c)
-        g.fillTriangle(c - r * 0.22, c - r * 0.95, c - r * 0.04, c - r * 0.95, c - r * 0.13, c - r * 1.22)
-        g.fillTriangle(c + r * 0.22, c - r * 0.95, c + r * 0.04, c - r * 0.95, c + r * 0.13, c - r * 1.22)
+        // Leg highlight — slightly lighter top segment
+        g.lineStyle(Math.max(1, lw * 0.5), 0x281c34, 0.6)
+        for (const sign of [-1, 1]) {
+          for (let i = 0; i < 4; i++) {
+            const ay = legY[i]
+            const ax = c + sign * r * 0.32, ay_ = c + ay * r
+            const spread = 1.08 + Math.abs(ay) * 0.18
+            const kx = c + sign * r * spread
+            const ky = c + ay * r * 0.55 + (i < 2 ? -r * 0.18 : r * 0.12)
+            g.lineBetween(ax - sign, ay_ - 1, kx - sign, ky - 1)
+          }
+        }
+
+        // === Abdomen (rear) — bulbous, glossy black ===
+        g.fillStyle(0x0d0812)
+        g.fillEllipse(c + r * 0.04, c + r * 0.52, r * 1.62, r * 1.45)  // shadow
+        g.fillStyle(0x180f20)
+        g.fillEllipse(c, c + r * 0.46, r * 1.52, r * 1.35)
+        // Gloss highlight (upper-left sheen)
+        g.fillStyle(0x3a2448, 0.65)
+        g.fillEllipse(c - r * 0.3, c + r * 0.14, r * 0.52, r * 0.38)
+        // Red hourglass marking — two triangles meeting at centre
+        g.fillStyle(0xcc1111)
+        g.fillTriangle(c - r * 0.22, c + r * 0.22, c + r * 0.22, c + r * 0.22, c, c + r * 0.44)
+        g.fillTriangle(c - r * 0.22, c + r * 0.72, c + r * 0.22, c + r * 0.72, c, c + r * 0.50)
+        // Hourglass glow rim
+        g.fillStyle(0xff4422, 0.4)
+        g.fillTriangle(c - r * 0.26, c + r * 0.18, c + r * 0.26, c + r * 0.18, c, c + r * 0.46)
+        g.fillTriangle(c - r * 0.26, c + r * 0.76, c + r * 0.26, c + r * 0.76, c, c + r * 0.48)
+
+        // === Cephalothorax (front) — smaller, rounder ===
+        g.fillStyle(0x0e0914)
+        g.fillEllipse(c + r * 0.02, c - r * 0.52, r * 0.85, r * 0.76)  // shadow
+        g.fillStyle(0x1c1226)
+        g.fillEllipse(c, c - r * 0.56, r * 0.78, r * 0.68)
+        // Gloss
+        g.fillStyle(0x362048, 0.55)
+        g.fillEllipse(c - r * 0.14, c - r * 0.7, r * 0.3, r * 0.22)
+
+        // === Eyes — two large red main eyes + four small side eyes ===
+        g.fillStyle(0xff2200)
+        g.fillCircle(c - r * 0.22, c - r * 0.68, r * 0.16)
+        g.fillCircle(c + r * 0.22, c - r * 0.68, r * 0.16)
+        g.fillStyle(0xff5533, 0.85)
+        g.fillCircle(c - r * 0.38, c - r * 0.58, r * 0.09)
+        g.fillCircle(c + r * 0.38, c - r * 0.58, r * 0.09)
+        g.fillCircle(c - r * 0.08, c - r * 0.82, r * 0.08)
+        g.fillCircle(c + r * 0.08, c - r * 0.82, r * 0.08)
+        // Eye shine
+        g.fillStyle(0xffffff, 0.7)
+        g.fillCircle(c - r * 0.25, c - r * 0.72, r * 0.06)
+        g.fillCircle(c + r * 0.19, c - r * 0.72, r * 0.06)
+
+        // === Fangs / chelicerae ===
+        g.fillStyle(0x0c0712)
+        g.fillTriangle(c - r * 0.2, c - r * 0.88, c - r * 0.04, c - r * 0.88, c - r * 0.12, c - r * 1.16)
+        g.fillTriangle(c + r * 0.2, c - r * 0.88, c + r * 0.04, c - r * 0.88, c + r * 0.12, c - r * 1.16)
+        // Fang tips (slightly lighter)
+        g.fillStyle(0x241535)
+        g.fillCircle(c - r * 0.12, c - r * 1.12, r * 0.08)
+        g.fillCircle(c + r * 0.12, c - r * 1.12, r * 0.08)
         break
       }
       case 'ghoul': {
@@ -2558,6 +2672,7 @@ export class GameScene extends Phaser.Scene {
       } else if (this.nearNPC === 'quest')   this.openQuestDialog()
       else if (this.nearNPC === 'zone')      this.openZoneNPCDialog(this.nearZoneNPCIdx)
       else if (this.nearNPC === 'farmer')    this.openFarmerDialog()
+      else if (this.nearNPC === 'trainer')   this.openTrainerDialog()
       else                                   this.openMerchantDialog()
     } else if (this.nearChicken) {
       this.feedChicken()
@@ -2602,6 +2717,18 @@ export class GameScene extends Phaser.Scene {
     }).setDepth(4).setOrigin(0.5)
     this.add.text(cx + 180, cy - 52, '$ Shop', {
       fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaffaa',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+
+    // Spell Trainer NPC — center-north of town
+    this.npcTrainer = this.add.image(cx + 60, cy - 90, 'npc_icemage').setDepth(4).setOrigin(0.5, 1)
+    this.add.text(cx + 60, cy - 138, 'Spell Trainer', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#88ddff',
+      stroke: '#000', strokeThickness: 4,
+    }).setDepth(4).setOrigin(0.5)
+    this.add.text(cx + 60, cy - 122, '✦ Train Spells', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaffee',
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
@@ -2697,7 +2824,12 @@ export class GameScene extends Phaser.Scene {
 
     const dQ = Phaser.Math.Distance.Between(px, py, this.npcQuest.x,    this.npcQuest.y)
     const dM = Phaser.Math.Distance.Between(px, py, this.npcMerchant.x, this.npcMerchant.y)
-    if (dQ < 90) {
+    const dT = Phaser.Math.Distance.Between(px, py, this.npcTrainer.x,  this.npcTrainer.y)
+    if (dT < 90) {
+      this.nearNPC = 'trainer'
+      this.npcPrompt.setText('Press E to train').setPosition(this.npcTrainer.x, this.npcTrainer.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Train')
+    } else if (dQ < 90) {
       this.nearNPC = 'quest'
       this.npcPrompt.setText('Press E to talk').setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
       this.mobileControls?.showInteract('Talk')
@@ -2932,6 +3064,70 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.showDialog(lines)
+    this.dialogOpen = true
+  }
+
+  private openTrainerDialog() {
+    if (this.dialogOpen) return
+    const frostModal = (window as any).__frostModal
+    if (!frostModal) return
+
+    const TRAINABLE = [
+      { name: 'arcaneExplosion', label: 'Arcane Explosion', key: 'Q', cost: 100  },
+      { name: 'frostNova',       label: 'Frost Nova',        key: 'E', cost: 200  },
+      { name: 'blizzard',        label: 'Blizzard',           key: 'R', cost: 500  },
+    ]
+
+    const level = this.player.stats.level
+    const gold  = this.player.inventory.gold
+
+    const lines: string[] = [
+      '',
+      '"Welcome, apprentice. I can teach you the arcane arts."',
+      '"Prove your worth and bring the coin."',
+      '',
+    ]
+    for (const sp of TRAINABLE) {
+      const lvReq = SPELL_TRAIN_LEVEL[sp.name] ?? 1
+      if (this.player.hasSpell(sp.name)) {
+        lines.push(`  ✓  ${sp.label}  — Learned`)
+      } else if (level < lvReq) {
+        lines.push(`  ✗  ${sp.label}  — Requires level ${lvReq}`)
+      } else if (gold < sp.cost) {
+        lines.push(`  ✗  ${sp.label}  — ${formatCopper(sp.cost)}  (need more gold)`)
+      } else {
+        lines.push(`  ○  ${sp.label}  — ${formatCopper(sp.cost)}`)
+      }
+    }
+
+    const trainable = TRAINABLE.filter(sp => {
+      const lvReq = SPELL_TRAIN_LEVEL[sp.name] ?? 1
+      return !this.player.hasSpell(sp.name) && level >= lvReq && gold >= sp.cost
+    })
+
+    const buttons = [
+      ...trainable.map(sp => ({
+        label: `Train ${sp.label}`,
+        primary: true,
+        onClick: () => {
+          this.player.learnSpell(sp.name)
+          this.player.inventory.gold -= sp.cost
+          this.player.inventory.notifyChange()
+          this.mobileControls?.setLearnedSpells(this.player.learnedSpells)
+          this.hud.showQuestUpdate(`Learned: ${sp.label}!`, '#aaffcc')
+          this.dialogOpen = false
+          this.npcPrompt.setVisible(false)
+        },
+      })),
+      { label: 'Close', primary: trainable.length === 0, onClick: () => this.dismissDialog() },
+    ]
+
+    frostModal.show({
+      title: 'Spell Trainer',
+      lines,
+      buttons,
+      onClose: () => this.dismissDialog(),
+    })
     this.dialogOpen = true
   }
 
