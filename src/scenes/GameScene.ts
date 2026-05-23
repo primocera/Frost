@@ -302,7 +302,7 @@ export class GameScene extends Phaser.Scene {
       const bolt    = boltObj as unknown as Phaser.Physics.Arcade.Sprite
       if (!bolt.active) return
       const isFrost = bolt.getData('isFrost') as boolean | undefined
-      if (isFrost) { spawnFrostImpact(this, bolt.x, bolt.y); destroyFrostbolt(bolt) }
+      if (isFrost) { spawnFrostImpact(this, bolt.x, bolt.y); destroyFrostbolt(bolt); this.sfx.onFrostboltImpact() }
       else         { spawnImpact(this, bolt.x, bolt.y);       destroyBolt(bolt) }
     })
     // Enemies push each other apart — prevents the classic "zerg stack" problem
@@ -321,10 +321,8 @@ export class GameScene extends Phaser.Scene {
       const isFrost = bolt.getData('isFrost') as boolean | undefined
       const hitX = enemy.x
       const hitY = enemy.y
-      if (isFrost) destroyFrostbolt(bolt)
-      else destroyBolt(bolt)
-      if (isFrost) spawnFrostImpact(this, hitX, hitY)
-      else spawnImpact(this, hitX, hitY)
+      if (isFrost) { destroyFrostbolt(bolt); spawnFrostImpact(this, hitX, hitY); this.sfx.onFrostboltImpact() }
+      else         { destroyBolt(bolt);      spawnImpact(this, hitX, hitY) }
 
       // Hitstop: 50 ms physics freeze gives every bolt impact physical weight
       this.physics.world.pause()
@@ -1250,6 +1248,10 @@ export class GameScene extends Phaser.Scene {
 
   private enterZone(zone: ZoneDef | null) {
     this.currentZone = zone
+
+    // Zone music
+    const musicKey = (!zone || zone.name === 'Beginner Forest') ? 'mus_westfall' : null
+    this.sfx.setZoneMusic(musicKey)
 
     // Pause all ambient emitters, resume the right one
     this.snowEmitter.pause()

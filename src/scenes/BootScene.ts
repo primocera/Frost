@@ -5,6 +5,7 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('BootScene') }
 
   preload() {
+    this.load.audio('mus_westfall',        'assets/audio/mus_westfall.mp3')
     this.load.audio('snd_cast',            'assets/audio/snd_cast.ogg')
     this.load.audio('snd_frost_cast',      'assets/audio/snd_frost_cast.ogg')
     this.load.audio('snd_icelance_cast',   'assets/audio/snd_icelance_cast.ogg')
