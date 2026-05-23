@@ -3754,13 +3754,15 @@ export class GameScene extends Phaser.Scene {
 
   // ── Hit-stop ──────────────────────────────────────────────────────────────
 
+  private _hitStopped = false
+
   private hitStop(ms: number) {
-    if (this.physics.world.timeScale === 0) return
-    this.physics.world.timeScale = 0
-    this.tweens.timeScale = 0
+    if (this._hitStopped) return
+    this._hitStopped = true
+    this.physics.pause()
     window.setTimeout(() => {
-      this.physics.world.timeScale = 1
-      this.tweens.timeScale = 1
+      this._hitStopped = false
+      this.physics.resume()
     }, ms)
   }
 }
