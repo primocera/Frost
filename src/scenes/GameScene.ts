@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
-import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, ALL_RARE_ENEMIES } from '../entities/EnemyTypes'
 import { Boss } from '../entities/Boss'
 import { BossConfig, ALL_BOSSES } from '../entities/BossTypes'
 import { World, SpawnZone, ZoneDef, DungeonEntrance, getZoneAt, ZONE_DEFS } from '../world/World'
@@ -32,7 +32,8 @@ import { ProgressionSystem, COSMETICS } from '../systems/ProgressionSystem'
 import { RARITY_COLOR } from '../items/ItemTypes'
 import { Device } from '../config/DeviceConfig'
 
-const WORLD       = 3600
+const WORLD       = 3600   // world height; also sets town center at WORLD/2
+const WORLD_W     = 5400   // total world width (expanded eastward for Volcanic Wastes)
 const RESPAWN_MS  = 6000
 
 export class GameScene extends Phaser.Scene {
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
   private snowEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter
   private emberEmitter!: Phaser.GameObjects.Particles.ParticleEmitter
   private moteEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter
+  private ashEmitter!:   Phaser.GameObjects.Particles.ParticleEmitter
   // NPCs
   private npcQuest!:    Phaser.GameObjects.Image
   private npcMerchant!: Phaser.GameObjects.Image
@@ -134,7 +136,7 @@ export class GameScene extends Phaser.Scene {
     this.hardcore    = data?.hardcore   ?? false
     this.buildPlayerTexture()
 
-    this.world       = new World(this, WORLD)
+    this.world       = new World(this, WORLD, WORLD_W)
     this.player      = new Player(this, WORLD / 2, WORLD / 2, playerName)
     // Physics body is still active; hide the placeholder circle visual
     this.player.setAlpha(0)
@@ -151,7 +153,7 @@ export class GameScene extends Phaser.Scene {
 
     // Camera: smooth lerp + deadzone so minor movements don't pan the view
     this.cameras.main
-      .setBounds(0, 0, WORLD, WORLD)
+      .setBounds(0, 0, WORLD_W, WORLD)
       .startFollow(this.player, true, 0.07, 0.07)
       .setDeadzone(180, 130)
 
@@ -245,6 +247,13 @@ export class GameScene extends Phaser.Scene {
         },
         // Interact button — same as E key
         () => { if (!this.dead) this.handleEInteract() },
+        // Bolt-swap toggle — mirrors the X key (firebolt ↔ frostbolt)
+        () => {
+          if (this.dead) return
+          this.player.swapBolt()
+          const frost = this.player.activeBolt === 'frost'
+          this.hud.showQuestUpdate(frost ? '❄ Frostbolt' : '🔥 Firebolt', frost ? '#88ddff' : '#ff8844')
+        },
       )
     }
 
@@ -288,6 +297,14 @@ export class GameScene extends Phaser.Scene {
     // Collision: player and enemies push against obstacles
     this.physics.add.collider(this.player, this.world.obstacles)
     this.physics.add.collider(this.enemyGroup, this.world.obstacles)
+    // Player bolts stop at obstacles — triggers proper cleanup + impact effect
+    this.physics.add.collider(this.bolts, this.world.obstacles, (boltObj) => {
+      const bolt    = boltObj as unknown as Phaser.Physics.Arcade.Sprite
+      if (!bolt.active) return
+      const isFrost = bolt.getData('isFrost') as boolean | undefined
+      if (isFrost) { spawnFrostImpact(this, bolt.x, bolt.y); destroyFrostbolt(bolt) }
+      else         { spawnImpact(this, bolt.x, bolt.y);       destroyBolt(bolt) }
+    })
     // Enemies push each other apart — prevents the classic "zerg stack" problem
     this.physics.add.collider(this.enemyGroup, this.enemyGroup)
     this.physics.add.collider(this.wraithBolts, this.world.obstacles, (boltObj) => {
@@ -446,11 +463,27 @@ export class GameScene extends Phaser.Scene {
     }).setScrollFactor(0).setDepth(2)
     this.moteEmitter.pause()
 
+    // Ash: drifts down from above (Volcanic Wastes) — grey soot particles
+    this.ashEmitter = this.add.particles(0, 0, 'particle', {
+      x:       { min: 0, max: this.scale.width },
+      y:       { min: -30, max: -5 },
+      speedY:  { min: 25, max: 60 },
+      speedX:  { min: -22, max: 22 },
+      lifespan: { min: 4500, max: 9000 },
+      scale:   { start: 0.18, end: 0.04 },
+      alpha:   { start: 0.55, end: 0 },
+      tint:    [0x4a4642, 0x3a3430, 0x2a2420, 0x5a5450],
+      frequency: 280,
+      quantity: 1,
+    }).setScrollFactor(0).setDepth(2)
+    this.ashEmitter.pause()
+
     // Reduce particle emission rate on mobile to ease GPU load
     if (Device.isMobile) {
       this.snowEmitter.setFrequency(720)
       this.emberEmitter.setFrequency(600)
       this.moteEmitter.setFrequency(880)
+      this.ashEmitter.setFrequency(560)
     }
 
     // ── Boss system ───────────────────────────────────────────────────────
@@ -567,6 +600,7 @@ export class GameScene extends Phaser.Scene {
         { cd: this.player.blizzardCooldown,        max: this.player.blizzardCooldownMax },
         { cd: this.player.fireboltCooldown,        max: this.player.fireboltCooldownMax },
       ])
+      this.mobileControls.setActiveBolt(this.player.activeBolt)
       this.mobileControls.update()
     }
 
@@ -955,6 +989,13 @@ export class GameScene extends Phaser.Scene {
     const isElite = enemy.cfg.aiType === 'elite'
     this.progression.onKill(isElite)
     if (isElite) this.social.feedEvent(`Elite ${enemy.cfg.key} slain!`, '#ffdd44')
+
+    if (enemy.cfg.rare) {
+      const label = enemy.cfg.label ?? enemy.cfg.key
+      this.hud.showStreakText(`☠ ${label} Slain!`, '#ffaa00', 26)
+      this.social.feedEvent(`Rare "${label}" defeated!`, '#ffaa00')
+    }
+
     this.tryDropLoot(enemy)
     enemy.die()
     this.registerKill(enemy.x, enemy.y)
@@ -1026,10 +1067,16 @@ export class GameScene extends Phaser.Scene {
     const lvl = this.player.stats.level
 
     if (enemy.cfg.guaranteedDrop) {
-      // Elite: always drops a rare+ item and double gold
-      const rarity = Math.random() < 0.30 ? 'epic' : 'rare'
+      const goldMult = enemy.cfg.lootMultiplier ?? 2
+      // Rares get an epic-bias item; regular elites are rare-biased
+      const epicChance = enemy.cfg.rare ? 0.55 : 0.30
+      const rarity = Math.random() < epicChance ? 'epic' : 'rare'
       this.lootDrops.push(new LootDrop(this, enemy.x - 14, enemy.y, generateItem(lvl, rarity)))
-      this.lootDrops.push(new LootDrop(this, enemy.x + 14, enemy.y, undefined, generateGold(lvl) * 2))
+      // Rares drop a second item too
+      if (enemy.cfg.rare) {
+        this.lootDrops.push(new LootDrop(this, enemy.x, enemy.y - 14, generateItem(lvl, 'rare')))
+      }
+      this.lootDrops.push(new LootDrop(this, enemy.x + 14, enemy.y, undefined, generateGold(lvl) * goldMult))
       return
     }
 
@@ -1208,9 +1255,11 @@ export class GameScene extends Phaser.Scene {
     this.snowEmitter.pause()
     this.emberEmitter.pause()
     this.moteEmitter.pause()
+    this.ashEmitter.pause()
     if (zone?.name === 'Frozen Ruins')     this.snowEmitter.resume()
     if (zone?.name === 'Corrupted Fields') this.emberEmitter.resume()
     if (zone?.name === 'Arcane Caves')     this.moteEmitter.resume()
+    if (zone?.name === 'Volcanic Wastes')  this.ashEmitter.resume()
 
     // Fade atmosphere overlay to zone color (or clear if central)
     this.tweens.killTweensOf(this.atmoGraphics)
@@ -1226,7 +1275,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private announceZone(zone: ZoneDef) {
-    const stars = '★'.repeat(zone.danger) + '☆'.repeat(4 - zone.danger)
+    const stars = '★'.repeat(zone.danger) + '☆'.repeat(Math.max(0, 4 - zone.danger))
     const t = this.add.text(this.scale.width / 2, this.scale.height * 0.69, `${zone.name}   ${stars}`, {
       fontSize:        '18px',
       fontFamily:      'monospace',
@@ -1331,7 +1380,7 @@ export class GameScene extends Phaser.Scene {
   private spawnFromZone(zone: SpawnZone) {
     const angle = Math.random() * Math.PI * 2
     const r     = Phaser.Math.FloatBetween(zone.radius * 0.3, zone.radius)
-    const x     = Phaser.Math.Clamp(zone.cx + Math.cos(angle) * r, 80, WORLD - 80)
+    const x     = Phaser.Math.Clamp(zone.cx + Math.cos(angle) * r, 80, WORLD_W - 80)
     const y     = Phaser.Math.Clamp(zone.cy + Math.sin(angle) * r, 80, WORLD - 80)
 
     const cfg = zone.table[Phaser.Math.Between(0, zone.table.length - 1)]
@@ -1342,6 +1391,11 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push(enemy)
     this.enemyGroup.add(enemy as unknown as Phaser.GameObjects.GameObject)
     this.zoneCounts.set(zone, (this.zoneCounts.get(zone) ?? 0) + 1)
+
+    if (cfg.rare) {
+      const zoneName = getZoneAt(zone.cx, zone.cy)?.name ?? 'the wilderness'
+      this.hud.showFloatingText(x, y - 40, `⚠ ${cfg.label} roams ${zoneName}`, '#ffaa00', 14)
+    }
   }
 
   // ── Textures ──────────────────────────────────────────────────────────────
@@ -1364,7 +1418,7 @@ export class GameScene extends Phaser.Scene {
     // Enemies — distinct creature art per type.
     // Texture padded by 8px each side (size = 2r+16) so horns/auras/wisps
     // aren't clipped; Enemy.ts centres the physics circle with offset 8.
-    for (const cfg of [Slime, Ghoul, Imp, Brute, Wraith, Elite] as EnemyConfig[]) {
+    for (const cfg of [Slime, Ghoul, Imp, Brute, Wraith, Elite, ...ALL_RARE_ENEMIES] as EnemyConfig[]) {
       const size = cfg.radius * 2 + 16
       const c    = size / 2
       this.drawEnemyArt(g, cfg, c, cfg.radius)
@@ -1427,6 +1481,30 @@ export class GameScene extends Phaser.Scene {
     g.fillCircle(7, 7, 1.5)
     g.generateTexture('firebolt', 14, 14)
     g.clear()
+
+    // Frostbolt — crystalline ice orb with radiating shards (WoW-style)
+    {
+      const c = 11
+      g.fillStyle(0x2277cc, 0.45)            // outer frost halo
+      g.fillCircle(c, c, 11)
+      g.fillStyle(0xaaf0ff, 0.92)            // 8 ice-crystal shards
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2
+        g.fillTriangle(
+          c + Math.cos(a) * 11,        c + Math.sin(a) * 11,
+          c + Math.cos(a + 0.30) * 3.2, c + Math.sin(a + 0.30) * 3.2,
+          c + Math.cos(a - 0.30) * 3.2, c + Math.sin(a - 0.30) * 3.2,
+        )
+      }
+      g.fillStyle(0x55bbff, 0.95)            // icy body
+      g.fillCircle(c, c, 6)
+      g.fillStyle(0xbfeeff, 0.95)            // bright inner
+      g.fillCircle(c, c, 3.4)
+      g.fillStyle(0xffffff, 1)               // hot white core
+      g.fillCircle(c, c, 1.7)
+      g.generateTexture('frostbolt', 22, 22)
+      g.clear()
+    }
 
     // Particle — soft round glow dot (used by all particle effects)
     g.fillStyle(0xffffff)
@@ -1858,6 +1936,154 @@ export class GameScene extends Phaser.Scene {
         g.fillCircle(c - r * 0.3, c - r * 0.45, r * 0.28)
         break
       }
+      case 'thornback': {
+        // Massive dark-green spiked brute — radial bone spikes + armored shell
+        g.lineStyle(3, 0x44ff44, 0.25)
+        g.strokeCircle(c, c, r + 5)
+        g.fillStyle(0x1a5520)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x228833)
+        g.fillCircle(c, c, r * 0.88)
+        // Bone spikes radiating out
+        g.fillStyle(0xddddbb)
+        for (let i = 0; i < 8; i++) {
+          const a  = (i / 8) * Math.PI * 2 - Math.PI / 8
+          const ox = Math.cos(a) * r * 0.8, oy = Math.sin(a) * r * 0.8
+          g.fillTriangle(
+            c + Math.cos(a - 0.22) * r * 0.65, c + Math.sin(a - 0.22) * r * 0.65,
+            c + Math.cos(a + 0.22) * r * 0.65, c + Math.sin(a + 0.22) * r * 0.65,
+            c + ox * 1.55, c + oy * 1.55,
+          )
+        }
+        // Red glowing eyes
+        g.fillStyle(0xff2200)
+        g.fillCircle(c - r * 0.32, c - r * 0.18, r * 0.18)
+        g.fillCircle(c + r * 0.32, c - r * 0.18, r * 0.18)
+        g.fillStyle(0xffaa00, 0.7)
+        g.fillCircle(c, c + r * 0.22, r * 0.28)
+        break
+      }
+      case 'frost_warden': {
+        // Ice-blue armoured guardian — hexagonal plate, crown of icicles
+        g.lineStyle(3, 0xaaffff, 0.4)
+        g.strokeCircle(c, c, r + 5)
+        g.fillStyle(0x336699)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x88eeff)
+        g.fillCircle(c, c, r * 0.85)
+        // Icicle crown spikes
+        g.fillStyle(0xddf6ff)
+        for (let i = -2; i <= 2; i++) {
+          const sx = c + i * r * 0.38
+          const sh = r * 0.35 + Math.abs(i) * r * 0.08
+          g.fillTriangle(sx - r * 0.14, c - r * 0.7, sx + r * 0.14, c - r * 0.7, sx, c - r * 0.7 - sh)
+        }
+        // Armour hex detail
+        g.lineStyle(1.5, 0x336699, 0.8)
+        g.strokeCircle(c, c + r * 0.1, r * 0.42)
+        // Frost glow core
+        g.fillStyle(0xffffff, 0.6)
+        g.fillCircle(c, c + r * 0.1, r * 0.22)
+        // Cold eyes
+        g.fillStyle(0xffffff)
+        g.fillCircle(c - r * 0.3, c - r * 0.2, r * 0.16)
+        g.fillCircle(c + r * 0.3, c - r * 0.2, r * 0.16)
+        g.fillStyle(0x0066cc)
+        g.fillCircle(c - r * 0.3, c - r * 0.2, r * 0.08)
+        g.fillCircle(c + r * 0.3, c - r * 0.2, r * 0.08)
+        break
+      }
+      case 'corrupted_mage': {
+        // Dark purple rogue caster — hooded with arcane rune + tentacle wisps
+        g.lineStyle(3, 0xcc44ff, 0.35)
+        g.strokeCircle(c, c, r + 5)
+        g.fillStyle(0x3a0055)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x7a00cc)
+        g.fillCircle(c, c, r * 0.88)
+        // Wispy arcane tendrils (4 directions)
+        g.fillStyle(0xcc44ff, 0.6)
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + Math.PI / 4
+          g.fillTriangle(
+            c + Math.cos(a - 0.3) * r * 0.7, c + Math.sin(a - 0.3) * r * 0.7,
+            c + Math.cos(a + 0.3) * r * 0.7, c + Math.sin(a + 0.3) * r * 0.7,
+            c + Math.cos(a) * r * 1.45,      c + Math.sin(a) * r * 1.45,
+          )
+        }
+        // Arcane rune (star)
+        g.fillStyle(0xffaaff, 0.85)
+        g.fillCircle(c, c, r * 0.38)
+        // Glowing purple eyes
+        g.fillStyle(0xff88ff)
+        g.fillCircle(c - r * 0.28, c - r * 0.12, r * 0.16)
+        g.fillCircle(c + r * 0.28, c - r * 0.12, r * 0.16)
+        g.fillStyle(0xffffff, 0.6)
+        g.fillCircle(c - r * 0.28, c - r * 0.12, r * 0.06)
+        g.fillCircle(c + r * 0.28, c - r * 0.12, r * 0.06)
+        break
+      }
+      case 'arcane_lich': {
+        // Undead lich — dark skeletal body, glowing cyan rune skull
+        g.lineStyle(3, 0x44ddff, 0.4)
+        g.strokeCircle(c, c, r + 6)
+        g.fillStyle(0x0d1a22)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x1a3344)
+        g.fillCircle(c, c, r * 0.9)
+        // Skull dome
+        g.fillStyle(0x223344)
+        g.fillCircle(c, c - r * 0.22, r * 0.72)
+        // Jaw notch
+        g.fillStyle(0x0d1a22)
+        g.fillRect(c - r * 0.32, c + r * 0.25, r * 0.64, r * 0.35)
+        // Teeth
+        g.fillStyle(0xaaccdd)
+        for (let i = -1; i <= 1; i++) {
+          g.fillRect(c + i * r * 0.28 - r * 0.08, c + r * 0.25, r * 0.14, r * 0.22)
+        }
+        // Glowing cyan eyes
+        g.fillStyle(0x44ddff)
+        g.fillCircle(c - r * 0.32, c - r * 0.28, r * 0.2)
+        g.fillCircle(c + r * 0.32, c - r * 0.28, r * 0.2)
+        g.fillStyle(0xaaffff, 0.9)
+        g.fillCircle(c - r * 0.32, c - r * 0.28, r * 0.09)
+        g.fillCircle(c + r * 0.32, c - r * 0.28, r * 0.09)
+        // Crown rune glow
+        g.fillStyle(0x44ddff, 0.45)
+        g.fillCircle(c, c - r * 0.9, r * 0.28)
+        break
+      }
+      case 'ashen_giant': {
+        // Colossal lava titan — cracked grey rock skin with molten core veins
+        g.lineStyle(4, 0xff6622, 0.35)
+        g.strokeCircle(c, c, r + 7)
+        g.fillStyle(0x333333)
+        g.fillCircle(c, c, r)
+        g.fillStyle(0x555555)
+        g.fillCircle(c, c, r * 0.92)
+        // Molten crack veins
+        g.lineStyle(2, 0xff4400, 0.9)
+        g.strokeCircle(c, c, r * 0.6)
+        g.lineStyle(1.5, 0xff8800, 0.6)
+        g.strokeCircle(c, c + r * 0.2, r * 0.36)
+        // Lava core glow
+        g.fillStyle(0xff6622, 0.85)
+        g.fillCircle(c, c + r * 0.1, r * 0.42)
+        g.fillStyle(0xffbb44, 0.7)
+        g.fillCircle(c, c + r * 0.1, r * 0.22)
+        // Rocky brow ridges
+        g.fillStyle(0x444444)
+        g.fillRect(c - r * 0.75, c - r * 0.5, r * 1.5, r * 0.28)
+        // Small sunken eyes
+        g.fillStyle(0xff4400)
+        g.fillCircle(c - r * 0.36, c - r * 0.34, r * 0.16)
+        g.fillCircle(c + r * 0.36, c - r * 0.34, r * 0.16)
+        g.fillStyle(0xffcc44, 0.9)
+        g.fillCircle(c - r * 0.36, c - r * 0.34, r * 0.07)
+        g.fillCircle(c + r * 0.36, c - r * 0.34, r * 0.07)
+        break
+      }
       default: {
         g.fillStyle(cfg.color)
         g.fillCircle(c, c, r)
@@ -1992,9 +2218,10 @@ export class GameScene extends Phaser.Scene {
 
     // Zone quest-giver NPCs — placed inside each zone, visible once unlocked
     const zoneNPCDefs: Array<{ x: number; y: number; name: string; travelZone: string; color: number; label: string }> = [
-      { x: 1800, y: 550,  name: 'Mage Solvara',  travelZone: 'Frozen Ruins',     color: 0x88eeff, label: '! Quest' },
-      { x: 750,  y: 1800, name: 'Ranger Aldric',  travelZone: 'Corrupted Fields', color: 0xff8844, label: '! Quest' },
-      { x: 2850, y: 1800, name: 'Hermit Zethkar', travelZone: 'Arcane Caves',     color: 0xcc88ff, label: '! Quest' },
+      { x: 1800, y: 550,  name: 'Mage Solvara',      travelZone: 'Frozen Ruins',     color: 0x88eeff, label: '! Quest' },
+      { x: 750,  y: 1800, name: 'Ranger Aldric',      travelZone: 'Corrupted Fields', color: 0xff8844, label: '! Quest' },
+      { x: 2850, y: 1800, name: 'Hermit Zethkar',     travelZone: 'Arcane Caves',     color: 0xcc88ff, label: '! Quest' },
+      { x: 3900, y: 1800, name: 'Pyromancer Ignis',   travelZone: 'Volcanic Wastes',  color: 0xff5522, label: '! Quest' },
     ]
     for (const def of zoneNPCDefs) {
       const sprite = this.add.image(def.x, def.y, 'npc_quest').setDepth(4).setOrigin(0.5, 1).setTint(def.color)
@@ -2358,6 +2585,28 @@ export class GameScene extends Phaser.Scene {
       // ── Phase 4: Arcane Caves — auto-collect ──────────────────────────────
       { title: 'Cave Delver',  desc: 'Slay 30 enemies in the Arcane Caves.',   target: 30, zone: 'Arcane Caves', xp: 700,  gold: 18000, autoCollect: true },
       { title: 'Arcane Purge', desc: 'Defeat 60 enemies in the Arcane Caves.', target: 60, zone: 'Arcane Caves', xp: 1200, gold: 35000, autoCollect: true },
+
+      // ── Travel 4: Arcane Caves → Volcanic Wastes ─────────────────────────
+      {
+        type: 'travel', title: 'Into the Wastes',
+        desc: 'Cross east past the Arcane Caves — find Pyromancer Ignis in the Volcanic Wastes.',
+        target: 0, xp: 100, gold: 3000,
+        travelZone: 'Volcanic Wastes', markerX: 3900, markerY: 1800, markerLabel: '► Volcanic Wastes',
+        giver: 'Pyromancer Ignis',
+        arriveLines: [
+          '"The forge-fire never sleeps. Neither do I."',
+          '"Ash demons and molten elites haunt every crater."',
+          '"Burn them all. The caldera demands sacrifice."',
+          '',
+          'Quest: Forge Trial',
+          'Slay 40 enemies in the Volcanic Wastes.',
+        ],
+      },
+
+      // ── Phase 5: Volcanic Wastes — auto-collect ───────────────────────────
+      { title: 'Forge Trial', desc: 'Slay 40 enemies in the Volcanic Wastes.',   target: 40,  zone: 'Volcanic Wastes', xp: 1500, gold: 55000,  autoCollect: true },
+      { title: 'The Inferno', desc: 'Defeat 80 enemies in the Volcanic Wastes.', target: 80,  zone: 'Volcanic Wastes', xp: 2400, gold: 100000, autoCollect: true },
+      { title: 'Archmage',    desc: 'Reach the summit — slay 120 in the Wastes.',target: 120, zone: 'Volcanic Wastes', xp: 4000, gold: 200000, autoCollect: true },
     ]
     this.updateQuestHUD()
   }
@@ -2413,6 +2662,7 @@ export class GameScene extends Phaser.Scene {
     'Frozen Ruins':     3,   // unlocked when "A Frozen Lead" travel quest is active
     'Corrupted Fields': 6,   // unlocked when "The Tainted West" travel quest is active
     'Arcane Caves':     9,   // unlocked when "Into the Depths" travel quest is active
+    'Volcanic Wastes':  12,  // unlocked when "Into the Wastes" travel quest is active
   }
 
   private isZoneLocked(zoneName: string): boolean {
@@ -2433,6 +2683,9 @@ export class GameScene extends Phaser.Scene {
       case 'Arcane Caves':
         body.reset(zone.x - 12, this.player.y)
         break
+      case 'Volcanic Wastes':
+        body.reset(zone.x - 12, this.player.y)
+        break
     }
     // Throttle warning message to once every 3 seconds
     if (this.time.now - this.lastGateWarnAt < 3000) return
@@ -2449,6 +2702,8 @@ export class GameScene extends Phaser.Scene {
         return '🔒 Corrupted Fields\nClear the Frozen Ruins first.'
       case 'Arcane Caves':
         return '🔒 Arcane Caves\nClear the Corrupted Fields first.'
+      case 'Volcanic Wastes':
+        return '🔒 Volcanic Wastes\nClear the Arcane Caves first.'
       default:
         return '🔒 Zone locked.'
     }

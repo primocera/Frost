@@ -259,7 +259,7 @@ export class HUD {
       { key: 'Q', name: 'ArcEx',                                   color: 0xcc44ff },
       { key: 'E', name: 'FrNova',                                   color: 0x44aaff },
       { key: 'R', name: 'Blizzard',                                 color: 0x0088dd },
-      { key: 'F', name: isFrost ? 'Frostbolt' : 'Firebolt',        color: isFrost ? 0x44ccff : 0xff8800 },
+      { key: 'F', name: isFrost ? 'Ice Lance' : 'Firebolt',         color: isFrost ? 0x44ccff : 0xff8800 },
     ]
     const boltCd    = isFrost ? player.frostboltCooldown  : player.fireboltCooldown
     const boltCdMax = isFrost ? player.frostboltCooldownMax : player.fireboltCooldownMax

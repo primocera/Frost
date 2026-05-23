@@ -5,13 +5,15 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('BootScene') }
 
   preload() {
-    this.load.audio('snd_cast',       'assets/audio/snd_cast.ogg')
-    this.load.audio('snd_frost_cast', 'assets/audio/snd_frost_cast.ogg')
-    this.load.audio('snd_arcane',     'assets/audio/snd_arcane.ogg')
-    this.load.audio('snd_impact',     'assets/audio/snd_impact.ogg')
-    this.load.audio('snd_hit',        'assets/audio/snd_hit.ogg')
-    this.load.audio('snd_death',      'assets/audio/snd_death.ogg')
-    this.load.audio('snd_levelup',    ['assets/audio/snd_levelup.ogg', 'assets/audio/snd_levelup.wav'])
+    this.load.audio('snd_cast',            'assets/audio/snd_cast.ogg')
+    this.load.audio('snd_frost_cast',      'assets/audio/snd_frost_cast.ogg')
+    this.load.audio('snd_icelance_cast',   'assets/audio/snd_icelance_cast.ogg')
+    this.load.audio('snd_icelance_impact', 'assets/audio/snd_icelance_impact.ogg')
+    this.load.audio('snd_arcane',          'assets/audio/snd_arcane.ogg')
+    this.load.audio('snd_impact',          'assets/audio/snd_impact.ogg')
+    this.load.audio('snd_hit',             'assets/audio/snd_hit.ogg')
+    this.load.audio('snd_death',           'assets/audio/snd_death.ogg')
+    this.load.audio('snd_levelup',         ['assets/audio/snd_levelup.ogg', 'assets/audio/snd_levelup.wav'])
   }
 
   create() {

@@ -12,45 +12,74 @@ export function spawnFrostbolt(
   toY:     number,
   damage:  number,
 ): Phaser.Physics.Arcade.Sprite {
-  const bolt  = group.create(fromX, fromY, 'firebolt') as Phaser.Physics.Arcade.Sprite
+  const bolt  = group.create(fromX, fromY, 'frostbolt') as Phaser.Physics.Arcade.Sprite
   bolt.setData('damage', damage)
   bolt.setData('isFrost', true)
-  bolt.setTint(0x88ddff)
   bolt.setDepth(7)
-  ;(bolt.body as Phaser.Physics.Arcade.Body).setCircle(7)
+  bolt.setBlendMode(Phaser.BlendModes.ADD)
+  // frostbolt texture is 22×22 — centre the 7px collision circle
+  ;(bolt.body as Phaser.Physics.Arcade.Body).setCircle(7, 4, 4)
 
   const angle = Phaser.Math.Angle.Between(fromX, fromY, toX, toY)
   bolt.setVelocity(Math.cos(angle) * SPEED, Math.sin(angle) * SPEED)
-  bolt.setRotation(angle)
 
-  // Ice core trail
+  // Slowly spin the ice crystal + breathe its scale for a living frost look
+  scene.tweens.add({ targets: bolt, angle: 360, duration: 760, repeat: -1 })
+  scene.tweens.add({
+    targets: bolt, scale: { from: 0.9, to: 1.15 },
+    duration: 240, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+  })
+
+  // Bright frozen core trail
   const core = scene.add.particles(0, 0, 'particle', {
     follow:    bolt,
-    frequency: 14,
+    frequency: 10,
     quantity:  2,
-    lifespan:  120,
-    speed:     { min: 5, max: 20 },
-    scale:     { start: 0.65, end: 0 },
+    lifespan:  160,
+    speed:     { min: 5, max: 24 },
+    scale:     { start: 0.7, end: 0 },
     alpha:     { start: 1, end: 0 },
-    tint:      [0xffffff, 0xaaeeff],
+    tint:      [0xffffff, 0xcceeff, 0x99e6ff],
     blendMode: 'ADD',
   }).setDepth(7)
 
-  // Frost mist trail
+  // Billowing frost mist
   const mist = scene.add.particles(0, 0, 'particle', {
     follow:    bolt,
-    frequency: 22,
+    frequency: 18,
     quantity:  3,
-    lifespan:  260,
-    speed:     { min: 15, max: 60 },
-    scale:     { start: 0.85, end: 0 },
-    alpha:     { start: 0.75, end: 0 },
-    tint:      [0x44aaff, 0x22ccff, 0x88ddff],
+    lifespan:  340,
+    speed:     { min: 10, max: 58 },
+    scale:     { start: 1.05, end: 0 },
+    alpha:     { start: 0.6, end: 0 },
+    tint:      [0x2288ee, 0x55bbff, 0x88ddff],
     blendMode: 'ADD',
+  }).setDepth(6)
+
+  // Drifting ice shards — rotating snowflake flecks shed along the path
+  const shards = scene.add.particles(0, 0, 'snowflake', {
+    follow:    bolt,
+    frequency: 32,
+    quantity:  1,
+    lifespan:  500,
+    speed:     { min: 20, max: 72 },
+    scale:     { start: 0.95, end: 0.1 },
+    alpha:     { start: 0.95, end: 0 },
+    rotate:    { min: 0, max: 360 },
+    tint:      [0xddf6ff, 0xaae6ff],
   }).setDepth(6)
 
   bolt.setData('trailCore', core)
   bolt.setData('trailFire', mist)
+  bolt.setData('trailShards', shards)
+
+  // Clean up emitters no matter HOW the bolt dies (wall, world bounds, zone boundary, etc.)
+  bolt.once(Phaser.GameObjects.Events.DESTROY, () => {
+    if ((bolt.scene as Phaser.Scene | null)?.tweens) bolt.scene.tweens.killTweensOf(bolt)
+    for (const t of [core, mist, shards]) {
+      if (t?.active) t.destroy()
+    }
+  })
 
   scene.time.delayedCall(LIFETIME, () => destroyFrostbolt(bolt))
   return bolt
@@ -58,15 +87,7 @@ export function spawnFrostbolt(
 
 export function destroyFrostbolt(bolt: Phaser.Physics.Arcade.Sprite) {
   if (!bolt.active) return
-  const core = bolt.getData('trailCore') as Phaser.GameObjects.Particles.ParticleEmitter | undefined
-  const mist = bolt.getData('trailFire') as Phaser.GameObjects.Particles.ParticleEmitter | undefined
-  for (const t of [core, mist]) {
-    if (t?.active) {
-      t.stop()
-      bolt.scene.time.delayedCall(250, () => { if (t.active) t.destroy() })
-    }
-  }
-  bolt.destroy()
+  bolt.destroy()   // DESTROY listener handles emitter + tween cleanup
 }
 
 /** Small ice ring at the player's feet when a frostbolt fires. */
@@ -126,5 +147,22 @@ export function spawnFrostImpact(scene: Phaser.Scene, x: number, y: number) {
   }).setDepth(9)
   burst.explode(16)
 
-  scene.time.delayedCall(600, () => { if (burst.active) burst.destroy() })
+  // Crystalline ice shards spraying out and tumbling — the frozen "shatter"
+  const shards = scene.add.particles(x, y, 'snowflake', {
+    speed:     { min: 90, max: 340 },
+    scale:     { start: 1.3, end: 0.1 },
+    alpha:     { start: 1, end: 0 },
+    lifespan:  520,
+    rotate:    { min: 0, max: 360 },
+    gravityY:  140,
+    tint:      [0xffffff, 0xcceeff, 0x88ddff],
+    angle:     { min: 0, max: 360 },
+    emitting:  false,
+  }).setDepth(9)
+  shards.explode(12)
+
+  scene.time.delayedCall(700, () => {
+    if (burst.active)  burst.destroy()
+    if (shards.active) shards.destroy()
+  })
 }

@@ -23,7 +23,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private readonly homeX: number
   private readonly homeY: number
 
-  private hpBar: Phaser.GameObjects.Graphics
+  private hpBar:     Phaser.GameObjects.Graphics
+  private nameLabel: Phaser.GameObjects.Text | null = null
 
   // Status effects
   private frozenMs = 0
@@ -55,6 +56,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.hpBar = scene.add.graphics().setDepth(6)
     this.redrawHPBar()
+
+    if (cfg.label && cfg.rare) {
+      this.nameLabel = scene.add.text(x, y, cfg.label, {
+        fontSize: '9px', color: '#ffaa00',
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5, 1).setDepth(7)
+    }
 
     this.wanderIdleMs = Phaser.Math.Between(0, cfg.idleTime[1])
 
@@ -109,6 +118,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.rangedCooldown > 0) this.rangedCooldown -= delta
 
     this.hpBar.setPosition(this.x, this.y)
+    this.nameLabel?.setPosition(this.x, this.y - this.cfg.radius - 14)
 
     // These states block all other logic
     if (this.telegraphing) return
@@ -370,6 +380,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dying = true
     ;(this.body as Phaser.Physics.Arcade.Body).enable = false
     this.hpBar.setVisible(false)
+    this.nameLabel?.setVisible(false)
 
     const burst = this.scene.add.particles(this.x, this.y, 'particle', {
       speed:     { min: 55, max: 200 },
@@ -459,6 +470,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene?: boolean) {
     this.hpBar?.destroy()
+    this.nameLabel?.destroy()
     super.destroy(fromScene)
   }
 }

@@ -44,7 +44,7 @@ const Balance = {
   aggro: {
     // When a spell hits, enemies within this radius also get aggroed.
     // Makes shooting into a cluster pull the whole group.
-    chainRadius: 200,
+    chainRadius: 130,
   },
 
   mob: {

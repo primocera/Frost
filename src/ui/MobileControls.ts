@@ -18,6 +18,7 @@ interface ScreenLayout {
   spellR: number; spells: Array<{ cx: number; cy: number }>
   menuR:  number; menus:  Array<{ cx: number; cy: number }>
   ix: number; iy: number; iRad: number
+  swapR: number; swap: { cx: number; cy: number }
 }
 
 export class MobileControls {
@@ -28,6 +29,10 @@ export class MobileControls {
   private spellTexts:   Phaser.GameObjects.Text[]
   private menuTexts:    Phaser.GameObjects.Text[]
   private interactText: Phaser.GameObjects.Text
+  private swapText:     Phaser.GameObjects.Text
+
+  /** Currently selected bolt — drives the swap-button icon and F-button colour. */
+  private activeBolt: 'fire' | 'frost' = 'fire'
 
   private joystickPtrId: number | null = null
   // Knob offset stored in SCREEN PIXELS so math stays in one coordinate space
@@ -46,6 +51,7 @@ export class MobileControls {
     private onSpell:    (idx: number) => void,   // 0=Q 1=E 2=R 3=F
     private onMenu:     (key: string) => void,   // 'I'|'T'|'P'
     private onInteract: () => void,               // contextual action (E key)
+    private onSwapBolt: () => void,               // toggle firebolt ↔ frostbolt
   ) {
     scene.input.addPointer(4)
 
@@ -68,6 +74,11 @@ export class MobileControls {
       fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       color: '#ffffff',
     }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0.5).setVisible(false)
+
+    this.swapText = scene.add.text(0, 0, '🔥', {
+      fontSize: '15px',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    }).setScrollFactor(0).setDepth(26).setOrigin(0.5, 0.5)
 
     scene.input.on('pointerdown', this.onDown, this)
     scene.input.on('pointermove', this.onMove, this)
@@ -125,7 +136,11 @@ export class MobileControls {
     const ix   = Math.round(W / 2)
     const iy   = H - iRad - 22
 
-    return { jx, jy, baseR, knobR, spellR, spells, menuR, menus, ix, iy, iRad }
+    // Bolt-swap toggle — above the right column of the spell grid
+    const swapR = Math.max(24, Math.round(spellR * 0.74))
+    const swap  = { cx: sx1, cy: sy0 - spellR - swapR - 12 }
+
+    return { jx, jy, baseR, knobR, spellR, spells, menuR, menus, ix, iy, iRad, swapR, swap }
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -147,10 +162,13 @@ export class MobileControls {
       if (Phaser.Math.Distance.Between(screenX, screenY, m.cx, m.cy) <= L.menuR + 12) return true
     if (this.interactLabel && Phaser.Math.Distance.Between(screenX, screenY, L.ix, L.iy) <= L.iRad + 14)
       return true
+    if (Phaser.Math.Distance.Between(screenX, screenY, L.swap.cx, L.swap.cy) <= L.swapR + 12) return true
     return false
   }
 
   setCooldowns(data: SpellCooldown[]) { this.cooldowns = data }
+
+  setActiveBolt(bolt: 'fire' | 'frost') { this.activeBolt = bolt }
 
   showInteract(label: string) {
     this.interactLabel = label
@@ -172,6 +190,7 @@ export class MobileControls {
     this.spellTexts.forEach(t => t.destroy())
     this.menuTexts.forEach(t => t.destroy())
     this.interactText.destroy()
+    this.swapText.destroy()
   }
 
   // ── Pointer handlers ───────────────────────────────────────────────────────
@@ -193,6 +212,12 @@ export class MobileControls {
     // Interact button
     if (this.interactLabel && Phaser.Math.Distance.Between(x, y, L.ix, L.iy) <= L.iRad + 14) {
       this.onInteract()
+      return
+    }
+
+    // Bolt-swap toggle
+    if (Phaser.Math.Distance.Between(x, y, L.swap.cx, L.swap.cy) <= L.swapR + 12) {
+      this.onSwapBolt()
       return
     }
 
@@ -291,7 +316,10 @@ export class MobileControls {
       const { cx, cy }  = L.spells[i]
       const { cd, max } = this.cooldowns[i]
       const ready        = cd <= 0
-      const color        = SPELL_COLORS[i]
+      // The F (bolt) button reflects the active bolt: orange fire / blue frost
+      const color        = i === 3
+        ? (this.activeBolt === 'frost' ? 0x0088dd : 0xff8800)
+        : SPELL_COLORS[i]
       const cgx          = this.s2gx(cx)
       const cgy          = this.s2gy(cy)
       const sr           = this.r2g(L.spellR)
@@ -335,6 +363,23 @@ export class MobileControls {
       g.lineStyle(2, 0x66ffaa, 0.5)
       g.strokeCircle(igx, igy, iRad)
       this.interactText.setPosition(igx, igy)
+    }
+
+    // Bolt-swap toggle — shows the active bolt's icon
+    {
+      const sgx   = this.s2gx(L.swap.cx)
+      const sgy   = this.s2gy(L.swap.cy)
+      const sr    = this.r2g(L.swapR)
+      const frost = this.activeBolt === 'frost'
+      g.fillStyle(0x111111, 0.80)
+      g.fillCircle(sgx, sgy, sr + this.r2g(3))
+      g.fillStyle(frost ? 0x0088dd : 0xff8800, 0.9)
+      g.fillCircle(sgx, sgy, sr)
+      g.fillStyle(0xffffff, 0.2)
+      g.fillCircle(sgx - this.r2g(8), sgy - this.r2g(8), this.r2g(7))
+      g.lineStyle(2, frost ? 0x88ddff : 0xffcc66, 0.6)
+      g.strokeCircle(sgx, sgy, sr)
+      this.swapText.setText(frost ? '❄' : '🔥').setPosition(sgx, sgy)
     }
 
     // Menu buttons (I/T/P)
