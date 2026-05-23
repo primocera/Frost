@@ -11,6 +11,9 @@ export class TalentUI {
   private colEls:  HTMLElement[]  // [frost, fire, arcane]
   private footerEl: HTMLElement
 
+  /** Called when respec is requested. Return true if gold was deducted. */
+  onRespecRequest?: (cost: number) => boolean
+
   constructor(_scene: unknown, private talents: TalentSystem) {
     this.backdrop = document.createElement('div')
     this.backdrop.className = 'gp-backdrop'
@@ -62,11 +65,21 @@ export class TalentUI {
   refresh() {
     if (!this.visible) return
     this.renderTrees()
-    const pts = this.talents.points
-    this.footerEl.textContent = pts > 0
-      ? `${pts} talent point${pts > 1 ? 's' : ''} available`
-      : 'No talent points — earn more by leveling up'
-    this.footerEl.style.color = pts > 0 ? '#ffdd44' : '#445566'
+    const pts  = this.talents.points
+    const cost = this.talents.playerLevel * 1000  // copper (level × 10s)
+    const g    = Math.floor(cost / 10_000)
+    const s    = Math.floor((cost % 10_000) / 100)
+    const costStr = g > 0 ? `${g}g ${s > 0 ? s + 's' : ''}`.trim() : `${s}s`
+
+    const spent = (Object.values(this.talents.allRanks) as number[]).reduce((a, r) => a + r, 0)
+    const respecHTML = spent > 0 && this.onRespecRequest
+      ? `<button class="gp-respec-btn" data-action="respec">Respec  (${costStr})</button>`
+      : ''
+
+    this.footerEl.innerHTML = (pts > 0
+      ? `<span style="color:#ffdd44">${pts} talent point${pts > 1 ? 's' : ''} available</span>`
+      : `<span style="color:#445566">No talent points — earn more by leveling up</span>`
+    ) + (respecHTML ? `<br>${respecHTML}` : '')
   }
 
   private renderTrees() {
@@ -148,7 +161,17 @@ export class TalentUI {
   }
 
   private onClick = (e: MouseEvent) => {
-    const btn = (e.target as HTMLElement).closest('[data-talent-id]') as HTMLElement | null
+    const el = e.target as HTMLElement
+
+    // Respec button
+    if (el.closest('[data-action="respec"]')) {
+      const cost = this.talents.playerLevel * 1000
+      if (this.onRespecRequest?.(cost)) this.refresh()
+      return
+    }
+
+    // Talent buy button
+    const btn = el.closest('[data-talent-id]') as HTMLElement | null
     if (!btn || (btn as HTMLButtonElement).disabled) return
     const id = btn.dataset.talentId as Parameters<TalentSystem['buy']>[0]
     if (id) this.talents.buy(id)

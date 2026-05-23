@@ -75,6 +75,15 @@ export class Inventory {
     return true
   }
 
+  /** Restore saved state directly (bypasses equip-swap logic). */
+  loadSave(items: (Item | null)[], equipped: Record<EquipSlot, Item | null>, gold: number) {
+    items.forEach((it, i) => { this.items[i] = it })
+    for (const slot of EQUIP_SLOTS) this.equipped[slot] = equipped[slot] ?? null
+    this.gold = gold
+    this.recompute()
+    this.notifyChange()
+  }
+
   // ── Internal ──────────────────────────────────────────────────────────────
 
   private recompute() {

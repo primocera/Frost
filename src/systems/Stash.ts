@@ -24,4 +24,10 @@ export class Stash {
     this.onChange?.()
     return item
   }
+
+  /** Restore saved state directly. */
+  loadSave(items: (Item | null)[]) {
+    items.forEach((it, i) => { this.items[i] = it ?? null })
+    this.onChange?.()
+  }
 }

@@ -29,7 +29,8 @@ import { InspectPanel } from '../ui/InspectPanel'
 import { SocialSystem } from '../social/SocialSystem'
 import { PartySystem } from '../social/PartySystem'
 import { ProgressionSystem, COSMETICS } from '../systems/ProgressionSystem'
-import { RARITY_COLOR } from '../items/ItemTypes'
+import { RARITY_COLOR, EquipSlot, Item } from '../items/ItemTypes'
+import { TalentId } from '../talents/TalentTypes'
 import { Device } from '../config/DeviceConfig'
 
 const WORLD       = 3600   // world height; also sets town center at WORLD/2
@@ -157,6 +158,21 @@ const HUMANOID_STYLES: Record<string, HumanoidStyle> = {
     headwear: 'hood', hwMain: '#1e0a32', hwDark: '#0e0418',
     item: 'staff', crystal: '#aa44ff', glow: true, glowRgb: '150,50,220',
   },
+}
+
+interface CharSave {
+  v: 1
+  stats:          { level: number; xp: number; xpToNext: number; maxHp: number; maxMana: number; spellDamage: number; speed: number }
+  gold:           number
+  activeBolt:     'fire' | 'frost'
+  learnedSpells:  string[]
+  inventoryItems: (Item | null)[]
+  equippedItems:  Record<EquipSlot, Item | null>
+  stashItems:     (Item | null)[]
+  talentRanks:    Partial<Record<TalentId, number>>
+  talentPoints:   number
+  activeQuestIdx: number
+  questKills:     number
 }
 
 export class GameScene extends Phaser.Scene {
@@ -301,6 +317,9 @@ export class GameScene extends Phaser.Scene {
 
     this.stash   = new Stash()
     this.stashUI = new StashUI(this, this.stash, this.player.inventory)
+    // Autosave whenever the inventory or stash changes (equip, pickup, gold spend)
+    this.player.inventory.addChangeListener(() => this.saveCharacter())
+    this.stash.onChange = () => this.saveCharacter()
     this.stashUI.onDropInventoryItem = (idx) => this.dropInventoryItem(idx)
 
     this.stashPrompt = this.add.text(
@@ -312,7 +331,21 @@ export class GameScene extends Phaser.Scene {
       }
     ).setDepth(10).setOrigin(0.5).setVisible(false)
 
-    this.talentUI     = new TalentUI(this, this.player.talents)
+    this.talentUI = new TalentUI(this, this.player.talents)
+    // Wrap talent onChange so saves fire automatically after any purchase
+    const talentOnChange = () => { this.talentUI.refresh?.(); this.saveCharacter() }
+    this.player.talents.onChange = talentOnChange
+    // Respec: deduct gold at level * 10 silver, reset ranks
+    this.talentUI.onRespecRequest = (cost) => {
+      if (this.player.inventory.gold < cost) {
+        this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Not enough gold!', '#ff4444', 14)
+        return false
+      }
+      this.player.inventory.gold -= cost
+      this.player.talents.reset()
+      return true
+    }
+
     this.progression  = new ProgressionSystem()
     this.progressionUI = new ProgressionUI(this, this.progression)
     this.shopUI = new ShopUI(() => this.player.stats.level, this.player.inventory)
@@ -479,8 +512,9 @@ export class GameScene extends Phaser.Scene {
       const col    = isCrit ? '#ffff44' : normCol
       this.hud.showFloatingText(hitX, hitY - 20, label, col, sz)
 
-      // Crit punch: extra shake + golden starburst
+      // Crit punch: hit-stop + extra shake + golden starburst
       if (isCrit) {
+        this.hitStop(45)
         this.cameras.main.shake(120, 0.009)
         const critBurst = this.add.particles(hitX, hitY, 'particle', {
           speed:     { min: 80, max: 290 },
@@ -709,10 +743,17 @@ export class GameScene extends Phaser.Scene {
       this.screenFlash(d.phase === 3 ? 0xff3300 : 0xff9900, 0.13, 500)
     })
 
-    // Auto-start first quest after a brief welcome moment
+    // Load persisted character state (restores level, gear, talents, quest progress)
+    this.loadCharacter()
+
+    // Auto-start first quest after a brief welcome moment (skipped if save restored it)
     this.time.delayedCall(1800, () => {
       if (!this.dead && this.activeQuestIdx < 0) this.autoStartFirstQuest()
     })
+
+    // Autosave every 30 s + on page unload
+    this.time.addEvent({ delay: 30_000, loop: true, callback: () => this.saveCharacter() })
+    window.addEventListener('beforeunload', () => this.saveCharacter())
   }
 
   update(_time: number, delta: number) {
@@ -1103,6 +1144,7 @@ export class GameScene extends Phaser.Scene {
     this.enemyGroup.remove(enemy as unknown as Phaser.GameObjects.GameObject, false, false)
 
     this.sfx.onEnemyDeath()
+    this.hitStop(35)
 
     // Multikill bonus: each additional aggroed enemy at kill time adds +25% XP
     const aggroedCount = this.enemies.filter(e => e !== enemy && e.active && !e.dying && e.isChasing).length
@@ -1122,6 +1164,7 @@ export class GameScene extends Phaser.Scene {
       this.spawnLevelUpFanfare()
       this.progression.onLevelReached(this.player.stats.level)
       this.onSpellUnlock(this.player.stats.level)
+      this.saveCharacter()
     }
     if (this.player.premiumGateReached && !this.premiumGateShown) this.showLevel10Milestone()
     if (this.activeQuestIdx >= 0) this.trackQuestKill()
@@ -1493,10 +1536,17 @@ export class GameScene extends Phaser.Scene {
       targets: lvText, scaleX: 1, scaleY: 1, alpha: 1,
       duration: 240, ease: 'Back.Out',
       onComplete: () => {
+        // Subtitle: talent point reminder
+        const subText = this.add.text(W / 2, H / 2 + 46, '+1 Talent Point  [T]', {
+          fontSize: '22px', color: '#aaddff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 5,
+        }).setScrollFactor(0).setDepth(51).setOrigin(0.5).setAlpha(0)
+        this.tweens.add({ targets: subText, alpha: 1, duration: 200 })
+
         this.tweens.add({
-          targets: lvText, y: H * 0.34, alpha: 0,
+          targets: [lvText, subText], y: H * 0.34, alpha: 0,
           duration: 1100, delay: 650, ease: 'Power2',
-          onComplete: () => lvText.destroy(),
+          onComplete: () => { lvText.destroy(); subText.destroy() },
         })
       },
     })
@@ -3262,6 +3312,7 @@ export class GameScene extends Phaser.Scene {
       if (next < this.questDefs.length) {
         this.activeQuestIdx = next
         this.questKills = 0
+        this.saveCharacter()
         this.updateQuestHUD()
         const nq = this.questDefs[next]
         if (nq.type === 'travel') {
@@ -3277,6 +3328,7 @@ export class GameScene extends Phaser.Scene {
         }
       } else {
         this.activeQuestIdx = -2
+        this.saveCharacter()
         this.hud.setQuestText('All zones cleared!\nYou are the Archmage.')
         this.hideQuestObjectiveMarker()
       }
@@ -3482,6 +3534,7 @@ export class GameScene extends Phaser.Scene {
     if (next < this.questDefs.length) {
       this.activeQuestIdx = next
       this.questKills = 0
+      this.saveCharacter()
       this.updateQuestHUD()
       const nq = this.questDefs[next]
       if (nq.type === 'travel') {
@@ -3563,6 +3616,7 @@ export class GameScene extends Phaser.Scene {
     if (next < this.questDefs.length) {
       this.activeQuestIdx = next
       this.questKills = 0
+      this.saveCharacter()
       this.updateQuestHUD()
       const nq = this.questDefs[next]
       this.hud.showQuestUpdate(`Quest accepted!\n${nq.title}`, '#aadd44')
@@ -3621,5 +3675,92 @@ export class GameScene extends Phaser.Scene {
       ],
       onClose: () => {},
     })
+  }
+
+  // ── Character persistence ─────────────────────────────────────────────────
+
+  private saveCharacter() {
+    try {
+      const data: CharSave = {
+        v: 1,
+        stats: {
+          level:       this.player.stats.level,
+          xp:          this.player.stats.xp,
+          xpToNext:    this.player.stats.xpToNext,
+          maxHp:       this.player.stats.maxHp,
+          maxMana:     this.player.stats.maxMana,
+          spellDamage: this.player.stats.spellDamage,
+          speed:       this.player.stats.speed,
+        },
+        gold:           this.player.inventory.gold,
+        activeBolt:     this.player.activeBolt,
+        learnedSpells:  [...this.player.learnedSpells],
+        inventoryItems: [...this.player.inventory.items],
+        equippedItems:  { ...this.player.inventory.equipped } as Record<EquipSlot, Item | null>,
+        stashItems:     [...this.stash.items],
+        talentRanks:    this.player.talents.allRanks,
+        talentPoints:   this.player.talents.points,
+        activeQuestIdx: this.activeQuestIdx,
+        questKills:     this.questKills,
+      }
+      localStorage.setItem('frost_char_v1', JSON.stringify(data))
+    } catch { /* storage unavailable */ }
+  }
+
+  private loadCharacter() {
+    try {
+      const raw = localStorage.getItem('frost_char_v1')
+      if (!raw) return
+      const data = JSON.parse(raw) as CharSave
+      if (data.v !== 1) return
+
+      // Restore stats
+      Object.assign(this.player.stats, data.stats)
+      this.player.stats.hp   = data.stats.maxHp
+      this.player.stats.mana = data.stats.maxMana
+      this.player.talents.playerLevel = data.stats.level
+
+      // Restore spells
+      this.player.activeBolt = data.activeBolt ?? 'fire'
+      for (const spell of (data.learnedSpells ?? [])) this.player.learnSpell(spell)
+
+      // Restore gear and gold
+      this.player.inventory.loadSave(
+        data.inventoryItems ?? [],
+        data.equippedItems  ?? { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
+        data.gold ?? 0,
+      )
+
+      // Restore stash
+      this.stash.loadSave(data.stashItems ?? [])
+
+      // Restore talents
+      this.player.talents.loadSave(
+        data.talentRanks   ?? {},
+        data.talentPoints  ?? 0,
+        data.stats.level,
+      )
+
+      // Restore quest progress
+      this.activeQuestIdx = data.activeQuestIdx ?? -1
+      this.questKills     = data.questKills     ?? 0
+
+      // Sync UI
+      this.updateQuestHUD()
+      this.mobileControls?.setLearnedSpells?.(this.player.learnedSpells)
+      this.progression.onLevelReached(data.stats.level)
+    } catch { /* corrupted save — start fresh */ }
+  }
+
+  // ── Hit-stop ──────────────────────────────────────────────────────────────
+
+  private hitStop(ms: number) {
+    if (this.physics.world.timeScale === 0) return
+    this.physics.world.timeScale = 0
+    this.tweens.timeScale = 0
+    window.setTimeout(() => {
+      this.physics.world.timeScale = 1
+      this.tweens.timeScale = 1
+    }, ms)
   }
 }

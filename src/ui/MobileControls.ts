@@ -126,13 +126,17 @@ export class MobileControls {
       { cx: sx1, cy: sy1 },
     ]
 
-    // Menu buttons (I/T/P) — top-right column
-    const menuR = 22
-    const mx    = W - menuR - 10
-    const menus = MENU_KEYS.map((_, i) => ({
-      cx: mx,
-      cy: Math.round(menuR + 10 + i * (menuR * 2 + 8)),
-    }))
+    // Menu buttons — 2×2 grid directly to the left of the spell grid (thumb-friendly)
+    const menuR = Math.max(14, Math.round(s * 0.038))
+    const mgap  = menuR * 2 + 8
+    const mx1   = sx0 - menuR - 16
+    const mx0   = mx1 - mgap
+    const menus = [
+      { cx: mx0, cy: sy0 },
+      { cx: mx1, cy: sy0 },
+      { cx: mx0, cy: sy1 },
+      { cx: mx1, cy: sy1 },
+    ]
 
     // Interact button — bottom-centre
     const iRad = spellR + 10
@@ -157,8 +161,8 @@ export class MobileControls {
    */
   getStatBarAnchor(): { x: number; w: number; bottomY: number } {
     const L     = this.getLayout()
-    const left  = L.spells[0].cx - L.spellR        // left edge of left column
-    const right = L.spells[1].cx + L.spellR        // right edge of right column
+    const left  = L.menus[0].cx - L.menuR          // left edge of menu buttons
+    const right = L.spells[1].cx + L.spellR        // right edge of right spell column
     const swapTop = L.swap.cy - L.swapR            // top of the bolt-swap button
     return { x: left, w: right - left, bottomY: swapTop - 12 }
   }

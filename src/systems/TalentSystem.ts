@@ -5,6 +5,8 @@ export class TalentSystem {
   points      = 0
   playerLevel = 1
 
+  get allRanks(): Partial<Record<TalentId, number>> { return { ...this._ranks } }
+
   /** Set by TalentUI so the panel redraws after a purchase. */
   onChange?: () => void
 
@@ -87,4 +89,21 @@ export class TalentSystem {
 
   get permafrostEnabled(): boolean { return this.getRank('frost_permafrost') > 0 }
   get flashpointEnabled(): boolean { return this.getRank('fire_flashpoint') > 0 }
+
+  /** Restore saved state (called on character load). */
+  loadSave(ranks: Partial<Record<TalentId, number>>, points: number, playerLevel: number) {
+    this._ranks      = { ...ranks }
+    this.points      = points
+    this.playerLevel = playerLevel
+    this.onChange?.()
+  }
+
+  /** Refund all spent talent points. Returns the number refunded. */
+  reset(): number {
+    const spent = (Object.values(this._ranks) as number[]).reduce((sum, r) => sum + r, 0)
+    this._ranks = {}
+    this.points += spent
+    this.onChange?.()
+    return spent
+  }
 }
