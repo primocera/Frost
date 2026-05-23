@@ -33,8 +33,9 @@ import { RARITY_COLOR, EquipSlot, Item } from '../items/ItemTypes'
 import { TalentId } from '../talents/TalentTypes'
 import { Device } from '../config/DeviceConfig'
 
-const WORLD       = 3600   // world height; also sets town center at WORLD/2
-const WORLD_W     = 5400   // total world width (expanded eastward for Volcanic Wastes)
+const WORLD       = 3600   // base square used for town-center offset (WORLD/2 = 1800)
+const WORLD_W     = 5100   // total world width (1500 Elven extension on left + 3600 base)
+const WORLD_H     = 5400   // total world height (1800 Volcanic strip + 3600 existing zones)
 const RESPAWN_MIN = 240_000   // 4 minutes
 const RESPAWN_MAX = 300_000   // 5 minutes
 
@@ -158,6 +159,54 @@ const HUMANOID_STYLES: Record<string, HumanoidStyle> = {
     headwear: 'hood', hwMain: '#1e0a32', hwDark: '#0e0418',
     item: 'staff', crystal: '#aa44ff', glow: true, glowRgb: '150,50,220',
   },
+  // NightbladeWarden → night elf warrior — midnight armour, silver trim, dagger
+  nightblade_warden: {
+    robe: ['#18202e', '#101525', '#090e18'], robeHi: '#283050', fold: '#08090e',
+    belt: '#4488bb', sleeve: '#18202e', hand: '#c8b8d8', head: ['#9880b8', '#705898'],
+    eye: '#88ccff', beard: 'none', beardCol: ['#aaaabb', '#888aaa'],
+    headwear: 'hood', hwMain: '#0e1220', hwDark: '#06080e',
+    item: 'dagger', crystal: '#88aaff', glow: false, glowRgb: '100,150,255',
+  },
+  // MoonwatcherArcher → night elf archer — dark forest cloak, silver bow
+  moonwatcher_archer: {
+    robe: ['#1a2e22', '#101a14', '#0a1208'], robeHi: '#2a4c38', fold: '#080e0a',
+    belt: '#88bbaa', sleeve: '#1a2e22', hand: '#d0c8e0', head: ['#c0b0d0', '#9888b8'],
+    eye: '#aaddcc', beard: 'none', beardCol: ['#aabbcc', '#889aaa'],
+    headwear: 'hood', hwMain: '#121c18', hwDark: '#080e0c',
+    item: 'bow', crystal: '#aaffcc', glow: false, glowRgb: '160,255,200',
+  },
+  // HighElfSentinel → high elf guard — gold-trimmed robes, white hood, staff
+  highelf_sentinel: {
+    robe: ['#c8b870', '#a89848', '#786820'], robeHi: '#e0d490', fold: '#584818',
+    belt: '#ffe8a0', sleeve: '#a89848', hand: '#f0d8b0', head: ['#f0d8b0', '#d0b888'],
+    eye: '#80d8ff', beard: 'none', beardCol: ['#d4c8a0', '#b0a880'],
+    headwear: 'hood', hwMain: '#8a7830', hwDark: '#584818',
+    item: 'staff', crystal: '#ffe8a0', glow: false, glowRgb: '255,230,150',
+  },
+  // ElvenMystic → high elf mage — white silk robe, silver trim, glowing staff
+  elven_mystic: {
+    robe: ['#d8e4ee', '#b4c8d8', '#88a0b0'], robeHi: '#f0f8ff', fold: '#5878a0',
+    belt: '#88ccff', sleeve: '#b4c8d8', hand: '#f0e8d8', head: ['#f0e8d8', '#d8c8b8'],
+    eye: '#66aaff', beard: 'none', beardCol: ['#ccddee', '#aabbcc'],
+    headwear: 'wizardhat', hwMain: '#c0d8e8', hwDark: '#7898a8',
+    item: 'staff', crystal: '#aaffff', glow: true, glowRgb: '170,255,255',
+  },
+  // Starweaver → ancient elven archmage — starlight white robes, radiant staff
+  starweaver: {
+    robe: ['#eef2ff', '#d4deff', '#abb4e8'], robeHi: '#ffffff', fold: '#7880c0',
+    belt: '#ffee88', sleeve: '#d4deff', hand: '#f8f0ff', head: ['#f8f0e8', '#e0d0c8'],
+    eye: '#ffffff', beard: 'long', beardCol: ['#eeeeff', '#ccccff'],
+    headwear: 'wizardhat', hwMain: '#d0d8ff', hwDark: '#8090c0',
+    item: 'staff', crystal: '#ffffff', glow: true, glowRgb: '220,230,255',
+  },
+  // ElvenGuide → elven camp NPC — silver-robed elder with starlight staff
+  npc_elven_guide: {
+    robe: ['#4a6888', '#2e4a60', '#1a2e3e'], robeHi: '#6a98be', fold: '#0e1e2a',
+    belt: '#88ccee', sleeve: '#2e4a60', hand: '#d8e8f0', head: ['#d8e8f0', '#b0c8d8'],
+    eye: '#aaddff', beard: 'none', beardCol: ['#aaccee', '#889ab0'],
+    headwear: 'wizardhat', hwMain: '#2a4060', hwDark: '#10202e',
+    item: 'staff', crystal: '#aaffee', glow: true, glowRgb: '160,255,230',
+  },
 }
 
 interface CharSave {
@@ -280,8 +329,8 @@ export class GameScene extends Phaser.Scene {
     this.hardcore    = data?.hardcore   ?? false
     this.buildPlayerTexture()
 
-    this.world       = new World(this, WORLD, WORLD_W)
-    this.player      = new Player(this, WORLD / 2, WORLD / 2, playerName)
+    this.world       = new World(this, WORLD, WORLD_W, WORLD_H)
+    this.player      = new Player(this, WORLD_W - WORLD / 2, WORLD_H - WORLD / 2, playerName)
     // Physics body is still active; hide the placeholder circle visual
     this.player.setAlpha(0)
     this.playerSprite = new PlayerSprite(this)
@@ -297,7 +346,7 @@ export class GameScene extends Phaser.Scene {
 
     // Camera: smooth lerp + deadzone so minor movements don't pan the view
     this.cameras.main
-      .setBounds(0, 0, WORLD_W, WORLD)
+      .setBounds(0, 0, WORLD_W, WORLD_H)
       .startFollow(this.player, true, 0.07, 0.07)
       .setDeadzone(180, 130)
 
@@ -1213,7 +1262,7 @@ export class GameScene extends Phaser.Scene {
     // Heal to full and teleport back to the starting town centre
     this.player.stats.hp   = this.player.stats.maxHp
     this.player.stats.mana = this.player.effectiveMaxMana
-    ;(this.player.body as Phaser.Physics.Arcade.Body).reset(WORLD / 2, WORLD / 2)
+    ;(this.player.body as Phaser.Physics.Arcade.Body).reset(WORLD_W - WORLD / 2, WORLD_H - WORLD / 2)
 
     // Enemies stay alive — player teleports to town so there's no instant re-kill
 
@@ -1587,7 +1636,7 @@ export class GameScene extends Phaser.Scene {
     const angle = Math.random() * Math.PI * 2
     const r     = Phaser.Math.FloatBetween(0, 32)
     const x     = Phaser.Math.Clamp(zone.cx + Math.cos(angle) * r, 80, WORLD_W - 80)
-    const y     = Phaser.Math.Clamp(zone.cy + Math.sin(angle) * r, 80, WORLD - 80)
+    const y     = Phaser.Math.Clamp(zone.cy + Math.sin(angle) * r, 80, WORLD_H - 80)
 
     const cfg = zone.table[Phaser.Math.Between(0, zone.table.length - 1)]
     const enemy = new Enemy(this, x, y, cfg)
@@ -1641,25 +1690,32 @@ export class GameScene extends Phaser.Scene {
 
     // Boss textures — large orbs with double ring + phase-ready glint
     for (const cfg of ALL_BOSSES) {
-      const size = cfg.radius * 2 + 4
+      const isDragon = cfg.id === 'thornback'
+      // Dragonkin needs a big canvas for outstretched wings + horns
+      const size = cfg.radius * 2 + (isDragon ? 64 : 4)
       const c    = size / 2
       const r    = cfg.radius
 
-      // Outer aura ring
-      g.lineStyle(4, cfg.color, 0.4)
-      g.strokeCircle(c, c, r + 4)
-      // Dark halo
-      g.lineStyle(5, 0x000000, 0.55)
-      g.strokeCircle(c, c, r + 1)
-      // Main fill
-      g.fillStyle(cfg.color)
-      g.fillCircle(c, c, r)
-      // Inner ring detail
-      g.lineStyle(2, 0x000000, 0.30)
-      g.strokeCircle(c, c, r * 0.60)
-      // Highlight glint
-      g.fillStyle(0xffffff, 0.26)
-      g.fillCircle(c - r * 0.26, c - r * 0.30, r * 0.36)
+      if (isDragon) {
+        // Forest boss is a winged emerald dragonkin
+        this.drawDragonkinBoss(g, c, r)
+      } else {
+        // Outer aura ring
+        g.lineStyle(4, cfg.color, 0.4)
+        g.strokeCircle(c, c, r + 4)
+        // Dark halo
+        g.lineStyle(5, 0x000000, 0.55)
+        g.strokeCircle(c, c, r + 1)
+        // Main fill
+        g.fillStyle(cfg.color)
+        g.fillCircle(c, c, r)
+        // Inner ring detail
+        g.lineStyle(2, 0x000000, 0.30)
+        g.strokeCircle(c, c, r * 0.60)
+        // Highlight glint
+        g.fillStyle(0xffffff, 0.26)
+        g.fillCircle(c - r * 0.26, c - r * 0.30, r * 0.36)
+      }
 
       g.generateTexture(cfg.key, size, size)
       g.clear()
@@ -1701,6 +1757,16 @@ export class GameScene extends Phaser.Scene {
     g.fillStyle(0xffee44, 0.6)
     g.fillCircle(5, 5, 1.8)
     g.generateTexture('enemy_fire_bolt', 12, 12)
+    g.clear()
+
+    // Elven bolt: silver-white starlight orb (night elf / high elf projectiles)
+    g.fillStyle(0x88ccee)
+    g.fillCircle(6, 6, 6)
+    g.fillStyle(0xddeeff, 0.85)
+    g.fillCircle(6, 6, 3.5)
+    g.fillStyle(0xffffff, 0.75)
+    g.fillCircle(5, 5, 1.8)
+    g.generateTexture('elven_bolt', 12, 12)
     g.clear()
 
     // Firebolt — bright hot core with additive-ready edges
@@ -2132,6 +2198,137 @@ export class GameScene extends Phaser.Scene {
       else         ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
     }
     ctx.closePath()
+  }
+
+  // ── Boss creature art ─────────────────────────────────────────────────────
+
+  /**
+   * Heraldic emerald dragon — wings spread, long neck, horned head, curling
+   * tail. Drawn on a (2r+64) canvas; `c` is the canvas centre, `r` the
+   * collision radius (28). Coordinates are written in "px @ r=28" via `p()`.
+   */
+  private drawDragonkinBoss(g: Phaser.GameObjects.Graphics, c: number, r: number) {
+    const u = r / 28
+    const p = (v: number) => c + v * u            // center-relative px → absolute
+
+    const DARK = 0x0e3a16, MID = 0x1f8a32, LIT = 0x4ad05a
+    const WING = 0x0a2a10, MEMB = 0x176024
+    const HORN = 0xeef0dc, BELLY = 0xbcd89a
+
+    // ===== WINGS (behind everything) =====
+    for (const s of [-1, 1]) {
+      const sx = p(s * 7), sy = p(-8)             // shoulder anchor
+      g.fillStyle(WING, 0.97)
+      g.fillTriangle(sx, sy, p(s * 50), p(-34), p(s * 28), p(-33))   // upper sail
+      g.fillTriangle(sx, sy, p(s * 50), p(-34), p(s * 41), p(-3))    // main upper
+      g.fillTriangle(sx, sy, p(s * 41), p(-3),  p(s * 35), p(20))    // main lower
+      g.fillTriangle(sx, sy, p(s * 35), p(20),  p(s * 16), p(20))    // inner lower
+      // membrane sheen
+      g.fillStyle(MEMB, 0.5)
+      g.fillTriangle(sx, sy, p(s * 40), p(-24), p(s * 30), p(-2))
+      // wing finger ribs
+      g.lineStyle(2 * u, MID, 0.9)
+      g.lineBetween(sx, sy, p(s * 50), p(-34))
+      g.lineBetween(sx, sy, p(s * 41), p(-3))
+      g.lineBetween(sx, sy, p(s * 35), p(20))
+      // claw spur at the wing apex
+      g.fillStyle(HORN)
+      g.fillTriangle(p(s * 49), p(-36), p(s * 54), p(-33), p(s * 49), p(-29))
+    }
+
+    // ===== TAIL (curls down to the left) =====
+    g.fillStyle(MID)
+    g.fillTriangle(p(-7), p(26), p(7), p(26), p(-4), p(46))
+    g.fillTriangle(p(-4), p(42), p(-18), p(50), p(-10), p(36))
+    g.fillStyle(HORN)
+    g.fillTriangle(p(-26), p(54), p(-12), p(48), p(-17), p(42))      // tail spade
+
+    // ===== HIND HAUNCHES =====
+    g.fillStyle(DARK)
+    g.fillEllipse(p(-21), p(28), 19 * u, 23 * u)
+    g.fillEllipse(p(21), p(28), 19 * u, 23 * u)
+    g.fillStyle(MID)
+    g.fillEllipse(p(-21), p(24), 14 * u, 16 * u)
+    g.fillEllipse(p(21), p(24), 14 * u, 16 * u)
+    g.fillStyle(HORN)
+    for (const s of [-1, 1]) for (const o of [-6, 0, 6]) {
+      g.fillTriangle(p(s * 21 + o), p(38), p(s * 21 + o + 3), p(38), p(s * 21 + o + 1.5), p(46))
+    }
+
+    // ===== BODY =====
+    g.fillStyle(DARK)
+    g.fillEllipse(p(0), p(12), 42 * u, 46 * u)
+    g.fillStyle(MID)
+    g.fillEllipse(p(0), p(10), 35 * u, 39 * u)
+    g.fillStyle(LIT, 0.35)
+    g.fillEllipse(p(-7), p(4), 14 * u, 20 * u)                       // shoulder sheen
+    // belly plates
+    g.fillStyle(BELLY, 0.9)
+    g.fillEllipse(p(0), p(16), 18 * u, 27 * u)
+    g.lineStyle(1.5 * u, DARK, 0.55)
+    for (let i = 0; i < 4; i++) g.lineBetween(p(-9), p(6 + i * 8), p(9), p(6 + i * 8))
+
+    // ===== FORELEGS =====
+    g.fillStyle(MID)
+    g.fillEllipse(p(-14), p(9), 9 * u, 17 * u)
+    g.fillEllipse(p(14), p(9), 9 * u, 17 * u)
+    g.fillStyle(HORN)
+    for (const s of [-1, 1]) for (const o of [-3.5, 0, 3.5]) {
+      g.fillTriangle(p(s * 14 + o), p(16), p(s * 14 + o + 2.5), p(16), p(s * 14 + o + 1), p(23))
+    }
+
+    // ===== NECK =====
+    g.fillStyle(MID)
+    g.fillEllipse(p(0), p(-11), 18 * u, 28 * u)
+    g.fillStyle(LIT, 0.4)
+    g.fillEllipse(p(-4), p(-11), 7 * u, 22 * u)
+    // spinal ridges climbing the neck
+    g.fillStyle(DARK)
+    for (const ny of [0, -8, -16]) {
+      g.fillTriangle(p(-3.5), p(ny), p(3.5), p(ny), p(0), p(ny - 8))
+    }
+
+    // ===== HEAD =====
+    g.fillStyle(MID)
+    g.fillEllipse(p(0), p(-30), 23 * u, 20 * u)                      // skull
+    // back-swept horns (two pairs)
+    g.fillStyle(HORN)
+    g.fillTriangle(p(-9), p(-40), p(-3), p(-39), p(-19), p(-53))
+    g.fillTriangle(p(9),  p(-40), p(3),  p(-39), p(19),  p(-53))
+    g.fillTriangle(p(-5), p(-42), p(-1), p(-41), p(-10), p(-51))
+    g.fillTriangle(p(5),  p(-42), p(1),  p(-41), p(10),  p(-51))
+    // brow ridges
+    g.fillStyle(DARK)
+    g.fillEllipse(p(-7), p(-34), 9 * u, 5 * u)
+    g.fillEllipse(p(7), p(-34), 9 * u, 5 * u)
+    // snout
+    g.fillStyle(LIT)
+    g.fillEllipse(p(0), p(-21), 13 * u, 11 * u)
+    g.fillStyle(MID)
+    g.fillEllipse(p(0), p(-19), 11 * u, 7 * u)
+    // jaw frill spikes
+    g.fillStyle(DARK)
+    for (const o of [-13, -8, 8, 13]) {
+      g.fillTriangle(p(o), p(-27), p(o + 3), p(-27), p(o + (o < 0 ? -4 : 4)), p(-19))
+    }
+    // nostrils
+    g.fillStyle(0x07260e)
+    g.fillCircle(p(-3.5), p(-18), 1.7 * u)
+    g.fillCircle(p(3.5), p(-18), 1.7 * u)
+    // glowing eyes
+    g.fillStyle(0xffcc22)
+    g.fillCircle(p(-6.5), p(-32), 3.6 * u)
+    g.fillCircle(p(6.5), p(-32), 3.6 * u)
+    g.fillStyle(0xff5500)
+    g.fillCircle(p(-6.5), p(-32), 1.8 * u)
+    g.fillCircle(p(6.5), p(-32), 1.8 * u)
+    g.fillStyle(0xffffff, 0.85)
+    g.fillCircle(p(-7.5), p(-33), 1.1 * u)
+    g.fillCircle(p(5.5), p(-33), 1.1 * u)
+    // fangs
+    g.fillStyle(0xf4f6e6)
+    g.fillTriangle(p(-5), p(-15), p(-2), p(-15), p(-3.5), p(-9))
+    g.fillTriangle(p(5), p(-15), p(2), p(-15), p(3.5), p(-9))
   }
 
   // ── Enemy creature art ──────────────────────────────────────────────────────
@@ -2643,6 +2840,128 @@ export class GameScene extends Phaser.Scene {
         g.fillCircle(c + r * 0.36, c - r * 0.34, r * 0.07)
         break
       }
+      case 'corrupted_dragonkin': {
+        // Winged red dragon-kin — membranous wings, horned snout, glowing eyes
+        const D = 0x6a1408, M = 0xb52a16, L = 0xe04a2a
+        // Wings (membrane) behind body
+        g.fillStyle(0x4a0e06, 0.92)
+        g.fillTriangle(c - r * 0.5, c - r * 0.2, c - r * 1.45, c - r * 1.0, c - r * 1.3, c + r * 0.5)
+        g.fillTriangle(c + r * 0.5, c - r * 0.2, c + r * 1.45, c - r * 1.0, c + r * 1.3, c + r * 0.5)
+        // Wing ribs
+        g.lineStyle(1.5, 0x7a1c0c, 0.8)
+        g.lineBetween(c - r * 0.5, c - r * 0.2, c - r * 1.32, c - r * 0.85)
+        g.lineBetween(c + r * 0.5, c - r * 0.2, c + r * 1.32, c - r * 0.85)
+        // Torso
+        g.fillStyle(M)
+        g.fillEllipse(c, c + r * 0.35, r * 1.5, r * 1.65)
+        // Chest scale highlight
+        g.fillStyle(L, 0.5)
+        g.fillEllipse(c, c + r * 0.5, r * 0.8, r * 1.0)
+        // Shoulders
+        g.fillStyle(D)
+        g.fillCircle(c - r * 0.7, c - r * 0.05, r * 0.4)
+        g.fillCircle(c + r * 0.7, c - r * 0.05, r * 0.4)
+        // Clawed forearms
+        g.fillStyle(0xe8d8c0)
+        g.fillTriangle(c - r * 0.95, c + r * 0.7, c - r * 0.7, c + r * 0.6, c - r * 0.82, c + r * 1.05)
+        g.fillTriangle(c + r * 0.95, c + r * 0.7, c + r * 0.7, c + r * 0.6, c + r * 0.82, c + r * 1.05)
+        // Head
+        g.fillStyle(M)
+        g.fillCircle(c, c - r * 0.55, r * 0.66)
+        // Snout
+        g.fillStyle(L)
+        g.fillEllipse(c, c - r * 0.35, r * 0.5, r * 0.34)
+        // Back-swept horns
+        g.fillStyle(0x2a0a04)
+        g.fillTriangle(c - r * 0.5, c - r * 0.9, c - r * 0.25, c - r * 0.85, c - r * 0.72, c - r * 1.42)
+        g.fillTriangle(c + r * 0.5, c - r * 0.9, c + r * 0.25, c - r * 0.85, c + r * 0.72, c - r * 1.42)
+        // Nostrils
+        g.fillStyle(0x1a0602)
+        g.fillCircle(c - r * 0.12, c - r * 0.28, r * 0.05)
+        g.fillCircle(c + r * 0.12, c - r * 0.28, r * 0.05)
+        // Glowing eyes
+        g.fillStyle(0xffdd33)
+        g.fillCircle(c - r * 0.28, c - r * 0.62, r * 0.15)
+        g.fillCircle(c + r * 0.28, c - r * 0.62, r * 0.15)
+        g.fillStyle(0xff6600)
+        g.fillCircle(c - r * 0.28, c - r * 0.62, r * 0.07)
+        g.fillCircle(c + r * 0.28, c - r * 0.62, r * 0.07)
+        break
+      }
+      case 'arcane_golem': {
+        // Floating arcane construct — angular purple stone, glowing rune core
+        g.lineStyle(2, 0xcc66ff, 0.3)
+        g.strokeCircle(c, c, r + 4)
+        // Lower body block
+        g.fillStyle(0x2e1a4a)
+        g.fillRect(c - r * 0.7, c + r * 0.1, r * 1.4, r * 1.0)
+        // Main torso block
+        g.fillStyle(0x4a2a7a)
+        g.fillRect(c - r * 0.85, c - r * 0.65, r * 1.7, r * 1.1)
+        g.fillStyle(0x6a3aaa, 0.6)
+        g.fillRect(c - r * 0.85, c - r * 0.65, r * 0.5, r * 1.1)   // lit edge
+        // Shoulder crystals
+        g.fillStyle(0x7a44cc)
+        g.fillTriangle(c - r * 1.05, c - r * 0.5, c - r * 0.6, c - r * 0.5, c - r * 0.85, c - r * 1.1)
+        g.fillTriangle(c + r * 1.05, c - r * 0.5, c + r * 0.6, c - r * 0.5, c + r * 0.85, c - r * 1.1)
+        // Head block
+        g.fillStyle(0x3a2260)
+        g.fillRect(c - r * 0.4, c - r * 1.15, r * 0.8, r * 0.6)
+        // Rune core (glowing)
+        g.fillStyle(0xdd88ff, 0.9)
+        g.fillCircle(c, c - r * 0.05, r * 0.42)
+        g.fillStyle(0xffffff, 0.7)
+        g.fillCircle(c, c - r * 0.05, r * 0.2)
+        // Glowing eyes
+        g.fillStyle(0xee99ff)
+        g.fillCircle(c - r * 0.18, c - r * 0.85, r * 0.1)
+        g.fillCircle(c + r * 0.18, c - r * 0.85, r * 0.1)
+        // Orbiting rune shards
+        g.fillStyle(0xcc66ff, 0.8)
+        g.fillCircle(c - r * 1.15, c + r * 0.3, r * 0.12)
+        g.fillCircle(c + r * 1.15, c + r * 0.5, r * 0.12)
+        break
+      }
+      case 'golem': {
+        // Hulking stone golem — cracked grey boulders, molten seams + eyes
+        const D = 0x3a3630, M = 0x6e685c, L = 0x8e887a
+        // Stubby legs
+        g.fillStyle(D)
+        g.fillEllipse(c - r * 0.5, c + r * 0.95, r * 0.7, r * 0.9)
+        g.fillEllipse(c + r * 0.5, c + r * 0.95, r * 0.7, r * 0.9)
+        // Boulder body
+        g.fillStyle(M)
+        g.fillEllipse(c, c + r * 0.2, r * 1.85, r * 1.75)
+        // Top highlight
+        g.fillStyle(L, 0.5)
+        g.fillEllipse(c - r * 0.3, c - r * 0.3, r * 1.0, r * 0.9)
+        // Massive shoulders
+        g.fillStyle(M)
+        g.fillCircle(c - r * 0.8, c - r * 0.4, r * 0.5)
+        g.fillCircle(c + r * 0.8, c - r * 0.4, r * 0.5)
+        // Fists
+        g.fillStyle(D)
+        g.fillCircle(c - r * 0.85, c + r * 0.7, r * 0.45)
+        g.fillCircle(c + r * 0.85, c + r * 0.7, r * 0.45)
+        // Head block
+        g.fillStyle(M)
+        g.fillRect(c - r * 0.5, c - r * 1.05, r * 1.0, r * 0.7)
+        // Molten crack seams
+        g.lineStyle(2, 0xff5522, 0.85)
+        g.lineBetween(c - r * 0.6, c - r * 0.1, c + r * 0.5, c + r * 0.2)
+        g.lineBetween(c - r * 0.2, c + r * 0.5, c + r * 0.3, c + r * 0.9)
+        // Core glow
+        g.fillStyle(0xff6622, 0.55)
+        g.fillCircle(c, c + r * 0.25, r * 0.3)
+        // Glowing eyes
+        g.fillStyle(0xff3311)
+        g.fillCircle(c - r * 0.22, c - r * 0.7, r * 0.13)
+        g.fillCircle(c + r * 0.22, c - r * 0.7, r * 0.13)
+        g.fillStyle(0xffaa44, 0.9)
+        g.fillCircle(c - r * 0.22, c - r * 0.7, r * 0.06)
+        g.fillCircle(c + r * 0.22, c - r * 0.7, r * 0.06)
+        break
+      }
       default: {
         g.fillStyle(cfg.color)
         g.fillCircle(c, c, r)
@@ -2662,7 +2981,7 @@ export class GameScene extends Phaser.Scene {
     this.nearStash = d < 100
     this.stashPrompt.setVisible(this.nearStash && !this.stashUI.isOpen())
     if (this.nearStash && !this.nearNPC) this.mobileControls?.showInteract('Stash')
-    else if (!this.nearNPC && !this.nearDungeon)  this.mobileControls?.hideInteract()
+    else if (!this.nearNPC && !this.nearDungeon && !this.nearChicken)  this.mobileControls?.hideInteract()
   }
 
   private dropInventoryItem(idx: number) {
@@ -2706,7 +3025,7 @@ export class GameScene extends Phaser.Scene {
         break
       }
     }
-    if (!this.nearDungeon && !this.nearNPC && !this.nearStash) {
+    if (!this.nearDungeon && !this.nearNPC && !this.nearStash && !this.nearChicken) {
       this.mobileControls?.hideInteract()
     }
   }
@@ -2752,8 +3071,8 @@ export class GameScene extends Phaser.Scene {
   // ── NPCs ──────────────────────────────────────────────────────────────────
 
   private createNPCs() {
-    const cx = WORLD / 2
-    const cy = WORLD / 2
+    const cx = WORLD_W - WORLD / 2    // 3300 — town-center x (1800px from right of base world)
+    const cy = WORLD_H - WORLD / 2    // 3600 — town-center y (1800px from bottom)
 
     // Quest NPC
     this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_elder').setDepth(4).setOrigin(0.5, 1)
@@ -2793,10 +3112,11 @@ export class GameScene extends Phaser.Scene {
 
     // Zone quest-giver NPCs — placed inside each zone, visible once unlocked
     const zoneNPCDefs: Array<{ x: number; y: number; name: string; travelZone: string; texture: string; label: string }> = [
-      { x: 1800, y: 550,  name: 'Mage Solvara',      travelZone: 'Frozen Ruins',     texture: 'npc_icemage',    label: '! Quest' },
-      { x: 750,  y: 1800, name: 'Ranger Aldric',      travelZone: 'Corrupted Fields', texture: 'npc_ranger',     label: '! Quest' },
-      { x: 2850, y: 1800, name: 'Hermit Zethkar',     travelZone: 'Arcane Caves',     texture: 'npc_hermit',     label: '! Quest' },
-      { x: 3900, y: 1800, name: 'Pyromancer Ignis',   travelZone: 'Volcanic Wastes',  texture: 'npc_pyromancer', label: '! Quest' },
+      { x: 3300, y: 2350, name: 'Mage Solvara',      travelZone: 'Frozen Ruins',     texture: 'npc_icemage',      label: '! Quest' },
+      { x: 2250, y: 3600, name: 'Ranger Aldric',      travelZone: 'Corrupted Fields', texture: 'npc_ranger',       label: '! Quest' },
+      { x: 4350, y: 3600, name: 'Hermit Zethkar',     travelZone: 'Arcane Caves',     texture: 'npc_hermit',       label: '! Quest' },
+      { x: 3300, y: 900,  name: 'Pyromancer Ignis',   travelZone: 'Volcanic Wastes',  texture: 'npc_pyromancer',   label: '! Quest' },
+      { x: 600,  y: 4680, name: 'Elder Liriel',        travelZone: 'Elven Wilds',      texture: 'npc_elven_guide',  label: '! Quest' },
     ]
     for (const def of zoneNPCDefs) {
       const sprite = this.add.image(def.x, def.y, def.texture).setDepth(4).setOrigin(0.5, 1)
@@ -3414,7 +3734,7 @@ export class GameScene extends Phaser.Scene {
         type: 'travel', title: 'A Frozen Lead',
         desc: 'Travel north and find Mage Solvara in the Frozen Ruins.',
         target: 0, xp: 60, gold: 1200,
-        travelZone: 'Frozen Ruins', markerX: 1800, markerY: 550, markerLabel: '▲ Frozen Ruins',
+        travelZone: 'Frozen Ruins', markerX: 3300, markerY: 2350, markerLabel: '▲ Frozen Ruins',
         giver: 'Mage Solvara',
         arriveLines: [
           '"You braved the cold to find me — good."',
@@ -3435,7 +3755,7 @@ export class GameScene extends Phaser.Scene {
         type: 'travel', title: 'The Tainted West',
         desc: 'Head west and find Ranger Aldric in the Corrupted Fields.',
         target: 0, xp: 60, gold: 1200,
-        travelZone: 'Corrupted Fields', markerX: 750, markerY: 1800, markerLabel: '◄ Corrupted Fields',
+        travelZone: 'Corrupted Fields', markerX: 2250, markerY: 3600, markerLabel: '◄ Corrupted Fields',
         giver: 'Ranger Aldric',
         arriveLines: [
           '"Finally! A mage. This blight has spread too long."',
@@ -3456,7 +3776,7 @@ export class GameScene extends Phaser.Scene {
         type: 'travel', title: 'Into the Depths',
         desc: 'Travel east and find Hermit Zethkar in the Arcane Caves.',
         target: 0, xp: 60, gold: 1200,
-        travelZone: 'Arcane Caves', markerX: 2850, markerY: 1800, markerLabel: '► Arcane Caves',
+        travelZone: 'Arcane Caves', markerX: 4350, markerY: 3600, markerLabel: '► Arcane Caves',
         giver: 'Hermit Zethkar',
         arriveLines: [
           '"...you dare enter my sanctuary? Bold."',
@@ -3477,7 +3797,7 @@ export class GameScene extends Phaser.Scene {
         type: 'travel', title: 'Into the Wastes',
         desc: 'Cross east past the Arcane Caves — find Pyromancer Ignis in the Volcanic Wastes.',
         target: 0, xp: 100, gold: 3000,
-        travelZone: 'Volcanic Wastes', markerX: 3900, markerY: 1800, markerLabel: '► Volcanic Wastes',
+        travelZone: 'Volcanic Wastes', markerX: 3300, markerY: 900, markerLabel: '▲ Volcanic Wastes',
         giver: 'Pyromancer Ignis',
         arriveLines: [
           '"The forge-fire never sleeps. Neither do I."',
@@ -3580,7 +3900,7 @@ export class GameScene extends Phaser.Scene {
         body.reset(zone.x - 12, this.player.y)
         break
       case 'Volcanic Wastes':
-        body.reset(zone.x - 12, this.player.y)
+        body.reset(this.player.x, zone.y + zone.h + 12)  // push south, below the top zone
         break
     }
     // Throttle warning message to once every 3 seconds

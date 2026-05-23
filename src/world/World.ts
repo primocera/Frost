@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Wolf, Spider, Bandit, Bear, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, DefiasCaster } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Wolf, Spider, Bandit, Bear, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, DefiasCaster, ArcaneGolem, CorruptedDragonkin, Golem, NightbladeWarden, MoonwatcherArcher, HighElfSentinel, ElvenMystic, Starweaver } from '../entities/EnemyTypes'
 
 export interface SpawnZone {
   cx: number
@@ -24,29 +24,34 @@ export interface ZoneDef {
 
 export const ZONE_DEFS: readonly ZoneDef[] = [
   {
-    name: 'Beginner Forest',  labelColor: '#44cc44',
-    atmosphere: 0x002200, atmoAlpha: 0.04,
-    danger: 1, x: 0,    y: 2500, w: 3600, h: 1100,
+    name: 'Volcanic Wastes',  labelColor: '#ff6622',
+    atmosphere: 0x3a0a00, atmoAlpha: 0.22,
+    danger: 5, x: 1500, y: 0,    w: 3600, h: 1800,  // TOP — lava (x:1500-5100)
   },
   {
     name: 'Frozen Ruins',     labelColor: '#aaddff',
     atmosphere: 0x88ccff, atmoAlpha: 0.14,
-    danger: 2, x: 0,    y: 0,    w: 3600, h: 1100,
+    danger: 2, x: 1500, y: 1800, w: 3600, h: 1100,  // x:1500-5100
   },
   {
     name: 'Corrupted Fields', labelColor: '#cc4444',
     atmosphere: 0x220000, atmoAlpha: 0.09,
-    danger: 3, x: 0,    y: 1100, w: 1500, h: 1400,
+    danger: 3, x: 1500, y: 2900, w: 1500, h: 1400,  // x:1500-3000
   },
   {
     name: 'Arcane Caves',     labelColor: '#aa44ff',
     atmosphere: 0x110022, atmoAlpha: 0.11,
-    danger: 4, x: 2100, y: 1100, w: 1500, h: 1400,
+    danger: 4, x: 3600, y: 2900, w: 1500, h: 1400,  // x:3600-5100
   },
   {
-    name: 'Volcanic Wastes',  labelColor: '#ff6622',
-    atmosphere: 0x3a0a00, atmoAlpha: 0.22,
-    danger: 5, x: 3600, y: 0,    w: 1800, h: 3600,
+    name: 'Elven Wilds',      labelColor: '#88ffcc',
+    atmosphere: 0x001a14, atmoAlpha: 0.10,
+    danger: 1, x: 0,    y: 4300, w: 1500, h: 1100,  // NEW — moonlit elven forest (left)
+  },
+  {
+    name: 'Beginner Forest',  labelColor: '#44cc44',
+    atmosphere: 0x002200, atmoAlpha: 0.04,
+    danger: 1, x: 1500, y: 4300, w: 3600, h: 1100,  // full base width x:1500-5100
   },
 ]
 
@@ -71,7 +76,8 @@ export interface DungeonEntrance {
 
 export class World {
   readonly size:   number
-  readonly worldW: number   // total world width (may exceed size for rectangular worlds)
+  readonly worldW: number   // total world width
+  readonly worldH: number   // total world height
   readonly cx:     number
   readonly cy:     number
   readonly obstacles:        Phaser.Physics.Arcade.StaticGroup
@@ -80,11 +86,12 @@ export class World {
   readonly stashChestPos:    { x: number; y: number } = { x: 0, y: 0 }
   readonly chickenPositions: { x: number; y: number }[] = []
 
-  constructor(private scene: Phaser.Scene, size: number, worldW?: number) {
+  constructor(private scene: Phaser.Scene, size: number, worldW?: number, worldH?: number) {
     this.size   = size
     this.worldW = worldW ?? size
-    this.cx     = size / 2   // town center X stays at the square center
-    this.cy     = size / 2
+    this.worldH = worldH ?? size
+    this.cx     = this.worldW - size / 2         // 3300 — town center (1800px from right of base world)
+    this.cy     = this.worldH - size / 2         // 3600 — town center (size/2 from bottom)
     this.obstacles = scene.physics.add.staticGroup()
 
     this.buildTextures()
@@ -100,7 +107,7 @@ export class World {
     this.buildSnowfall()
     this.buildDungeonEntrances()
     this.buildSpawnZones()
-    scene.physics.world.setBounds(0, 0, this.worldW, size)
+    scene.physics.world.setBounds(0, 0, this.worldW, this.worldH)
   }
 
   // ── Textures ───────────────────────────────────────────────────────────────
@@ -124,6 +131,7 @@ export class World {
     tile('t_snow',    0xc8dce8, 0xd4e6f2)   // snow patches — near-white blue
     tile('t_corrupt', 0x1c0c0c, 0x271414)   // corrupted fields — dark blood-red
     tile('t_arcane',  0x0e0618, 0x150820)   // arcane caves — deep void purple
+    tile('t_elven',   0x081a14, 0x0c2218)   // elven wilds — deep moonlit blue-green
 
     // ── Tree (beginner forest) ────────────────────────────────────────────────
     g.fillStyle(0x1e5c1e)
@@ -479,6 +487,65 @@ export class World {
     g.generateTexture('bridge', 76, 90)
     g.clear()
 
+    // ── Elven silver tree ─────────────────────────────────────────────────────
+    g.fillStyle(0x284838)
+    g.fillCircle(19, 18, 16)               // outer canopy
+    g.fillStyle(0x3a6a50, 0.75)
+    g.fillCircle(14, 13, 10)               // secondary cluster
+    g.fillStyle(0x88ccaa, 0.55)            // moonlit silver-green highlights
+    g.fillCircle(20, 13, 7)
+    g.fillStyle(0xbbeecc, 0.35)            // bright tips catching moonlight
+    g.fillCircle(19, 9,  4)
+    g.fillStyle(0xddf8ee, 0.20)            // moonlit glow crown
+    g.fillCircle(19, 7,  3)
+    g.fillStyle(0xc8d8d0)                  // silver-grey bark
+    g.fillRect(16, 31, 6, 17)
+    g.generateTexture('elven_tree', 38, 48)
+    g.clear()
+
+    // ── Moonwell (elven shrine pool) ──────────────────────────────────────────
+    // Stone arch and pillars
+    g.fillStyle(0x7880a0)
+    g.fillRect(3, 10, 5, 22)              // left pillar
+    g.fillRect(36, 10, 5, 22)            // right pillar
+    g.fillStyle(0x9aa8c0, 0.7)
+    g.fillRect(1, 8, 9, 4)              // left cap
+    g.fillRect(34, 8, 9, 4)             // right cap
+    g.lineStyle(2, 0x9aaccc, 0.8)
+    g.strokeCircle(22, 18, 19)   // arch ring
+    // Stone rim of the well
+    g.fillStyle(0x8890a8)
+    g.fillEllipse(22, 33, 40, 18)
+    g.fillStyle(0xaab8c8, 0.6)
+    g.fillEllipse(22, 31, 28, 12)
+    // Moonlit pool surface
+    g.fillStyle(0x0d2840, 0.92)
+    g.fillEllipse(22, 31, 24, 10)
+    g.fillStyle(0x44aacc, 0.60)
+    g.fillEllipse(22, 31, 17, 7)
+    g.fillStyle(0xaaeeff, 0.45)
+    g.fillEllipse(20, 30, 10, 5)         // moonlit reflection shimmer
+    g.generateTexture('moonwell', 44, 44)
+    g.clear()
+
+    // ── Elven stone ruin ──────────────────────────────────────────────────────
+    g.fillStyle(0x6878a0, 0.9)
+    g.fillRect(4, 10, 32, 26)            // base stone block
+    g.fillStyle(0x7888b8, 0.6)
+    g.fillRect(4, 10, 32, 7)            // top face
+    g.fillStyle(0x505a88, 0.75)
+    g.fillRect(28, 10, 8, 26)           // shadow side
+    g.lineStyle(1, 0x99aace, 0.40)
+    g.lineBetween(4, 20, 36, 20)        // stone course
+    g.lineBetween(4, 28, 36, 28)
+    // Elven rune glyph (subtle carved sigil)
+    g.lineStyle(1, 0x88ccff, 0.30)
+    g.lineBetween(16, 14, 24, 14)
+    g.lineBetween(20, 12, 20, 18)
+    g.strokeCircle(20, 22, 4)
+    g.generateTexture('elven_ruin', 40, 38)
+    g.clear()
+
     // ── Volcanic ground ───────────────────────────────────────────────────────
     tile('t_volcanic', 0x1e0806, 0x2a0c06)   // dark scorched rock
     tile('t_lava',     0x7a1e00, 0x992800)   // molten lava tile
@@ -543,71 +610,127 @@ export class World {
   // ── Terrain ────────────────────────────────────────────────────────────────
 
   private buildTerrain() {
-    const S  = this.size
-    const WW = this.worldW
+    const S  = this.size   // 3600 — base zone width
+    const WH = this.worldH // 5400 — total world height
+    const WW = this.worldW // 5100 — total world width
+    const EX = WW - S      // 1500 — Elven Wilds extension on left
     const add = (x: number, y: number, w: number, h: number, key: string, depth = 0) =>
       this.scene.add.tileSprite(x, y, w, h, key).setOrigin(0).setDepth(depth)
 
-    // Base — plains across the full world width
-    add(0, 0, WW, S, 't_plains')
+    // Base — plains across the full world (covered by zone tiles on top)
+    add(0, 0, WW, WH, 't_plains')
 
-    // Zone overlays (original 3600-wide zones)
-    add(0,    2500, S,    1100, 't_forest',  0.1)   // Beginner Forest (bottom)
-    add(0,    0,    S,    1100, 't_frozen',  0.1)   // Frozen Ruins (top)
-    add(0,    1100, 1500, 1400, 't_corrupt', 0.1)   // Corrupted Fields (left)
-    add(2100, 1100, 1500, 1400, 't_arcane',  0.1)   // Arcane Caves (right)
+    // ── Volcanic Wastes (y: 0–1800, x: EX–WW) ───────────────────────────────
+    add(EX,      0,    S,    1800, 't_volcanic', 0.1)
+    add(EX,      180,  S,    90,   't_lava',    0.08)
+    add(EX,      580,  S,    70,   't_lava',    0.09)
+    add(EX,      980,  S,    80,   't_lava',    0.08)
+    add(EX,      1380, S,    75,   't_lava',    0.09)
+    add(EX+1200, 0,    1200, 600,  't_lava',    0.07)  // caldera core
 
-    // ── Volcanic Wastes (x: 3600–5400) ───────────────────────────────────────
-    add(3600, 0,    1800, S,    't_volcanic', 0.1)   // full-height volcanic ground
-    // Lava flow strips — brighter channels running through the zone
-    add(3780, 0,    110,  S,    't_lava',    0.08)
-    add(4200, 200,  80,   1100, 't_lava',    0.09)
-    add(4650, 800,  90,   900,  't_lava',    0.08)
-    add(5050, 0,    120,  1600, 't_lava',    0.09)
-    add(4480, 2200, 100,  1400, 't_lava',    0.08)
-    add(3900, 2800, 85,   800,  't_lava',    0.09)
-    // Approach zone softening — slightly cooler tones near Arcane Caves border
-    add(3600, 2200, 300,  1400, 't_arcane',  0.06)
+    // ── Frozen Ruins (y: 1800–2900, x: EX–WW) ───────────────────────────────
+    add(EX,      1800, S,    1100, 't_frozen',  0.1)
+    add(EX,      1800, 900,  400,  't_snow', 0.13)
+    add(EX+800,  2000, 700,  500,  't_snow', 0.10)
+    add(EX+2200, 1800, 800,  350,  't_snow', 0.11)
+    add(EX+2900, 2100, 700,  600,  't_snow', 0.09)
+    add(EX+1400, 2400, 500,  400,  't_snow', 0.10)
 
-    // Snow drifts over frozen ruins
-    add(0,    0,    900,  400,  't_snow', 0.13)
-    add(800,  200,  700,  500,  't_snow', 0.10)
-    add(2200, 0,    800,  350,  't_snow', 0.11)
-    add(2900, 300,  700,  600,  't_snow', 0.09)
-    add(1400, 600,  500,  400,  't_snow', 0.10)
+    // ── Corrupted Fields (y: 2900–4300, x: EX–EX+1500) ──────────────────────
+    add(EX,      2900, 1500, 1400, 't_corrupt', 0.1)
 
-    // Central clearing — slightly warmer neutral plains, drawn on top
+    // ── Arcane Caves (y: 2900–4300, x: EX+2100–WW) ──────────────────────────
+    add(EX+2100, 2900, 1500, 1400, 't_arcane',  0.1)
+
+    // ── Elven Wilds (y: 4300–5400, x: 0–EX) ─────────────────────────────────
+    add(0,   4300, EX,  1100, 't_elven',   0.1)
+    add(120, 4350, 380, 300,  't_elven',   0.08)
+    add(600, 4600, 500, 350,  't_elven',   0.08)
+
+    // ── Beginner Forest (y: 4300–5400, x: EX–WW) — full base width ───────────
+    add(EX,  4300, S,   1100, 't_forest',  0.1)
+
+    // Central clearing — warmer neutral plains around town hub
     const cw = 680, ch = 680
     add(this.cx - cw / 2, this.cy - ch / 2, cw, ch, 't_plains', 0.15)
+
+    // Transition softeners between Elven Wilds and Beginner Forest (x ≈ EX)
+    add(EX - 40, 4300, 80, 1100, 't_forest', 0.07)
+    add(EX - 100, 4300, 80, 1100, 't_elven',  0.06)
   }
 
   // ── Decorative details (no physics) ───────────────────────────────────────
 
   private buildDecor() {
-    const S = this.size
-    const g = this.scene.add.graphics().setDepth(0.05)
+    const S  = this.size         // 3600 — base zone width
+    const WW = this.worldW       // 5100 — total width
+    const WH = this.worldH       // 5400
+    const EX = WW - S            // 1500 — Elven x offset
+    const g  = this.scene.add.graphics().setDepth(0.05)
 
     // ── Beginner Forest — mossy patches ──────────────────────────────────────
     g.fillStyle(0x0e1e0e, 0.3)
     for (let i = 0; i < 40; i++) {
-      const x = Phaser.Math.FloatBetween(60, S - 60)
-      const y = Phaser.Math.FloatBetween(2560, 3540)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 60)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
       g.fillCircle(x, y, Phaser.Math.Between(10, 28))
     }
     g.fillStyle(0x22441a, 0.18)
     for (let i = 0; i < 20; i++) {
-      const x = Phaser.Math.FloatBetween(100, S - 100)
-      const y = Phaser.Math.FloatBetween(2620, 3480)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 100)
+      const y = Phaser.Math.FloatBetween(4420, WH - 80)
       g.fillEllipse(x, y, Phaser.Math.Between(30, 80), Phaser.Math.Between(10, 24))
+    }
+
+    // ── Elven Wilds — moonlit clearings and glowing moss patches ─────────────
+    // Moonlit grass patches (soft silver-green glow)
+    g.fillStyle(0x0a2a1e, 0.45)
+    for (let i = 0; i < 35; i++) {
+      const x = Phaser.Math.FloatBetween(60, 1440)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
+      g.fillCircle(x, y, Phaser.Math.Between(14, 38))
+    }
+    // Silver-teal shimmering clearings
+    g.fillStyle(0x1e4438, 0.22)
+    for (let i = 0; i < 16; i++) {
+      const x = Phaser.Math.FloatBetween(80, 1400)
+      const y = Phaser.Math.FloatBetween(4400, WH - 80)
+      g.fillEllipse(x, y, Phaser.Math.Between(40, 120), Phaser.Math.Between(20, 50))
+    }
+    // Moonlit pools — small bright teal ellipses
+    g.fillStyle(0x1a5050, 0.60)
+    for (const [px, py, pw, ph] of [
+      [180, 4460, 90, 36], [580, 4700, 110, 42], [320, 4900, 80, 32],
+      [980, 4520, 100, 38], [760, 4850, 95, 35], [1200, 4700, 85, 32],
+      [450, 5150, 105, 40], [1050, 5300, 90, 34],
+    ] as [number, number, number, number][]) {
+      g.fillEllipse(px, py, pw, ph)
+      g.fillStyle(0x44aacc, 0.38)
+      g.fillEllipse(px, py, pw * 0.70, ph * 0.65)
+      g.fillStyle(0xaaeeff, 0.22)
+      g.fillEllipse(px - pw * 0.08, py - ph * 0.10, pw * 0.35, ph * 0.28)
+      g.fillStyle(0x1a5050, 0.60)
+    }
+    // Elven rune carvings on the ground
+    g.lineStyle(1, 0x44ccaa, 0.28)
+    for (let i = 0; i < 8; i++) {
+      const rx = Phaser.Math.FloatBetween(100, 1350)
+      const ry = Phaser.Math.FloatBetween(4380, WH - 100)
+      const rr = Phaser.Math.Between(16, 34)
+      g.strokeCircle(rx, ry, rr)
+      for (let j = 0; j < 3; j++) {
+        const a = (j / 3) * Math.PI * 2
+        g.lineBetween(rx, ry, rx + Math.cos(a) * rr, ry + Math.sin(a) * rr)
+      }
     }
 
     // ── Frozen Ruins — glacial overhaul ──────────────────────────────────────
 
     // Glacial lakes / frozen ponds — large bright-blue translucent sheets
     const lakes: [number, number, number, number][] = [
-      [380,  180, 280, 110], [1050, 420, 380, 130], [2080, 150, 320, 120],
-      [2750, 480, 260,  95], [1650, 780, 300, 100], [3180, 250, 260, 100],
-      [600,  700, 220,  80], [3400, 700, 200,  85], [1800, 350, 180,  70],
+      [EX+380,  1980, 280, 110], [EX+1050, 2220, 380, 130], [EX+2080, 1950, 320, 120],
+      [EX+2750, 2280,  260,  95], [EX+1650, 2580, 300, 100], [EX+3180, 2050, 260, 100],
+      [EX+600,  2500, 220,  80], [EX+3400, 2500, 200,  85], [EX+1800, 2150, 180,  70],
     ]
     // Deep ice base (darker, shows depth)
     g.fillStyle(0x3a7aaa, 0.38)
@@ -622,68 +745,62 @@ export class World {
     // Deep ice crevasses — bold branching cracks
     g.lineStyle(3, 0x2a6090, 0.80)
     for (let i = 0; i < 18; i++) {
-      const x = Phaser.Math.FloatBetween(80, S - 80)
-      const y = Phaser.Math.FloatBetween(50, 1050)
+      const x = Phaser.Math.FloatBetween(EX + 80, WW - 80)
+      const y = Phaser.Math.FloatBetween(1850, 2850)
       const dx = Phaser.Math.Between(-90, 90)
       const dy = Phaser.Math.Between(-55, 55)
       g.lineBetween(x, y, x + dx, y + dy)
-      // Branch
       g.lineBetween(x + dx * 0.5, y + dy * 0.5,
         x + dx * 0.5 + Phaser.Math.Between(-40, 40),
         y + dy * 0.5 + Phaser.Math.Between(-30, 30))
     }
-    // Thinner surface cracks network
     g.lineStyle(1, 0x5599bb, 0.55)
     for (let i = 0; i < 50; i++) {
-      const x = Phaser.Math.FloatBetween(60, S - 60)
-      const y = Phaser.Math.FloatBetween(30, 1070)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 60)
+      const y = Phaser.Math.FloatBetween(1830, 2870)
       g.lineBetween(x, y, x + Phaser.Math.Between(-28, 28), y + Phaser.Math.Between(-18, 18))
     }
-    // Hairline frost cracks
     g.lineStyle(1, 0x99ccdd, 0.28)
     for (let i = 0; i < 80; i++) {
-      const x = Phaser.Math.FloatBetween(40, S - 40)
-      const y = Phaser.Math.FloatBetween(20, 1080)
+      const x = Phaser.Math.FloatBetween(EX + 40, WW - 40)
+      const y = Phaser.Math.FloatBetween(1820, 2880)
       g.lineBetween(x, y, x + Phaser.Math.Between(-14, 14), y + Phaser.Math.Between(-10, 10))
     }
 
-    // Snow drifts — piled along wind direction (south-east sweep)
+    // Snow drifts
     g.fillStyle(0xe8f4ff, 0.55)
     for (let i = 0; i < 38; i++) {
-      const x = Phaser.Math.FloatBetween(60, S - 60)
-      const y = Phaser.Math.FloatBetween(40, 1060)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 60)
+      const y = Phaser.Math.FloatBetween(1840, 2860)
       g.fillEllipse(x, y, Phaser.Math.Between(60, 220), Phaser.Math.Between(8, 24))
     }
-    // Bright compressed snow at edges/obstacles
     g.fillStyle(0xf0faff, 0.40)
     for (let i = 0; i < 22; i++) {
-      const x = Phaser.Math.FloatBetween(50, S - 50)
-      const y = Phaser.Math.FloatBetween(30, 1070)
+      const x = Phaser.Math.FloatBetween(EX + 50, WW - 50)
+      const y = Phaser.Math.FloatBetween(1830, 2870)
       g.fillEllipse(x, y, Phaser.Math.Between(18, 60), Phaser.Math.Between(5, 14))
     }
 
     // Ruined building footprints buried under ice/snow
     const ruins: [number, number, number, number][] = [
-      [250, 200, 120, 80], [820, 550, 160, 90], [1650, 250, 100, 140],
-      [2300, 650, 180, 80], [3100, 420, 130, 100], [1200, 900, 150, 70],
-      [2700, 200, 110, 130], [3380, 820, 140, 80],
+      [EX+250, 2000, 120, 80], [EX+820, 2350, 160, 90], [EX+1650, 2050, 100, 140],
+      [EX+2300, 2450, 180, 80], [EX+3100, 2220, 130, 100], [EX+1200, 2700, 150, 70],
+      [EX+2700, 2000, 110, 130], [EX+3380, 2620, 140, 80],
     ]
-    // Stone wall remnants (grey under snow)
     g.fillStyle(0x6a7e8a, 0.30)
     for (const [rx, ry, rw, rh] of ruins) {
       g.fillRect(rx - rw / 2, ry - rh / 2, rw, rh)
-      // Snow covering the top of the walls
       g.fillStyle(0xdeedf8, 0.45)
       g.fillRect(rx - rw / 2, ry - rh / 2, rw, 8)
       g.fillRect(rx - rw / 2, ry - rh / 2, 8, rh)
       g.fillStyle(0x6a7e8a, 0.30)
     }
 
-    // Ice sheet shimmer — scattered white highlights across the whole zone
+    // Ice sheet shimmer
     g.fillStyle(0xffffff, 0.12)
     for (let i = 0; i < 60; i++) {
-      const x = Phaser.Math.FloatBetween(30, S - 30)
-      const y = Phaser.Math.FloatBetween(20, 1080)
+      const x = Phaser.Math.FloatBetween(EX + 30, WW - 30)
+      const y = Phaser.Math.FloatBetween(1820, 2880)
       const r = Phaser.Math.Between(4, 22)
       g.fillEllipse(x, y, r * 3, r)
     }
@@ -691,52 +808,53 @@ export class World {
     // ── Corrupted Fields — dark pools and corruption veins ────────────────────
     g.lineStyle(2, 0x440000, 0.6)
     for (let i = 0; i < 22; i++) {
-      const x = Phaser.Math.FloatBetween(70, 1430)
-      const y = Phaser.Math.FloatBetween(1160, 2430)
+      const x = Phaser.Math.FloatBetween(EX + 70, EX + 1430)
+      const y = Phaser.Math.FloatBetween(2960, 4230)
       g.lineBetween(x, y, x + Phaser.Math.Between(-45, 45), y + Phaser.Math.Between(-35, 35))
     }
     g.fillStyle(0x1a0000, 0.58)
     for (const [px, py, rw, rh] of [
-      [300, 1400, 100, 38], [820, 1780, 120, 44], [480, 2200, 80, 32],
-      [1100, 1620, 90, 36], [220, 2420,  70, 28], [650, 2050, 85, 34],
+      [EX+300, 3200, 100, 38], [EX+820, 3580, 120, 44], [EX+480, 4000, 80, 32],
+      [EX+1100, 3420, 90, 36], [EX+220, 4220, 70, 28], [EX+650, 3850, 85, 34],
     ]) g.fillEllipse(px, py, rw, rh)
 
     // ── Arcane Caves — rune circles and arcane pools ──────────────────────────
     g.lineStyle(1, 0x6622aa, 0.38)
     for (let i = 0; i < 9; i++) {
-      const cx = Phaser.Math.FloatBetween(2200, 3500)
-      const cy = Phaser.Math.FloatBetween(1200, 2400)
-      const r  = Phaser.Math.Between(28, 80)
-      g.strokeCircle(cx, cy, r)
+      const acx = Phaser.Math.FloatBetween(EX + 2200, WW - 100)
+      const acy = Phaser.Math.FloatBetween(3000, 4200)
+      const r   = Phaser.Math.Between(28, 80)
+      g.strokeCircle(acx, acy, r)
       for (let j = 0; j < 3; j++) {
         const angle = (j / 3) * Math.PI * 2
-        g.lineBetween(cx, cy, cx + Math.cos(angle) * r, cy + Math.sin(angle) * r)
+        g.lineBetween(acx, acy, acx + Math.cos(angle) * r, acy + Math.sin(angle) * r)
       }
     }
     g.fillStyle(0x220044, 0.45)
     for (const [px, py, rw, rh] of [
-      [2420, 1400, 100, 40], [2950, 1780, 80, 32], [3220, 1520, 110, 42],
-      [2640, 2180, 90, 36],  [3420, 2300, 76, 30],
+      [EX+2420, 3200, 100, 40], [EX+2950, 3580, 80, 32], [EX+3220, 3320, 110, 42],
+      [EX+2640, 3980, 90, 36],  [EX+3420, 4100, 76, 30],
     ]) g.fillEllipse(px, py, rw, rh)
 
     // ── Paths from town center to each zone ──────────────────────────────────
+    const { cx, cy } = this
     const pathColor = 0x2a2e1a
     g.fillStyle(pathColor, 0.42)
     // South — toward Beginner Forest
-    g.fillRect(this.cx - 22, this.cy + 220, 44, S * 0.5 - 220)
-    // North — toward Frozen Ruins
-    g.fillRect(this.cx - 22, 0, 44, this.cy - 220)
+    g.fillRect(cx - 22, cy + 220, 44, this.worldH - cy - 220)
+    // North — toward Frozen Ruins + Volcanic
+    g.fillRect(cx - 22, 0, 44, cy - 220)
     // West — toward Corrupted Fields
-    g.fillRect(0, this.cy - 22, this.cx - 220, 44)
+    g.fillRect(0, cy - 22, cx - 220, 44)
     // East — toward Arcane Caves
-    g.fillRect(this.cx + 220, this.cy - 22, S - (this.cx + 220), 44)
+    g.fillRect(cx + 220, cy - 22, WW - (cx + 220), 44)
 
-    // Path edges (slightly lighter) to give road a defined edge
+    // Path edges
     g.fillStyle(0x363c22, 0.25)
-    g.fillRect(this.cx - 28, this.cy + 220, 6, S * 0.5 - 220)
-    g.fillRect(this.cx + 22, this.cy + 220, 6, S * 0.5 - 220)
-    g.fillRect(this.cx - 28, 0, 6, this.cy - 220)
-    g.fillRect(this.cx + 22, 0, 6, this.cy - 220)
+    g.fillRect(cx - 28, cy + 220, 6, this.worldH - cy - 220)
+    g.fillRect(cx + 22, cy + 220, 6, this.worldH - cy - 220)
+    g.fillRect(cx - 28, 0, 6, cy - 220)
+    g.fillRect(cx + 22, 0, 6, cy - 220)
 
     // ── Town square — cobblestone circle ──────────────────────────────────────
     g.fillStyle(0x2c2c28, 0.5)
@@ -755,53 +873,54 @@ export class World {
 
     // ── Zone danger markers at path entry points ───────────────────────────────
     g.lineStyle(3, 0xcc3322, 0.28)
-    // North path border (Frozen Ruins)
-    g.lineBetween(this.cx - 80, 1100, this.cx + 80, 1100)
-    // South path border (Beginner Forest)
-    g.lineBetween(this.cx - 80, 2500, this.cx + 80, 2500)
-    // West (Corrupted Fields)
-    g.lineBetween(1500, this.cy - 80, 1500, this.cy + 80)
-    // East (Arcane Caves)
-    g.lineBetween(2100, this.cy - 80, 2100, this.cy + 80)
+    // North path border (Frozen Ruins entry at y=2900)
+    g.lineBetween(cx - 80, 2900, cx + 80, 2900)
+    // South path border (Beginner Forest at y=4300)
+    g.lineBetween(cx - 80, 4300, cx + 80, 4300)
+    // West (Corrupted Fields at x=EX+1500=3000)
+    g.lineBetween(EX + 1500, cy - 80, EX + 1500, cy + 80)
+    // East (Arcane Caves at x=EX+2100=3600)
+    g.lineBetween(EX + 2100, cy - 80, EX + 2100, cy + 80)
 
     // ── Zone gate seals — glowing barriers at locked zone entries ─────────────
     const gateG = this.scene.add.graphics().setDepth(3.6)
 
-    // Frozen Ruins gate (north path) — icy blue seal
+    // Frozen Ruins gate (north path at y=2900) — icy blue seal
     gateG.lineStyle(4, 0x44aaff, 0.75)
-    gateG.lineBetween(this.cx - 70, 1102, this.cx + 70, 1102)
+    gateG.lineBetween(cx - 70, 2902, cx + 70, 2902)
     gateG.lineStyle(2, 0x88ddff, 0.45)
-    gateG.lineBetween(this.cx - 70, 1098, this.cx + 70, 1098)
-    gateG.lineBetween(this.cx - 70, 1106, this.cx + 70, 1106)
-    // Rune diamonds along the seal
+    gateG.lineBetween(cx - 70, 2898, cx + 70, 2898)
+    gateG.lineBetween(cx - 70, 2906, cx + 70, 2906)
     for (const dx of [-40, 0, 40]) {
       gateG.fillStyle(0x88ddff, 0.6)
-      gateG.fillTriangle(this.cx + dx, 1095, this.cx + dx - 5, 1102, this.cx + dx + 5, 1102)
-      gateG.fillTriangle(this.cx + dx, 1109, this.cx + dx - 5, 1102, this.cx + dx + 5, 1102)
+      gateG.fillTriangle(cx + dx, 2895, cx + dx - 5, 2902, cx + dx + 5, 2902)
+      gateG.fillTriangle(cx + dx, 2909, cx + dx - 5, 2902, cx + dx + 5, 2902)
     }
 
-    // Corrupted Fields gate (west path) — blood-red seal
+    // Corrupted Fields gate (west path at x=EX+1500=3000) — blood-red seal
+    const corrGX = EX + 1500
     gateG.lineStyle(4, 0xcc2222, 0.75)
-    gateG.lineBetween(1498, this.cy - 70, 1498, this.cy + 70)
+    gateG.lineBetween(corrGX - 2, cy - 70, corrGX - 2, cy + 70)
     gateG.lineStyle(2, 0xff4444, 0.45)
-    gateG.lineBetween(1494, this.cy - 70, 1494, this.cy + 70)
-    gateG.lineBetween(1502, this.cy - 70, 1502, this.cy + 70)
+    gateG.lineBetween(corrGX - 6, cy - 70, corrGX - 6, cy + 70)
+    gateG.lineBetween(corrGX + 2, cy - 70, corrGX + 2, cy + 70)
     for (const dy of [-40, 0, 40]) {
       gateG.fillStyle(0xff5555, 0.6)
-      gateG.fillTriangle(1491, this.cy + dy, 1498, this.cy + dy - 5, 1498, this.cy + dy + 5)
-      gateG.fillTriangle(1505, this.cy + dy, 1498, this.cy + dy - 5, 1498, this.cy + dy + 5)
+      gateG.fillTriangle(corrGX - 9, cy + dy, corrGX - 2, cy + dy - 5, corrGX - 2, cy + dy + 5)
+      gateG.fillTriangle(corrGX + 5, cy + dy, corrGX - 2, cy + dy - 5, corrGX - 2, cy + dy + 5)
     }
 
-    // Arcane Caves gate (east path) — purple arcane seal
+    // Arcane Caves gate (east path at x=EX+2100=3600) — purple arcane seal
+    const arcGX = EX + 2100
     gateG.lineStyle(4, 0xaa44ff, 0.75)
-    gateG.lineBetween(2102, this.cy - 70, 2102, this.cy + 70)
+    gateG.lineBetween(arcGX + 2, cy - 70, arcGX + 2, cy + 70)
     gateG.lineStyle(2, 0xcc88ff, 0.45)
-    gateG.lineBetween(2098, this.cy - 70, 2098, this.cy + 70)
-    gateG.lineBetween(2106, this.cy - 70, 2106, this.cy + 70)
+    gateG.lineBetween(arcGX - 2, cy - 70, arcGX - 2, cy + 70)
+    gateG.lineBetween(arcGX + 6, cy - 70, arcGX + 6, cy + 70)
     for (const dy of [-40, 0, 40]) {
       gateG.fillStyle(0xcc88ff, 0.6)
-      gateG.fillTriangle(2095, this.cy + dy, 2102, this.cy + dy - 5, 2102, this.cy + dy + 5)
-      gateG.fillTriangle(2109, this.cy + dy, 2102, this.cy + dy - 5, 2102, this.cy + dy + 5)
+      gateG.fillTriangle(arcGX - 5, cy + dy, arcGX + 2, cy + dy - 5, arcGX + 2, cy + dy + 5)
+      gateG.fillTriangle(arcGX + 9, cy + dy, arcGX + 2, cy + dy - 5, arcGX + 2, cy + dy + 5)
     }
 
     // Lock icons (🔒) as text above each gate
@@ -809,95 +928,84 @@ export class World {
       fontSize: '14px', fontFamily: 'system-ui', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }
-    this.scene.add.text(this.cx, 1082, '🔒 Frozen Ruins', lockStyle)
+    this.scene.add.text(cx, 2882, '🔒 Frozen Ruins', lockStyle)
       .setOrigin(0.5, 1).setDepth(3.7)
-    this.scene.add.text(1497, this.cy, '🔒', lockStyle)
+    this.scene.add.text(corrGX - 3, cy, '🔒', lockStyle)
       .setOrigin(1, 0.5).setDepth(3.7)
-    this.scene.add.text(2103, this.cy, '🔒', lockStyle)
+    this.scene.add.text(arcGX + 3, cy, '🔒', lockStyle)
       .setOrigin(0, 0.5).setDepth(3.7)
 
-    // ── Extended east path — from Arcane Caves into Volcanic Wastes ───────────
-    g.fillStyle(0x1a0e06, 0.50)
-    g.fillRect(3600, this.cy - 22, 1800, 44)
-    g.fillStyle(0x280e06, 0.28)
-    g.fillRect(3600, this.cy - 28, 1800, 6)
-    g.fillRect(3600, this.cy + 22, 1800, 6)
-
-    // ── Volcanic Wastes gate seal (east wall of Arcane Caves) ────────────────
+    // Volcanic Wastes gate — seal at the y=1800 border (top of Frozen Ruins)
+    // The north path leads up through Frozen Ruins into Volcanic at y=1800
     gateG.lineStyle(4, 0xff4400, 0.80)
-    gateG.lineBetween(3598, this.cy - 70, 3598, this.cy + 70)
+    gateG.lineBetween(cx - 70, 1802, cx + 70, 1802)
     gateG.lineStyle(2, 0xff8844, 0.50)
-    gateG.lineBetween(3594, this.cy - 70, 3594, this.cy + 70)
-    gateG.lineBetween(3602, this.cy - 70, 3602, this.cy + 70)
-    for (const dy of [-40, 0, 40]) {
+    gateG.lineBetween(cx - 70, 1798, cx + 70, 1798)
+    gateG.lineBetween(cx - 70, 1806, cx + 70, 1806)
+    for (const dx of [-40, 0, 40]) {
       gateG.fillStyle(0xff5500, 0.65)
-      gateG.fillTriangle(3591, this.cy + dy, 3598, this.cy + dy - 5, 3598, this.cy + dy + 5)
-      gateG.fillTriangle(3605, this.cy + dy, 3598, this.cy + dy - 5, 3598, this.cy + dy + 5)
+      gateG.fillTriangle(cx + dx, 1795, cx + dx - 5, 1802, cx + dx + 5, 1802)
+      gateG.fillTriangle(cx + dx, 1809, cx + dx - 5, 1802, cx + dx + 5, 1802)
     }
-    this.scene.add.text(3599, this.cy, '🔒', lockStyle).setOrigin(0, 0.5).setDepth(3.7)
+    this.scene.add.text(cx, 1783, '🔒 Volcanic Wastes', lockStyle).setOrigin(0.5, 1).setDepth(3.7)
 
     // ── Zone transition softeners (blend strips at zone edges) ────────────────
-    // Frozen/central gradient (y ~1050–1150)
+    // Volcanic/Frozen border (y ~1780–1820) — only over non-elven zone
+    g.fillStyle(0x3a0a00, 0.12)
+    g.fillRect(EX, 1750, S, 80)
+    // Frozen/central gradient (y ~2880–2920)
     g.fillStyle(0x88ccff, 0.06)
-    g.fillRect(0, 1020, S, 80)
-    // Central/Beginner Forest gradient (y ~2450–2550)
+    g.fillRect(EX, 2860, S, 80)
+    // Central/Forest gradient (y ~4280–4320)
     g.fillStyle(0x002200, 0.07)
-    g.fillRect(0, 2450, S, 80)
-    // Corrupted/central vertical gradient (x ~1450–1550)
+    g.fillRect(EX, 4260, S, 80)
+    // Elven/central gradient (left strip at y ~4260–4340)
+    g.fillStyle(0x001a14, 0.08)
+    g.fillRect(0, 4260, EX, 80)
+    // Corrupted/central vertical gradient (x = EX+1500 = 3000)
     g.fillStyle(0x220000, 0.06)
-    g.fillRect(1420, 1100, 80, 1400)
-    // Arcane/central vertical gradient (x ~2060–2160)
+    g.fillRect(EX + 1420, 2900, 80, 1400)
+    // Arcane/central vertical gradient (x = EX+2100 = 3600)
     g.fillStyle(0x110022, 0.06)
-    g.fillRect(2060, 1100, 80, 1400)
-    // Arcane/Volcanic transition (x ~3560–3640)
-    g.fillStyle(0x3a0a00, 0.09)
-    g.fillRect(3560, 1100, 80, 1400)
+    g.fillRect(EX + 2060, 2900, 80, 1400)
+    // Elven/Forest border at x = EX (1500)
+    g.fillStyle(0x001a14, 0.07)
+    g.fillRect(EX - 60, 4300, 80, 1100)
 
-    // ── Volcanic Wastes decor ─────────────────────────────────────────────────
-    // Zone-wide ash floor texture (random light grey patches)
+    // ── Volcanic Wastes decor (y:0–1800, x:EX–WW = 1500–5100) ───────────────
+    // Zone-wide ash floor — dark grey soot
     g.fillStyle(0x1c1816, 0.30)
     for (let i = 0; i < 60; i++) {
-      const ax = Phaser.Math.FloatBetween(3620, 5380)
-      const ay = Phaser.Math.FloatBetween(20, 3580)
+      const ax = Phaser.Math.FloatBetween(EX + 30, WW - 30)
+      const ay = Phaser.Math.FloatBetween(20, 1770)
       g.fillEllipse(ax, ay, Phaser.Math.Between(40, 140), Phaser.Math.Between(14, 40))
     }
-    // Bright ash soot patches
     g.fillStyle(0x2e2a24, 0.25)
     for (let i = 0; i < 40; i++) {
-      const ax = Phaser.Math.FloatBetween(3640, 5360)
-      const ay = Phaser.Math.FloatBetween(30, 3560)
+      const ax = Phaser.Math.FloatBetween(EX + 40, WW - 40)
+      const ay = Phaser.Math.FloatBetween(20, 1770)
       g.fillEllipse(ax, ay, Phaser.Math.Between(20, 70), Phaser.Math.Between(8, 20))
     }
 
-    // Lava rivers — flowing channels of molten rock
+    // Lava rivers — horizontal bands crossing the zone
     const lavaRivers: [number, number, number, number][] = [
-      [3800, 0,    3800, 3600],   // near-border river runs full height
-      [4250, 180,  4250, 1200],   // summit to core river
-      [4700, 750,  4700, 1700],   // core mid-river
-      [5080, 0,    5080, 1600],   // far east river
-      [4480, 2180, 4480, 3600],   // approach river
-      [3940, 2750, 3940, 3600],   // approach entry river
+      [EX, 200,  WW, 200],   [EX, 640,  WW, 640],
+      [EX, 1050, WW, 1050],  [EX, 1450, WW, 1450],
+      [EX+800, 0,  EX+800,  900],   [EX+2400, 0, EX+2400, 500],
     ]
     g.lineStyle(14, 0x8a2200, 0.75)
-    for (const [x1, y1, x2, y2] of lavaRivers) {
-      g.lineBetween(x1, y1, x2, y2)
-    }
+    for (const [x1, y1, x2, y2] of lavaRivers) g.lineBetween(x1, y1, x2, y2)
     g.lineStyle(7, 0xdd4400, 0.60)
-    for (const [x1, y1, x2, y2] of lavaRivers) {
-      g.lineBetween(x1, y1, x2, y2)
-    }
+    for (const [x1, y1, x2, y2] of lavaRivers) g.lineBetween(x1, y1, x2, y2)
     g.lineStyle(3, 0xff8800, 0.45)
-    for (const [x1, y1, x2, y2] of lavaRivers) {
-      g.lineBetween(x1, y1, x2, y2)
-    }
+    for (const [x1, y1, x2, y2] of lavaRivers) g.lineBetween(x1, y1, x2, y2)
 
-    // Lava pools — bright rounded pools at low points
+    // Lava pools
     const lavaPools: [number, number, number, number][] = [
-      [3800, 420,  220, 80],  [4280, 640,  180, 70],
-      [4760, 300,  260, 90],  [5100, 980,  200, 75],
-      [3980, 1650, 240, 85],  [4620, 1980, 190, 70],
-      [5200, 1440, 210, 78],  [4100, 2500, 230, 82],
-      [4700, 2900, 200, 72],  [3850, 3200, 180, 65],
+      [EX+300,  350, 220, 80], [EX+900,  160, 180, 70], [EX+1600, 420, 260, 90],
+      [EX+2400, 260, 200, 75], [EX+3100, 500, 240, 85], [EX+500,  850, 190, 70],
+      [EX+1200, 1100, 210, 78], [EX+2000, 950, 230, 82], [EX+2800, 1200, 200, 72],
+      [EX+700, 1450, 220, 80], [EX+1900, 1580, 195, 74], [EX+3000, 1480, 210, 78],
     ]
     g.fillStyle(0x6a1800, 0.70)
     for (const [lx, ly, lw, lh] of lavaPools) g.fillEllipse(lx, ly, lw, lh)
@@ -906,98 +1014,77 @@ export class World {
     g.fillStyle(0xff6600, 0.25)
     for (const [lx, ly, lw, lh] of lavaPools) g.fillEllipse(lx - lw * 0.10, ly - lh * 0.12, lw * 0.38, lh * 0.30)
 
-    // Volcanic cracks in the ground
+    // Volcanic ground cracks
     g.lineStyle(2, 0xaa2200, 0.65)
     for (let i = 0; i < 55; i++) {
-      const cx = Phaser.Math.FloatBetween(3640, 5360)
-      const cy = Phaser.Math.FloatBetween(30, 3560)
-      const dx = Phaser.Math.Between(-70, 70)
-      const dy = Phaser.Math.Between(-50, 50)
-      g.lineBetween(cx, cy, cx + dx, cy + dy)
-      g.lineBetween(cx + dx * 0.5, cy + dy * 0.5,
-        cx + dx * 0.5 + Phaser.Math.Between(-30, 30),
-        cy + dy * 0.5 + Phaser.Math.Between(-25, 25))
+      const vcx = Phaser.Math.FloatBetween(EX + 30, WW - 30)
+      const vcy = Phaser.Math.FloatBetween(20, 1760)
+      const dx  = Phaser.Math.Between(-70, 70)
+      const dy  = Phaser.Math.Between(-50, 50)
+      g.lineBetween(vcx, vcy, vcx + dx, vcy + dy)
+      g.lineBetween(vcx + dx * 0.5, vcy + dy * 0.5,
+        vcx + dx * 0.5 + Phaser.Math.Between(-30, 30),
+        vcy + dy * 0.5 + Phaser.Math.Between(-25, 25))
     }
     g.lineStyle(1, 0xff3300, 0.30)
     for (let i = 0; i < 80; i++) {
-      const cx = Phaser.Math.FloatBetween(3640, 5360)
-      const cy = Phaser.Math.FloatBetween(30, 3560)
-      g.lineBetween(cx, cy, cx + Phaser.Math.Between(-22, 22), cy + Phaser.Math.Between(-16, 16))
+      const vcx = Phaser.Math.FloatBetween(EX + 30, WW - 30)
+      const vcy = Phaser.Math.FloatBetween(20, 1760)
+      g.lineBetween(vcx, vcy, vcx + Phaser.Math.Between(-22, 22), vcy + Phaser.Math.Between(-16, 16))
     }
 
-    // Volcanic cliffs — dark ridge lines suggesting elevation
+    // Volcanic ridge lines
     g.lineStyle(6, 0x0a0402, 0.70)
-    for (const [cx, cy, cw] of [
-      [4000, 500, 500], [4550, 200, 400], [5000, 700, 450],
-      [3950, 1600, 380], [4600, 1200, 420], [5150, 1800, 360],
-      [4200, 2600, 400], [4800, 2400, 350], [3900, 3100, 300],
+    for (const [rcx, rcy, rcw] of [
+      [EX+600, 300, 500], [EX+1400, 120, 600], [EX+2200, 350, 540], [EX+3000, 200, 500],
+      [EX+500, 900, 420], [EX+1600, 780, 480], [EX+2700, 950, 520],
     ] as [number, number, number][]) {
-      g.lineBetween(cx - cw / 2, cy, cx + cw / 2, cy)
-      g.lineBetween(cx - cw / 2, cy + 8, cx + cw / 2, cy + 8)
-    }
-    g.lineStyle(2, 0x200808, 0.50)
-    for (const [cx, cy, cw] of [
-      [4000, 500, 500], [4550, 200, 400], [5000, 700, 450],
-      [3950, 1600, 380], [4600, 1200, 420], [5150, 1800, 360],
-    ] as [number, number, number][]) {
-      g.lineBetween(cx - cw / 2, cy + 18, cx + cw / 2, cy + 18)
+      g.lineBetween(rcx - rcw / 2, rcy, rcx + rcw / 2, rcy)
+      g.lineBetween(rcx - rcw / 2, rcy + 8, rcx + rcw / 2, rcy + 8)
     }
 
-    // Summit crater — central visual anchor of the volcano
-    g.fillStyle(0x380800, 0.80)
-    g.fillEllipse(4800, 420, 420, 220)
-    g.fillStyle(0x220400, 0.90)
-    g.fillEllipse(4800, 420, 280, 150)
-    g.fillStyle(0x8a1800, 0.60)
-    g.fillEllipse(4800, 420, 160, 85)
-    g.fillStyle(0xdd3300, 0.40)
-    g.fillEllipse(4800, 420, 80, 44)
-    g.fillStyle(0xff8800, 0.30)
-    g.fillEllipse(4800, 420, 36, 20)
-    // Crater rim
-    g.lineStyle(8, 0x1a0500, 0.85)
-    g.strokeEllipse(4800, 420, 420, 220)
-    g.lineStyle(3, 0xff4400, 0.20)
-    g.strokeEllipse(4800, 420, 410, 215)
+    // Summit caldera (upper centre at cx=3300, y:280)
+    g.fillStyle(0x380800, 0.80); g.fillEllipse(cx, 280, 500, 260)
+    g.fillStyle(0x220400, 0.90); g.fillEllipse(cx, 280, 340, 175)
+    g.fillStyle(0x8a1800, 0.60); g.fillEllipse(cx, 280, 190, 100)
+    g.fillStyle(0xdd3300, 0.40); g.fillEllipse(cx, 280, 90, 48)
+    g.fillStyle(0xff8800, 0.30); g.fillEllipse(cx, 280, 40, 22)
+    g.lineStyle(8, 0x1a0500, 0.85); g.strokeEllipse(cx, 280, 500, 260)
+    g.lineStyle(3, 0xff4400, 0.20); g.strokeEllipse(cx, 280, 490, 255)
 
-    // Waystation sign pointing to volcanic zone (placed inside Arcane Caves near east border)
-    this.scene.add.text(3450, this.cy - 60, 'Volcanic Wastes ►', {
-      fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    // Sign in Frozen Ruins pointing north
+    this.scene.add.text(cx, 2830, '▲ Volcanic Wastes  ☠ Extreme Danger', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
       color: '#ff6622', stroke: '#000', strokeThickness: 4,
-    }).setDepth(4).setOrigin(0.5)
-    this.scene.add.text(3450, this.cy - 44, '☠ Extreme Danger', {
-      fontSize: '10px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-      color: '#cc2200', stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
     // ── Improved Beginner Forest — landmarks and clearings ────────────────────
     // Ancient stone shrine clearing
     g.fillStyle(0x1a2e12, 0.35)
-    g.fillCircle(900, 3220, 55)
+    g.fillCircle(EX + 2400, 5020, 55)
     g.lineStyle(2, 0x446633, 0.30)
-    g.strokeCircle(900, 3220, 55)
-    // Stone path leading to shrine
+    g.strokeCircle(EX + 2400, 5020, 55)
     g.fillStyle(0x2a2a1e, 0.35)
     for (let i = 0; i < 6; i++) {
-      g.fillRect(895, 3160 + i * 12, 10, 8)
+      g.fillRect(EX + 2395, 4960 + i * 12, 10, 8)
     }
 
-    // Forest glades (light patches where sun breaks through)
+    // Forest glades
     g.fillStyle(0x1e3a14, 0.20)
-    for (const [gx, gy] of [[1600, 3350], [2800, 3150], [500, 3450]]) {
+    for (const [gx, gy] of [[EX+2200, 5150], [EX+3000, 4950], [EX+1700, 5250]]) {
       g.fillEllipse(gx, gy, 120, 80)
     }
 
-    // ── Improved Frozen Ruins — more ruins detail ─────────────────────────────
-    // Frozen statue silhouette
+    // ── Improved Frozen Ruins — ruins detail ──────────────────────────────────
+    // Frozen statue
     g.fillStyle(0x8ab2cc, 0.45)
-    g.fillRect(1790, 340, 18, 55)     // frozen figure body
-    g.fillCircle(1800, 335, 12)       // head
+    g.fillRect(EX + 1790, 2140, 18, 55)
+    g.fillCircle(EX + 1800, 2135, 12)
     g.fillStyle(0xaacce0, 0.30)
-    g.fillRect(1776, 352, 50, 8)      // outstretched arms
+    g.fillRect(EX + 1776, 2152, 50, 8)
 
     // Ruined tower stumps
-    for (const [rx, ry] of [[650, 180], [2950, 350], [3250, 780]]) {
+    for (const [rx, ry] of [[EX+650, 1980], [EX+2950, 2150], [EX+3250, 2580]]) {
       g.fillStyle(0x6a7e8a, 0.45)
       g.fillRect(rx - 20, ry - 40, 40, 40)
       g.fillStyle(0x4a5e6a, 0.35)
@@ -1011,164 +1098,126 @@ export class World {
 
   private buildZoneArchitecture() {
     const g = this.scene.add.graphics().setDepth(2)
-    const { cx, cy, size } = this
+    const { cx, cy, size, worldH, worldW } = this
+    const EX = worldW - size  // 1500 — left elven extension
 
-    // ── Frozen cliff face at y≈1100 (Beginner Forest → Frozen Ruins boundary)
-    // A dramatic wall of ice and stone spanning the full world width
-    const cliffY = 1100
-    // Deep shadow base
+    // ── Volcanic/Frozen cliff face at y≈1800 (Volcanic → Frozen Ruins boundary)
+    const volcCliffY = 1800
+    g.fillStyle(0x1a0800, 1.0)
+    g.fillRect(EX, volcCliffY - 18, size, 36)
+    g.fillStyle(0x3a1200, 0.85)
+    g.fillRect(EX, volcCliffY - 10, size, 20)
+    g.fillStyle(0xff3300, 0.18)
+    g.fillRect(EX, volcCliffY - 14, size, 4)
+    g.fillStyle(0x0e0500, 1.0)
+    for (let rx = EX + 40; rx < worldW - 40; rx += 80) {
+      const h = 16 + Math.sin(rx * 0.067) * 7 + Math.sin(rx * 0.02) * 9
+      const w = 30 + Math.sin(rx * 0.033) * 12
+      g.fillTriangle(rx - w / 2, volcCliffY - 10, rx + w / 2, volcCliffY - 10, rx, volcCliffY - 10 - h)
+    }
+    g.fillStyle(0xff4400, 0.22)
+    for (let rx = EX + 40; rx < worldW - 40; rx += 80) {
+      const h = 16 + Math.sin(rx * 0.067) * 7 + Math.sin(rx * 0.02) * 9
+      g.fillTriangle(rx - 5, volcCliffY - 10, rx + 5, volcCliffY - 10, rx, volcCliffY - 10 - h + 4)
+    }
+
+    // ── Frozen cliff face at y≈2900 (Frozen Ruins → Central boundary)
+    const cliffY = 2900
     g.fillStyle(0x0a1520, 0.9)
-    g.fillRect(0, cliffY - 18, 3600, 36)
-    // Main cliff body — layered dark rock
+    g.fillRect(EX, cliffY - 18, size, 36)
     g.fillStyle(0x1a2a38, 1.0)
-    g.fillRect(0, cliffY - 12, 3600, 22)
-    // Mid rock band
+    g.fillRect(EX, cliffY - 12, size, 22)
     g.fillStyle(0x22364a, 0.9)
-    g.fillRect(0, cliffY - 8, 3600, 12)
-    // Ice/snow highlights along crest
+    g.fillRect(EX, cliffY - 8, size, 12)
     g.fillStyle(0xc8e8ff, 0.55)
-    g.fillRect(0, cliffY - 14, 3600, 4)
-    // Jagged rock tooth silhouette — repeating peaks along the cliff top
+    g.fillRect(EX, cliffY - 14, size, 4)
     g.fillStyle(0x0e1c28, 1.0)
-    for (let rx = 40; rx < 3560; rx += 80) {
+    for (let rx = EX + 40; rx < worldW - 40; rx += 80) {
       const h = 14 + Math.sin(rx * 0.07) * 6 + Math.sin(rx * 0.019) * 8
       const w = 28 + Math.sin(rx * 0.031) * 10
       g.fillTriangle(rx - w / 2, cliffY - 12, rx + w / 2, cliffY - 12, rx, cliffY - 12 - h)
     }
-    // Ice rime glint on peaks
     g.fillStyle(0xddf4ff, 0.38)
-    for (let rx = 40; rx < 3560; rx += 80) {
+    for (let rx = EX + 40; rx < worldW - 40; rx += 80) {
       const h = 14 + Math.sin(rx * 0.07) * 6 + Math.sin(rx * 0.019) * 8
       g.fillTriangle(rx - 4, cliffY - 12, rx + 4, cliffY - 12, rx, cliffY - 12 - h + 2)
     }
 
-    // ── Giant frozen stairway on the north path (from town to Frozen Ruins)
-    // Located at x≈cx, running from y≈1060 down to y≈1120
-    const stairX   = cx
+    // ── Frozen stairway (town → Frozen Ruins pass at cliffY)
+    const stairX    = cx
     const stairTopY = cliffY - 48
-    const stepW    = 72, stepH = 12, steps = 5
+    const stepW = 72, stepH = 12, steps = 5
     for (let s = 0; s < steps; s++) {
-      const sy   = stairTopY + s * stepH
-      const sw   = stepW - s * 8
-      // Step body
-      g.fillStyle(0x3a5870, 1.0)
-      g.fillRect(stairX - sw / 2, sy, sw, stepH - 1)
-      // Step highlight
-      g.fillStyle(0xaad4f0, 0.5)
-      g.fillRect(stairX - sw / 2, sy, sw, 2)
-      // Step shadow
-      g.fillStyle(0x0a1520, 0.6)
-      g.fillRect(stairX - sw / 2, sy + stepH - 3, sw, 3)
+      const sy = stairTopY + s * stepH
+      const sw = stepW - s * 8
+      g.fillStyle(0x3a5870, 1.0); g.fillRect(stairX - sw / 2, sy, sw, stepH - 1)
+      g.fillStyle(0xaad4f0, 0.5); g.fillRect(stairX - sw / 2, sy, sw, 2)
+      g.fillStyle(0x0a1520, 0.6); g.fillRect(stairX - sw / 2, sy + stepH - 3, sw, 3)
     }
-    // Stairway gap in cliff (path opening)
-    g.fillStyle(0x141e28, 0.95)
-    g.fillRect(stairX - 36, cliffY - 16, 72, 18)
-    g.fillStyle(0x1a2c3e, 0.85)
-    g.fillRect(stairX - 30, cliffY - 14, 60, 12)
-
-    // Twin ice pillars flanking the stairway entrance
+    g.fillStyle(0x141e28, 0.95); g.fillRect(stairX - 36, cliffY - 16, 72, 18)
+    g.fillStyle(0x1a2c3e, 0.85); g.fillRect(stairX - 30, cliffY - 14, 60, 12)
     const pillarH = 52
     for (const px of [stairX - 48, stairX + 48]) {
-      // Pillar body
-      g.fillStyle(0x2c4a62, 1.0)
-      g.fillRect(px - 8, stairTopY - pillarH, 16, pillarH)
-      // Pillar highlight
-      g.fillStyle(0x88ccee, 0.4)
-      g.fillRect(px - 8, stairTopY - pillarH, 4, pillarH)
-      // Pillar cap — glowing ice crystal
-      g.fillStyle(0xaadeee, 0.8)
-      g.fillTriangle(px - 10, stairTopY - pillarH, px + 10, stairTopY - pillarH, px, stairTopY - pillarH - 16)
-      g.fillStyle(0xeeffff, 0.6)
-      g.fillTriangle(px - 4, stairTopY - pillarH, px + 4, stairTopY - pillarH, px, stairTopY - pillarH - 8)
+      g.fillStyle(0x2c4a62, 1.0); g.fillRect(px - 8, stairTopY - pillarH, 16, pillarH)
+      g.fillStyle(0x88ccee, 0.4); g.fillRect(px - 8, stairTopY - pillarH, 4, pillarH)
+      g.fillStyle(0xaadeee, 0.8); g.fillTriangle(px - 10, stairTopY - pillarH, px + 10, stairTopY - pillarH, px, stairTopY - pillarH - 16)
+      g.fillStyle(0xeeffff, 0.6); g.fillTriangle(px - 4, stairTopY - pillarH, px + 4, stairTopY - pillarH, px, stairTopY - pillarH - 8)
     }
 
-    // ── Stone path edging along the north road (town → cliffY)
-    // Cobblestone border markings along x≈cx, from cy down to cliffY
+    // ── Stone path edging (town → each cliff)
     const pathEdgeG = this.scene.add.graphics().setDepth(1)
-    pathEdgeG.lineStyle(2, 0x3a3028, 0.4)
     for (let py = cy - 260; py > cliffY + 40; py -= 48) {
-      // Left edge stone
       pathEdgeG.fillStyle(0x2e2820, 0.35)
       pathEdgeG.fillRect(cx - 38, py, 14, 10)
-      // Right edge stone
       pathEdgeG.fillRect(cx + 24, py, 14, 10)
     }
 
-    // ── Pre-volcanic scorch zone (x: 3200–3600, y: 0–3600)
-    // Heat-baked ground darkens as you approach the volcanic wall
+    // ── Pre-volcanic scorch (bottom of volcanic zone, y: 1650–1800)
     const scorchG = this.scene.add.graphics().setDepth(1)
     for (let band = 0; band < 4; band++) {
-      const bx    = 3200 + band * 100
-      const alpha = 0.06 + band * 0.05
-      scorchG.fillStyle(0x3a1800, alpha)
-      scorchG.fillRect(bx, 0, 100, size)
+      const byOff = band * 30
+      scorchG.fillStyle(0x3a1800, 0.06 + band * 0.04)
+      scorchG.fillRect(EX, volcCliffY - 140 + byOff, size, 30)
     }
 
-    // ── Volcanic cliff ridge at x≈3600 (Arcane Caves → Volcanic Wastes)
-    // Imposing lava-streaked wall
-    const volcX = 3600
-    g.fillStyle(0x1a0800, 1.0)
-    g.fillRect(volcX - 20, 0, 40, size)
-    g.fillStyle(0x3a1000, 0.8)
-    g.fillRect(volcX - 14, 0, 28, size)
-    // Lava vein streaks
-    g.fillStyle(0xff4400, 0.28)
-    for (let vy = 0; vy < size; vy += 160) {
-      const vw  = 2 + Math.sin(vy * 0.05) * 2
-      const vox = Math.sin(vy * 0.023) * 8
-      g.fillRect(volcX - 6 + vox, vy + 10, vw, 90)
-    }
-    // Glowing edge — hot orange glow on volcanic side
-    g.fillStyle(0xff6600, 0.12)
-    g.fillRect(volcX + 12, 0, 20, size)
-    g.fillStyle(0xff3300, 0.08)
-    g.fillRect(volcX + 18, 0, 30, size)
-    // Jagged rock top teeth on cliff
-    g.fillStyle(0x0e0500, 1.0)
-    for (let ry = 30; ry < size - 30; ry += 70) {
-      const tw = 10 + Math.sin(ry * 0.09) * 4
-      const th = 16 + Math.sin(ry * 0.041) * 7
-      g.fillTriangle(volcX - 20, ry, volcX - 20, ry + tw, volcX - 20 - th, ry + tw / 2)
-    }
+    // ── Elven forest treeline at y≈4300 (entry into Elven Wilds / Forest)
+    const forestY = 4300
+    g.fillStyle(0x0a1a10, 0.8)
+    g.fillRect(0, forestY - 10, 1500, 22)  // elven tree-line strip
+    g.fillStyle(0x143020, 0.85)
+    g.fillRect(0, forestY - 6, 1500, 12)
+    g.fillStyle(0x88ccaa, 0.22)
+    g.fillRect(0, forestY - 12, 1500, 3)   // moonlit canopy glint
 
-    // ── Jagged mountain peaks along the far north (y≈0)
-    // Silhouette of the mountain range backdrop
+    // ── Mountain peaks along north border of volcanic zone (y≈0, x: EX–WW)
     const peakG = this.scene.add.graphics().setDepth(0.5)
-    peakG.fillStyle(0x0a1018, 0.85)
-    for (let px = 0; px < 3600; px += 120) {
+    peakG.fillStyle(0x1a0800, 0.90)
+    for (let px = EX; px < worldW; px += 120) {
       const ph = 60 + Math.sin(px * 0.017) * 30 + Math.sin(px * 0.009) * 22
       const pw = 80 + Math.sin(px * 0.023) * 30
       peakG.fillTriangle(px - pw / 2, 0, px + pw / 2, 0, px + pw / 4, -ph)
-      // Snow cap
-      peakG.fillStyle(0xddeeff, 0.35)
+      peakG.fillStyle(0xff3300, 0.15)
       peakG.fillTriangle(px - pw / 8, 0, px + pw / 8, 0, px + pw / 16, -ph * 0.35)
-      peakG.fillStyle(0x0a1018, 0.85)
+      peakG.fillStyle(0x1a0800, 0.90)
     }
 
-    // ── Path milestone stones (waypoints at key junctions)
-    const msG  = this.scene.add.graphics().setDepth(4)
+    // ── Path milestone stones
+    const msG = this.scene.add.graphics().setDepth(4)
     const milestones: Array<[number, number, string]> = [
-      [cx,        cy - 240,  'FROZEN\nRUINS ↑'],
-      [cx - 220,  cy,        '← CORRUPTED\n   FIELDS'],
-      [cx + 220,  cy,        'ARCANE\nCAVES →'],
-      [cx,        cy + 240,  'BEGINNER\nFOREST ↓'],
-      [cx,        cliffY + 30, '↑ RUINS'],
-      [3480,      cy,        'VOLCANIC\nWASTES →'],
+      [cx,       cy - 240,  'FROZEN\nRUINS ↑'],
+      [cx - 220, cy,        '← CORRUPTED\n   FIELDS'],
+      [cx + 220, cy,        'ARCANE\nCAVES →'],
+      [cx,       cy + 240,  'FOREST ↓'],
+      [cx,       cliffY + 30, '↑ RUINS'],
+      [cx,       volcCliffY + 30, '↑ VOLCANIC'],
+      [EX - 200, cy + 240,  '← ELVEN\n  WILDS'],  // points left toward x:0-EX
     ]
     for (const [mx, my, label] of milestones) {
-      // Stone slab
-      msG.fillStyle(0x3c3028, 0.9)
-      msG.fillRect(mx - 18, my - 14, 36, 28)
-      msG.fillStyle(0x5a4a38, 0.5)
-      msG.fillRect(mx - 18, my - 14, 36, 5)
-      // Etched text
+      msG.fillStyle(0x3c3028, 0.9); msG.fillRect(mx - 18, my - 14, 36, 28)
+      msG.fillStyle(0x5a4a38, 0.5); msG.fillRect(mx - 18, my - 14, 36, 5)
       this.scene.add.text(mx, my, label, {
-        fontSize: '9px',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-        color: '#9a8070',
-        align: 'center',
-        stroke: '#000',
-        strokeThickness: 2,
+        fontSize: '9px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+        color: '#9a8070', align: 'center', stroke: '#000', strokeThickness: 2,
       }).setDepth(5).setOrigin(0.5, 0.5)
     }
   }
@@ -1364,21 +1413,26 @@ export class World {
   // ── Beginner Forest dressing — rivers, bushes, flowers, a cabin ───────────
 
   private buildForest() {
-    const S = this.size
+    const WW = this.worldW     // 5100
+    const WH = this.worldH     // 5400
+    const EX = WW - this.size  // 1500 — elven x offset; forest starts at EX
 
-    // ── Rivers ────────────────────────────────────────────────────────────────
-    const mainRiver  = (x: number) => 3060 + Math.sin(x * 0.0024) * 85 + Math.sin(x * 0.0009) * 40
-    const creek      = (x: number) => 3400 + Math.sin(x * 0.004) * 45
-    this.drawRiver(mainRiver, 0, S, 34)
-    this.drawRiver(creek, 1680, S, 18)
-    this.addRiverParticles(mainRiver, 0, S, 34)
-    this.addRiverParticles(creek, 1680, S, 18)
+    // Forest x range: EX–WW (1500–5100, full base width)
+    // Forest y range: 4300–5400
 
-    // Wooden bridge where the south road crosses the main river
+    // ── Rivers ───────────────────────────────────────────────────────────────
+    const mainRiver = (x: number) => 4860 + Math.sin(x * 0.0024) * 85 + Math.sin(x * 0.0009) * 40
+    const creek     = (x: number) => 5200 + Math.sin(x * 0.004) * 45
+    this.drawRiver(mainRiver, EX, WW, 34)
+    this.drawRiver(creek, EX + 2200, WW, 18)
+    this.addRiverParticles(mainRiver, EX, WW, 34)
+    this.addRiverParticles(creek, EX + 2200, WW, 18)
+
+    // Bridge where south road crosses main river
     this.scene.add.image(this.cx, mainRiver(this.cx), 'bridge').setDepth(2.6).setOrigin(0.5, 0.5)
 
-    // Reeds + lily pads along the main river (skip the bridge crossing)
-    for (let x = 90; x < S - 80; x += Phaser.Math.Between(120, 220)) {
+    // Reeds + lily pads along the main river
+    for (let x = EX + 100; x < WW - 80; x += Phaser.Math.Between(120, 220)) {
       if (Math.abs(x - this.cx) < 80) continue
       const y = mainRiver(x)
       this.scene.add.image(x, y - 30, 'reed').setDepth(1).setOrigin(0.5, 1)
@@ -1390,29 +1444,28 @@ export class World {
     }
 
     // ── Forest cabin (solid) ────────────────────────────────────────────────────
-    const cabinX = 600, cabinY = 2740
+    const cabinX = EX + 2200, cabinY = 4540
     const cabin  = this.obstacles.create(cabinX, cabinY, 'forest_cabin') as Phaser.Physics.Arcade.Sprite
     cabin.setOrigin(0.5, 1).setDepth(3)
     const cb = cabin.body as Phaser.Physics.Arcade.StaticBody
     cb.setSize(56, 26); cb.setOffset(8, 36); cabin.refreshBody()
-    // Warm glow from the cabin's windows
     const cg = this.scene.add.graphics().setDepth(1.4).setBlendMode(Phaser.BlendModes.ADD)
     cg.fillStyle(0xff8833, 0.06); cg.fillCircle(cabinX, cabinY - 28, 64)
 
-    // ── Bushes (decorative, denser than trees) ──────────────────────────────────
+    // ── Bushes ──────────────────────────────────────────────────────────────────
     for (let i = 0; i < 50; i++) {
-      const x = Phaser.Math.FloatBetween(70, S - 70)
-      const y = Phaser.Math.FloatBetween(2560, 3540)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 70)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
       if (Phaser.Math.Distance.Between(x, y, this.cx, this.cy) < SAFE_RADIUS) continue
       this.scene.add.image(x, y, 'bush').setDepth(2).setOrigin(0.5, 1)
         .setScale(Phaser.Math.FloatBetween(0.8, 1.35))
     }
 
-    // ── Flowers (random tints) ──────────────────────────────────────────────────
+    // ── Flowers ──────────────────────────────────────────────────────────────────
     const flowerTints = [0xff77aa, 0xffe066, 0x88aaff, 0xffffff, 0xcc88ff]
     for (let i = 0; i < 70; i++) {
-      const x = Phaser.Math.FloatBetween(60, S - 60)
-      const y = Phaser.Math.FloatBetween(2560, 3540)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 60)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
       this.scene.add.image(x, y, 'flower').setDepth(1.2).setOrigin(0.5, 1)
         .setTint(Phaser.Utils.Array.GetRandom(flowerTints))
         .setScale(Phaser.Math.FloatBetween(0.8, 1.4))
@@ -1420,18 +1473,45 @@ export class World {
 
     // ── Mushrooms ─────────────────────────────────────────────────────────────
     for (let i = 0; i < 26; i++) {
-      const x = Phaser.Math.FloatBetween(80, S - 80)
-      const y = Phaser.Math.FloatBetween(2580, 3520)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 80)
+      const y = Phaser.Math.FloatBetween(4380, WH - 80)
       this.scene.add.image(x, y, 'mushroom').setDepth(1.2).setOrigin(0.5, 1)
     }
 
-    // ── Glowing mushrooms + soft light (enchantment) ────────────────────────────
+    // ── Glowing mushrooms ────────────────────────────────────────────────────────
     const gm = this.scene.add.graphics().setDepth(0.9).setBlendMode(Phaser.BlendModes.ADD)
     for (let i = 0; i < 18; i++) {
-      const x = Phaser.Math.FloatBetween(80, S - 80)
-      const y = Phaser.Math.FloatBetween(2580, 3520)
+      const x = Phaser.Math.FloatBetween(EX + 60, WW - 80)
+      const y = Phaser.Math.FloatBetween(4380, WH - 80)
       this.scene.add.image(x, y, 'mushroom_glow').setDepth(1.3).setOrigin(0.5, 1)
       gm.fillStyle(0x33aaff, 0.08); gm.fillCircle(x, y - 6, 28)
+    }
+
+    // ── Elven Wilds dressing — moonlit silver trees, glowing pools ────────────
+    // Silver-tinted flowers
+    const elvenFlowerTints = [0xaaffee, 0xddf8ff, 0xccffee, 0xeeffff, 0x88ddcc]
+    for (let i = 0; i < 60; i++) {
+      const x = Phaser.Math.FloatBetween(60, 1420)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
+      this.scene.add.image(x, y, 'flower').setDepth(1.2).setOrigin(0.5, 1)
+        .setTint(Phaser.Utils.Array.GetRandom(elvenFlowerTints))
+        .setScale(Phaser.Math.FloatBetween(0.7, 1.2))
+    }
+    // Glowing mushrooms in elven zone (blue-teal hue)
+    const egm = this.scene.add.graphics().setDepth(0.9).setBlendMode(Phaser.BlendModes.ADD)
+    for (let i = 0; i < 22; i++) {
+      const x = Phaser.Math.FloatBetween(60, 1420)
+      const y = Phaser.Math.FloatBetween(4380, WH - 80)
+      this.scene.add.image(x, y, 'mushroom_glow').setDepth(1.3).setOrigin(0.5, 1)
+        .setTint(0x44ffcc)
+      egm.fillStyle(0x22ffaa, 0.07); egm.fillCircle(x, y - 6, 32)
+    }
+    // Bush equivalents — slightly smaller in elven zone
+    for (let i = 0; i < 30; i++) {
+      const x = Phaser.Math.FloatBetween(60, 1420)
+      const y = Phaser.Math.FloatBetween(4360, WH - 60)
+      this.scene.add.image(x, y, 'bush').setDepth(2).setOrigin(0.5, 1)
+        .setTint(0x4a8060).setScale(Phaser.Math.FloatBetween(0.7, 1.1))
     }
   }
 
@@ -1442,11 +1522,13 @@ export class World {
       this.scene.add.image(x, y, key).setDepth(depth).setOrigin(ox, oy)
 
     // Each camp: [cx, cy, tentTint, fireTint, glowColor]
+    const EX = this.worldW - this.size  // 1500
     const camps: Array<[number, number, number, number, number]> = [
-      [1800, 550,  0xaaddff, 0x88ccff, 0x4488ff],  // Frozen Ruins — Mage Solvara
-      [750,  1800, 0xaa5533, 0xff4400, 0xff2200],  // Corrupted Fields — Ranger Aldric
-      [2850, 1800, 0x8844cc, 0x8833ff, 0x6600cc],  // Arcane Caves — Hermit Zethkar
-      [3900, 1800, 0x662200, 0xff4400, 0xff2200],  // Volcanic Wastes — Pyromancer Ignis
+      [EX+1800, 2350, 0xaaddff, 0x88ccff, 0x4488ff],  // Frozen Ruins — Mage Solvara (x:3300)
+      [EX+ 750, 3600, 0xaa5533, 0xff4400, 0xff2200],  // Corrupted Fields — Ranger Aldric (x:2250)
+      [EX+2850, 3600, 0x8844cc, 0x8833ff, 0x6600cc],  // Arcane Caves — Hermit Zethkar (x:4350)
+      [EX+1800,  900, 0x662200, 0xff4400, 0xff2200],  // Volcanic Wastes — Pyromancer Ignis (x:3300)
+      [    600, 4680, 0x224422, 0x33ff88, 0x00ffaa],  // Elven Wilds — Elder Liriel (x:600, no offset)
     ]
 
     for (const [cx, cy, tentTint, , glowColor] of camps) {
@@ -1480,7 +1562,7 @@ export class World {
 
   private buildBoundary() {
     const WW = this.worldW
-    const HH = this.size
+    const HH = this.worldH
     const W  = 56
     const g  = this.scene.add.graphics().setDepth(0.5)
     g.fillStyle(0x070f07)
@@ -1495,38 +1577,46 @@ export class World {
   // ── Obstacles ─────────────────────────────────────────────────────────────
 
   private buildObstacles() {
-    const S = this.size
+    const S  = this.size
+    const WW = this.worldW
+    const EX = WW - S  // 1500
 
-    // Beginner Forest — dense healthy trees
-    this.scatter('tree',      0,    2500, S,    1100, 50)
+    // Beginner Forest (x:EX-WW, y:4300-5400) — dense healthy trees
+    this.scatter('tree',      EX,      4300, S,    1100, 50)
 
-    // Frozen Ruins — dense ice crystal clusters + frozen boulders
-    this.scatter('ice_obs',   0,    0,    S,    1100, 55)
-    this.scatter('rock_obs',  0,    0,    S,    1100, 28)
+    // Frozen Ruins (x:EX-WW, y:1800-2900) — ice crystals + frozen boulders
+    this.scatter('ice_obs',   EX,      1800, S,    1100, 55)
+    this.scatter('rock_obs',  EX,      1800, S,    1100, 28)
 
-    // Corrupted Fields — twisted dead trees + crumbled stone
-    this.scatter('dead_tree', 0,    1100, 1500, 1400, 26)
-    this.scatter('rock_obs',  0,    1100, 1500, 1400, 14)
+    // Corrupted Fields (x:EX-EX+1500, y:2900-4300) — twisted dead trees + stone
+    this.scatter('dead_tree', EX,      2900, 1500, 1400, 26)
+    this.scatter('rock_obs',  EX,      2900, 1500, 1400, 14)
 
-    // Arcane Caves — arcane pillars + ancient boulders
-    this.scatter('pillar_obs', 2100, 1100, 1500, 1400, 28)
-    this.scatter('rock_obs',   2100, 1100, 1500, 1400, 16)
+    // Arcane Caves (x:EX+2100-WW, y:2900-4300) — arcane pillars + boulders
+    this.scatter('pillar_obs', EX+2100, 2900, 1500, 1400, 28)
+    this.scatter('rock_obs',   EX+2100, 2900, 1500, 1400, 16)
 
-    // Central clearing — sparse so player can orient on spawn
-    this.scatter('tree',     1300, 1100, 1000, 1400, 12)
-    this.scatter('rock_obs', 1300, 1100, 1000, 1400,  6)
+    // Central corridor (x:EX+1300-EX+2300) — sparse, player can navigate
+    this.scatter('tree',     EX+1300, 2900, 1000, 1400, 12)
+    this.scatter('rock_obs', EX+1300, 2900, 1000, 1400,  6)
 
-    // ── Volcanic Wastes — lava rocks + obsidian spires ────────────────────────
-    this.scatter('lava_rock',      3600, 0,    1800, 3600, 55)  // all zones
-    this.scatter('obsidian_spire', 3600, 0,    1800, 1100, 30)  // summit (densest)
-    this.scatter('obsidian_spire', 3600, 1100, 1800, 1400, 20)  // core
-    this.scatter('ash_mound',      3600, 2500, 1800, 1100, 22)  // approach
-    this.scatter('rock_obs',       3600, 0,    1800, 3600, 20)  // scattered boulders
+    // ── Volcanic Wastes (x:EX-WW, y:0-1800) — lava rocks + obsidian spires ──
+    this.scatter('lava_rock',      EX, 0,    S,    1800, 55)
+    this.scatter('obsidian_spire', EX, 0,    S,     900, 30)  // summit
+    this.scatter('obsidian_spire', EX, 900,  S,     900, 20)  // lower
+    this.scatter('ash_mound',      EX, 1400, S,     400, 22)  // approach
+    this.scatter('rock_obs',       EX, 0,    S,    1800, 20)
+
+    // ── Elven Wilds (x:0-EX, y:4300-5400) — elven trees + moonwells ──────────
+    this.scatter('elven_tree', 0, 4300, EX, 1100, 30)
+    this.scatter('moonwell',   0, 4300, EX, 1100, 10)
+    this.scatter('elven_ruin', 0, 4300, EX, 1100,  8)
+    this.scatter('rock_obs',   0, 4300, EX, 1100,  8)
 
     // ── Extra tree clusters in Beginner Forest ────────────────────────────────
     const treeClusters: [number, number][] = [
-      [400, 2700], [780, 2850], [1400, 2650], [2200, 2800],
-      [2700, 2700], [3200, 2900], [600, 3300], [1900, 3350],
+      [EX+1600, 4500], [EX+1900, 4650], [EX+2000, 4450], [EX+2200, 4600],
+      [EX+2700, 4500], [EX+3200, 4700], [EX+2100, 5100], [EX+2800, 5150],
     ]
     for (const [cx, cy] of treeClusters) {
       for (let j = 0; j < 4; j++) {
@@ -1543,9 +1633,9 @@ export class World {
     // ── Campfire at town center (decorative, no collision) ────────────────────
     this.scene.add.image(this.cx, this.cy - 40, 'campfire').setDepth(2).setOrigin(0.5, 1)
 
-    // Extra campfires in the Beginner Forest — give safe resting spots
+    // Extra campfires in the Beginner Forest (x:EX+, y:4300-5400)
     const forestFires: [number, number][] = [
-      [800, 2850], [1600, 3100], [2600, 2950], [3000, 2700],
+      [EX+1700, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
     ]
     for (const [fx, fy] of forestFires) {
       this.scene.add.image(fx, fy, 'campfire').setDepth(2).setOrigin(0.5, 1)
@@ -1601,9 +1691,10 @@ export class World {
     // Town campfire — warm orange glow
     this.addFireGlow(g, this.cx, this.cy - 40, 0xff5500, 130, 60, 0.045, 0.09)
 
-    // Forest campfires
+    // Forest campfires (Beginner Forest)
+    const EX = this.worldW - this.size  // 1500
     const forestFires: [number, number][] = [
-      [800, 2850], [1600, 3100], [2600, 2950], [3000, 2700],
+      [EX+1700, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
     ]
     for (const [fx, fy] of forestFires) {
       this.addFireGlow(g, fx, fy, 0xff4400, 90, 40, 0.035, 0.07)
@@ -1623,54 +1714,66 @@ export class World {
 
     // Dungeon portal glows — ominous purple
     const portalPositions: [number, number][] = [
-      [1800, 3050], [1800, 580], [750, 1800], [2850, 1800],
+      [EX+1800, 4850], [EX+1800, 2380], [EX+750, 3600], [EX+2850, 3600],
     ]
     for (const [px, py] of portalPositions) {
       this.addFireGlow(g, px, py - 20, 0x8833ff, 80, 35, 0.025, 0.05)
     }
 
-    // ── Volcanic Wastes — orange-red lava ambient glow ────────────────────────
+    // ── Volcanic Wastes (x:EX-WW, y:0-1800) — orange-red lava ambient glow ───
     const lavaG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
-    // Zone-wide orange wash
     lavaG.fillStyle(0xff3300, 0.05)
-    lavaG.fillRect(3600, 0, 1800, this.size)
-    // Lava pool and river glow
+    lavaG.fillRect(EX, 0, this.size, 1800)
     const lavaPools2: [number, number][] = [
-      [3800, 420], [4280, 640], [4760, 300], [5100, 980],
-      [3980, 1650], [4620, 1980], [5200, 1440],
-      [4100, 2500], [4700, 2900], [3850, 3200],
-      [4800, 420],  // caldera
+      [EX+300, 320], [EX+900, 520], [EX+1500, 180], [EX+2200, 640],
+      [EX+2800, 350], [EX+3200, 820], [EX+600, 1100], [EX+1800, 280],
+      [EX+2400, 1300], [EX+3400, 1100],
     ]
     for (const [lx, ly] of lavaPools2) {
       this.addFireGlow(lavaG, lx, ly, 0xff4400, 200, 90, 0.038, 0.075)
     }
-    // Caldera — big bright hotspot
-    this.addFireGlow(lavaG, 4800, 420, 0xff6600, 350, 140, 0.05, 0.10)
+    // Caldera — big bright hotspot at cx
+    this.addFireGlow(lavaG, this.cx, 280, 0xff6600, 380, 160, 0.055, 0.11)
 
-    // ── Frozen Ruins — cold blue zone ambient glow ────────────────────────────
+    // ── Frozen Ruins (x:EX-WW, y:1800-2900) — cold blue zone ambient glow ───
     const coldG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
-    // Wide zone-wide cold blue wash
     coldG.fillStyle(0x44aaff, 0.04)
-    coldG.fillRect(0, 0, this.size, 1100)
-    // Glacial lake glow points
+    coldG.fillRect(EX, 1800, this.size, 1100)
     const lakeGlows: [number, number][] = [
-      [380, 180], [1050, 420], [2080, 150], [2750, 480], [1650, 780], [3180, 250],
+      [EX+380, 1980], [EX+1050, 2220], [EX+2080, 1950], [EX+2750, 2280], [EX+1650, 2580], [EX+3180, 2050],
     ]
     for (const [lx, ly] of lakeGlows) {
       this.addFireGlow(coldG, lx, ly, 0x66ccff, 180, 80, 0.03, 0.055)
     }
-    // Ice crystal clusters — faint blue glow
-    for (const [lx, ly] of [[600, 340], [1400, 180], [2400, 600], [3000, 820], [1800, 950]]) {
+    for (const [lx, ly] of [[EX+600, 2140], [EX+1400, 1980], [EX+2400, 2400], [EX+3000, 2620], [EX+1800, 2750]]) {
       this.addFireGlow(coldG, lx, ly, 0x99ddff, 100, 45, 0.025, 0.04)
+    }
+
+    // ── Elven Wilds (x:0-1500, y:4300-5400) — teal moonlit ambient glow ─────
+    const elvenG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
+    elvenG.fillStyle(0x00ffcc, 0.025)
+    elvenG.fillRect(0, 4300, 1500, 1100)
+    // Moonwell glows — silver-teal pools of fae light
+    const moonwellGlows: [number, number][] = [
+      [200, 4450], [700, 4620], [1100, 4480], [400, 4850],
+      [950, 4950], [150, 5100], [1300, 5200], [600, 5280],
+    ]
+    for (const [mx, my] of moonwellGlows) {
+      this.addFireGlow(elvenG, mx, my, 0x44ffcc, 120, 55, 0.030, 0.055)
+    }
+    // Rune circle bright points — starlight glints
+    for (const [rx, ry] of [[350, 4540], [850, 4730], [1200, 5050], [500, 5180]]) {
+      this.addFireGlow(elvenG, rx, ry, 0xaaddff, 70, 30, 0.025, 0.04)
     }
   }
 
   private buildSnowfall() {
-    // Snowfall emitters scattered across the Frozen Ruins zone (y: 0–1100)
+    // Snowfall emitters scattered across the Frozen Ruins zone (y: 1800–2900)
     // Each emitter covers a ~600×300 patch; together they blanket the whole zone.
+    const EX = this.worldW - this.size  // 1500
     const emitterCenters: [number, number][] = [
-      [300, 300], [900, 200], [1500, 500], [1800, 150], [2100, 700],
-      [2700, 350], [3300, 200], [600, 800], [1200, 950], [3000, 750],
+      [EX+ 300, 2100], [EX+ 900, 2000], [EX+1500, 2300], [EX+1800, 1950], [EX+2100, 2500],
+      [EX+2700, 2150], [EX+3300, 2000], [EX+ 600, 2600], [EX+1200, 2750], [EX+3000, 2550],
     ]
     for (const [ex, ey] of emitterCenters) {
       this.scene.add.particles(ex, ey, 'snowflake', {
@@ -1716,6 +1819,9 @@ export class World {
       lava_rock:      [14, 8,  4],
       obsidian_spire: [6,  6, 26],   // collision at spire base
       ash_mound:      [10, 8,  6],
+      elven_tree:     [11, 8,  4],
+      moonwell:       [14, 8,  8],
+      elven_ruin:     [10, 8,  6],
     }
     const [radius, ox, oy] = bodyMap[key] ?? [13, 6, 3]
 
@@ -1741,11 +1847,12 @@ export class World {
   // ── Dungeon entrances ─────────────────────────────────────────────────────
 
   private buildDungeonEntrances() {
+    const EX = this.worldW - this.size  // 1500
     const entries: { x: number; y: number; zoneId: string; label: string; col: string }[] = [
-      { x: 1800, y: 3050, zoneId: 'Beginner Forest',  label: "Thornback's Lair",  col: '#44cc44' },
-      { x: 1800, y:  580, zoneId: 'Frozen Ruins',     label: "Frostlord's Tomb",  col: '#88ccff' },
-      { x:  750, y: 1800, zoneId: 'Corrupted Fields', label: "Corruptor's Pit",   col: '#cc4444' },
-      { x: 2850, y: 1800, zoneId: 'Arcane Caves',     label: "Warden's Sanctum",  col: '#aa44ff' },
+      { x: EX+1800, y: 4850, zoneId: 'Beginner Forest',  label: "Thornback's Lair",  col: '#44cc44' },
+      { x: EX+1800, y: 2380, zoneId: 'Frozen Ruins',     label: "Frostlord's Tomb",  col: '#88ccff' },
+      { x: EX+ 750, y: 3600, zoneId: 'Corrupted Fields', label: "Corruptor's Pit",   col: '#cc4444' },
+      { x: EX+2850, y: 3600, zoneId: 'Arcane Caves',     label: "Warden's Sanctum",  col: '#aa44ff' },
     ]
 
     for (const e of entries) {
@@ -1782,116 +1889,134 @@ export class World {
     const push = (cx: number, cy: number, radius: number, table: EnemyConfig[], maxEnemies: number) =>
       this.spawnZones.push({ cx, cy, radius, table, maxEnemies, zoneBounds: zoneBoundsFor(cx, cy) })
 
-    // ── Beginner Forest (y: 2500–3600, x: 0–3600) — danger 1 ────────────
-    // Dungeon entrance at (1800, 3050) — camps stay 400px clear of it.
-    // Entry camps — near the south border of town, first enemies player sees
+    // ── Elven Wilds (x: 0–1500, y: 4300–5400) — danger 1 ───────────────────
+    // Moonlit forest — night elves, high elves, rare Starweaver archmage.
+    // Entry camps — east edge (x≈1100–1400), player approaches from Beginner Forest
     for (const [cx, cy] of [
-      [ 450, 2580], [1100, 2560], [2200, 2570], [3100, 2590],
+      [1350, 4420], [1380, 4780], [1320, 5100],
+    ] as [number, number][]) {
+      push(cx, cy, 180, [NightbladeWarden, NightbladeWarden, MoonwatcherArcher], 2)
+    }
+    // Core camps — spread through the moonlit interior
+    for (const [cx, cy] of [
+      [ 700, 4450], [ 280, 4520], [1100, 4700],
+      [ 450, 4850], [ 900, 5050], [ 200, 5150],
+    ] as [number, number][]) {
+      push(cx, cy, 240, [NightbladeWarden, HighElfSentinel, MoonwatcherArcher, ElvenMystic], 3)
+    }
+    // Deep camps — far west, Starweaver's domain
+    for (const [cx, cy] of [
+      [ 140, 4420], [ 180, 4920], [ 120, 5260],
+    ] as [number, number][]) {
+      push(cx, cy, 280, [HighElfSentinel, ElvenMystic, ElvenMystic, NightbladeWarden, Starweaver], 4)
+    }
+
+    // ── Beginner Forest (x: 1500–5100, y: 4300–5400) — danger 1 ─────────────
+    // Dungeon entrance at (3300, 4850) — camps stay 400px clear of it.
+    // Entry camps — near the north border of forest, first enemies player sees
+    for (const [cx, cy] of [
+      [3200, 4380], [3800, 4360], [4400, 4380], [4900, 4390],
     ] as [number, number][]) {
       push(cx, cy, 160, [Slime, Slime, Spider], 2)
     }
     // Core camps — spread across mid-forest, avoiding the dungeon column
     for (const [cx, cy] of [
-      [ 280, 2860], [ 950, 2920], [2500, 2880],
-      [3300, 2840], [1350, 3120], [2900, 3140],
+      [3100, 4720], [4000, 4680], [4800, 4640],
+      [3250, 5020], [4400, 5040],
     ] as [number, number][]) {
       push(cx, cy, 240, [Slime, Spider, Bandit, Bandit], 3)
     }
-    // Deep camps — far south, clear of dungeon at (1800,3050)
-    // Alternate between pure-melee brawler camps and mixed caster camps
-    push( 550, 3340, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
-    push(1400, 3440, 250, [Bandit, DefiasCaster, Bear, Bandit, Thornback], 4)
-    push(2600, 3380, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
-    push(3250, 3320, 250, [Bandit, DefiasCaster, Bandit, Bear, Thornback], 4)
+    // Deep camps — far south, clear of dungeon at (3300, 4850)
+    push(3600, 5240, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
+    push(4100, 5180, 250, [Bandit, DefiasCaster, Bear, Bandit, Thornback], 4)
+    push(4600, 5220, 250, [Bandit, Bandit, Bear, Bear, Spider], 4)
+    push(4900, 5150, 250, [Bandit, DefiasCaster, Bandit, Bear, Thornback], 4)
 
-    // ── Frozen Ruins (y: 0–1100, x: 0–3600) — danger 2 ───────────────────
-    // Dungeon entrance at (1800, 580) — camps stay 400px clear.
-    // Entry camps — near the south border (y≈900–1060), spread west to east
-    // Two melee-only, two mixed — not every camp has a caster
-    push( 380, 1000, 280, [Ghoul, Ghoul, Brute], 3)
-    push( 950,  960, 280, [Ghoul, Ghoul, Wraith], 3)
-    push(2700,  970, 280, [Ghoul, Ghoul, Brute], 3)
-    push(3300,  990, 280, [Ghoul, Ghoul, Wraith], 3)
+    // ── Frozen Ruins (x: 1500–5100, y: 1800–2900) — danger 2 ───────────────────
+    // Dungeon entrance at (3300, 2380) — camps stay 400px clear.
+    // Entry camps — near the south border (y≈2700–2860), spread west to east
+    push(1880, 2800, 280, [Ghoul, Ghoul, Brute], 3)
+    push(2450, 2760, 280, [Ghoul, Ghoul, Wraith], 3)
+    push(4200, 2770, 280, [Ghoul, Ghoul, Brute], 3)
+    push(4800, 2790, 280, [Ghoul, Ghoul, Wraith], 3)
     // Core camps — mid-zone, flanking wide of dungeon column
-    // Alternate melee-heavy and wraith-supported camps
-    push( 260,  680, 320, [Ghoul, Ghoul, Brute, Brute], 4)
-    push( 820,  720, 320, [Ghoul, Wraith, Brute, Ghoul], 4)
-    push(2400,  700, 320, [Ghoul, Ghoul, Brute, Brute], 4)
-    push(3100,  650, 320, [Ghoul, Wraith, Wraith, Brute], 4)
-    push(1300,  900, 320, [Ghoul, Ghoul, Brute, Ghoul], 4)
-    push(2900,  860, 320, [Ghoul, Wraith, Wraith, Brute, Ghoul], 5)
-    // Deep camps — deep north (y: 40–300), Frost Warden patrols
+    push(1760, 2480, 320, [Ghoul, Ghoul, Brute, Brute], 4)
+    push(2320, 2520, 320, [Ghoul, Wraith, Brute, Ghoul], 4)
+    push(3900, 2500, 320, [Ghoul, Ghoul, Brute, Brute], 4)
+    push(4600, 2450, 320, [Ghoul, Wraith, Wraith, Brute], 4)
+    push(2800, 2700, 320, [Ghoul, Ghoul, Brute, Ghoul], 4)
+    push(4400, 2660, 320, [Ghoul, Wraith, Wraith, Brute, Ghoul], 5)
+    // Deep camps — deep north (y: 1840–2000), Frost Warden patrols
     for (const [cx, cy] of [
-      [ 500,  200], [1200,  160], [2500,  220], [3300,  180],
+      [2000, 2000], [2700, 1960], [4000, 2020], [4800, 1980],
     ] as [number, number][]) {
       push(cx, cy, 320, [Wraith, Wraith, Brute, Brute, Ghoul, FrostWarden], 6)
     }
 
-    // ── Corrupted Fields (x: 0–1500, y: 1100–2500) — danger 3 ────────────
-    // Dungeon entrance at (750, 1800) — camps stay 400px clear.
-    // Entry camps — east edge (x≈1200–1450), player enters from right
+    // ── Corrupted Fields (x: 1500–3000, y: 2900–4300) — danger 3 ───────────────
+    // Dungeon entrance at (2250, 3600) — camps stay 400px clear.
+    // Entry camps — east edge (x≈2800–3000), player enters from right
     for (const [cx, cy] of [
-      [1380, 1320], [1420, 1920], [1360, 2380],
+      [2880, 3120], [2920, 3720], [2860, 4180],
     ] as [number, number][]) {
-      push(cx, cy, 260, [Imp, Imp, Ghoul], 3)
+      push(cx, cy, 260, [Imp, Imp, CorruptedDragonkin], 3)
     }
-    // Core camps — spread north/south of dungeon, not near (750,1800)
+    // Core camps — spread north/south of dungeon, not near (2250, 3600)
     for (const [cx, cy] of [
-      [ 900, 1300], [ 350, 1440], [1100, 2180],
-      [ 400, 2350], [ 920, 2450],
+      [2400, 3100], [1850, 3240], [2600, 3980],
+      [1900, 4150], [2420, 4250],
     ] as [number, number][]) {
-      push(cx, cy, 300, [Imp, Imp, Imp, Ghoul, Brute], 5)
+      push(cx, cy, 300, [Imp, Imp, Imp, CorruptedDragonkin, Golem], 5)
     }
     // Deep camps — far west, Corrupted Mage lurks here
     for (const [cx, cy] of [
-      [ 160, 1300], [ 200, 1920], [ 140, 2380],
+      [1660, 3100], [1700, 3720], [1640, 4180],
     ] as [number, number][]) {
-      push(cx, cy, 300, [Imp, Ghoul, Brute, Brute, Imp, CorruptedMage], 6)
+      push(cx, cy, 300, [Imp, CorruptedDragonkin, Golem, Golem, Imp, CorruptedMage], 6)
     }
 
-    // ── Arcane Caves (x: 2100–3600, y: 1100–2500) — danger 4 ─────────────
-    // Dungeon entrance at (2850, 1800) — camps stay 400px clear.
-    // Entry camps — west edge (x≈2100–2400), player enters from left
-    // Mix melee and caster — not all Wraith
-    push(2180, 1320, 280, [Ghoul, Ghoul, Brute], 3)
-    push(2150, 1940, 280, [Wraith, Wraith, Ghoul], 3)
-    push(2220, 2420, 280, [Ghoul, Ghoul, Brute], 3)
-    // Core camps — north/south of dungeon and far east, not near (2850,1800)
+    // ── Arcane Caves (x: 3600–5100, y: 2900–4300) — danger 4 ────────────────
+    // Dungeon entrance at (4350, 3600) — camps stay 400px clear.
+    // Entry camps — west edge (x≈3600–3800), player enters from left
+    push(3680, 3120, 280, [ArcaneGolem, ArcaneGolem, ArcaneGolem], 3)
+    push(3650, 3740, 280, [Wraith, Wraith, ArcaneGolem], 3)
+    push(3720, 4220, 280, [ArcaneGolem, ArcaneGolem, ArcaneGolem], 3)
+    // Core camps — north/south of dungeon and far east, not near (4350, 3600)
     for (const [cx, cy] of [
-      [2650, 1280], [3200, 1480], [2700, 2380],
-      [3300, 2200], [2500, 2480],
+      [4150, 3080], [4700, 3280], [4200, 4180],
+      [4800, 4000], [4000, 4280],
     ] as [number, number][]) {
-      push(cx, cy, 300, [Wraith, Wraith, Brute, Ghoul], 4)
+      push(cx, cy, 300, [Wraith, Wraith, ArcaneGolem, ArcaneGolem], 4)
     }
     // Deep camps — far east, Arcane Lich haunts these ruins
     for (const [cx, cy] of [
-      [3450, 1320], [3500, 1900], [3480, 2380],
+      [4950, 3120], [5000, 3700], [4980, 4180],
     ] as [number, number][]) {
-      push(cx, cy, 300, [Wraith, Brute, Brute, Ghoul, Elite, ArcaneLich], 5)
+      push(cx, cy, 300, [Wraith, ArcaneGolem, ArcaneGolem, ArcaneGolem, Elite, ArcaneLich], 5)
     }
 
-    // ── Volcanic Wastes (x: 3600–5400, y: 0–3600) — danger 5 ────────────
-    // No dungeon here — spread camps freely across the large area.
-    // Approach (y: 2500–3600) — Brutes + Elites
+    // ── Volcanic Wastes (x: 1500–5100, y: 0–1800) — danger 5 ───────────────────
+    // No dungeon — camps spread freely across the wide lava plateau.
+    // Approach (y: 1400–1800) — where frozen ruins meet volcanic ash
     for (const [cx, cy] of [
-      [3750, 2680], [4300, 2820], [4900, 2720],
-      [3900, 3260], [4600, 3150], [5200, 3300],
+      [1800, 1680], [2400, 1720], [3000, 1660],
+      [3700, 1700], [4400, 1680], [4900, 1720],
     ] as [number, number][]) {
       push(cx, cy, 270, [Ghoul, Brute, Brute, Imp, Elite], 4)
     }
-    // Core (y: 1100–2500) — high Elite density; Ashen Giant roams
+    // Core (y: 600–1400) — high Elite density; Ashen Giant roams
     for (const [cx, cy] of [
-      [3780, 1420], [4350, 1680], [4900, 1460],
-      [3950, 2080], [4700, 2020], [5200, 1720],
-      [4150, 2400], [5050, 2350],
+      [1780, 1020], [2400, 1180], [3000,  960],
+      [3650, 1080], [4300, 1220], [4850, 1020],
+      [2600, 1380], [4000, 1350],
     ] as [number, number][]) {
       push(cx, cy, 300, [Elite, Elite, Brute, Wraith, Ghoul, AshenGiant], 5)
     }
-    // Summit (y: 0–1100) — maximum danger, endgame farming
+    // Summit (y: 0–600) — maximum danger, endgame farming, caldera at (3300, 280)
     for (const [cx, cy] of [
-      [3820, 880], [4280, 420], [4850, 680],
-      [5180, 260], [4100, 200], [5000, 920],
-      [4550, 980], [3950, 100],
+      [1820,  480], [2320,  220], [2800,  500],
+      [3800,  180], [4400,  420], [4880,  260],
+      [3300,  520], [2100,  100],
     ] as [number, number][]) {
       push(cx, cy, 320, [Elite, Elite, Elite, Brute, Wraith, Wraith, AshenGiant], 6)
     }

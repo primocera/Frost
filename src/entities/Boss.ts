@@ -37,7 +37,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     scene.add.existing(this)
     scene.physics.add.existing(this)
-    ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, 4, 4)
+    // Centre the collision circle within the texture, whatever its padding
+    // (the dragonkin boss uses a much larger canvas than the orb bosses).
+    const offX = (this.width  - cfg.radius * 2) / 2
+    const offY = (this.height - cfg.radius * 2) / 2
+    ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, offX, offY)
     this.setDepth(5)
 
     // World-space graphics (not tied to boss position — drawn with absolute coords)

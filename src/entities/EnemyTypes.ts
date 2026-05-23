@@ -132,6 +132,79 @@ export const Bear: EnemyConfig = {
   humanoid: true,
 }
 
+// ── Zone constructs & dragonkin ──────────────────────────────────────────────
+// Themed replacements that give the mid/late zones their own identity instead
+// of reusing the generic brown ghoul / grey brute everywhere.
+
+/** Arcane Caves bruiser — floating purple rune-construct (melee archetype). */
+export const ArcaneGolem: EnemyConfig = {
+  key: 'arcane_golem', color: 0x8844cc, radius: 17, aiType: 'melee',
+  hp: 210, speed: 104, damage: 7, xpReward: 120,
+  aggroRange: 260, attackRange: 56, attackRate: 1150,
+  wanderRadius: 100, idleTime: [1400, 3200],
+}
+
+/** Corrupted Fields skirmisher — winged red dragon-kin (melee archetype). */
+export const CorruptedDragonkin: EnemyConfig = {
+  key: 'corrupted_dragonkin', color: 0xcc3322, radius: 15, aiType: 'melee',
+  hp: 155, speed: 150, damage: 6, xpReward: 105,
+  aggroRange: 285, attackRange: 52, attackRate: 1000,
+  wanderRadius: 130, idleTime: [900, 2600],
+}
+
+/** Heavy stone construct — cracked boulder body, molten core (tank archetype). */
+export const Golem: EnemyConfig = {
+  key: 'golem', color: 0x6e685c, radius: 20, aiType: 'tank',
+  hp: 300, speed: 60, damage: 30, xpReward: 135,
+  aggroRange: 240, attackRange: 62, attackRate: 2600,
+  wanderRadius: 70, idleTime: [1500, 3500],
+  telegraphMs: 560,
+}
+
+// ── Elven Wilds enemies ─────────────────────────────────────────────────────
+// The moonlit elven forests on the western edge — night elf and high elf factions.
+// All humanoid; designed for early-game danger (roughly forest tier).
+
+/** Night elf warrior — fast aggressive melee, silver-armoured. */
+export const NightbladeWarden: EnemyConfig = {
+  key: 'nightblade_warden', color: 0x4466bb, radius: 12, aiType: 'melee',
+  hp: 95, speed: 170, damage: 4, xpReward: 78,
+  aggroRange: 290, attackRange: 48, attackRate: 920,
+  wanderRadius: 150, idleTime: [800, 2200],
+  humanoid: true,
+}
+
+/** Night elf archer — hangs back and fires silver-tipped arrows. */
+export const MoonwatcherArcher: EnemyConfig = {
+  key: 'moonwatcher_archer', color: 0x88ccaa, radius: 11, aiType: 'ranged',
+  hp: 58, speed: 100, damage: 0, xpReward: 72,
+  aggroRange: 310, attackRange: 0, attackRate: 99999,
+  wanderRadius: 140, idleTime: [600, 1800],
+  projectileDamage: 13, projectileSpeed: 240, projectileRange: 310,
+  projectileTex: 'elven_bolt',
+  humanoid: true,
+}
+
+/** High elf sentinel — stoic armoured guard, heavier hits than the warden. */
+export const HighElfSentinel: EnemyConfig = {
+  key: 'highelf_sentinel', color: 0xddcc66, radius: 13, aiType: 'melee',
+  hp: 145, speed: 118, damage: 6, xpReward: 92,
+  aggroRange: 270, attackRange: 52, attackRate: 1100,
+  wanderRadius: 120, idleTime: [1000, 2600],
+  humanoid: true,
+}
+
+/** High elf mystic — graceful caster, fires arcing arcane bolts. */
+export const ElvenMystic: EnemyConfig = {
+  key: 'elven_mystic', color: 0xaaddff, radius: 11, aiType: 'ranged',
+  hp: 52, speed: 90, damage: 0, xpReward: 68,
+  aggroRange: 300, attackRange: 0, attackRate: 99999,
+  wanderRadius: 120, idleTime: [600, 1800],
+  projectileDamage: 10, projectileSpeed: 210, projectileRange: 290,
+  projectileTex: 'elven_bolt',
+  humanoid: true,
+}
+
 // ── Rare roaming elites ─────────────────────────────────────────────────────
 
 /** Forest rare — elite bandit commander who charges and pins you. */
@@ -198,13 +271,27 @@ export const AshenGiant: EnemyConfig = {
   rare: true, lootMultiplier: 4, guaranteedDrop: true,
 }
 
+/** Elven Wilds rare — ancient starweaver archmage, fires barrages of starlight bolts. */
+export const Starweaver: EnemyConfig = {
+  key: 'starweaver', label: 'Starweaver', color: 0xddeeff, radius: 16, aiType: 'ranged',
+  hp: 380, speed: 105, damage: 0, xpReward: 360,
+  aggroRange: 380, attackRange: 0, attackRate: 99999,
+  wanderRadius: 140, idleTime: [600, 2000],
+  projectileDamage: 24, projectileSpeed: 280, projectileRange: 360,
+  projectileTex: 'elven_bolt',
+  rare: true, lootMultiplier: 3, guaranteedDrop: true,
+  humanoid: true,
+}
+
 export const ALL_RARE_ENEMIES: EnemyConfig[] = [
-  Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant,
+  Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, Starweaver,
 ]
 
 /** Every enemy config — used to pre-generate all textures at boot. */
 export const ALL_ENEMIES: EnemyConfig[] = [
   Slime, Ghoul, Imp, Brute, Wraith, Elite,
   Wolf, Spider, Bandit, Bear, DefiasCaster,
+  ArcaneGolem, CorruptedDragonkin, Golem,
+  NightbladeWarden, MoonwatcherArcher, HighElfSentinel, ElvenMystic,
   ...ALL_RARE_ENEMIES,
 ]
