@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 import { UIScaler } from './uiScale'
 import { formatCopper } from '../utils/currency'
+import type { MobileControls } from './MobileControls'
 
 const RING_R    = 16
 const RING_STEP = 56
@@ -42,6 +43,8 @@ export class HUD {
   private bossPhase  = 1
 
   private ui!: UIScaler
+  private mobile = false
+  private mc: MobileControls | null = null
 
   // W/H are screen pixels; the UIScaler container counteracts camera zoom,
   // so screen-pixel coordinates render correctly on mobile (zoom 1.6).
@@ -127,6 +130,26 @@ export class HUD {
   /** Hide the keyboard shortcut hint (replaced by mobile buttons on touch devices). */
   hideControlsHint() { this.controls.setVisible(false) }
 
+  /** Switch the HUD into mobile layout: bars above the spell grid, quest on the right. */
+  setMobile(mc: MobileControls) {
+    this.mobile = true
+    this.mc     = mc
+
+    // Bars + level/hp/mana move to the bottom-right cluster (done each frame in
+    // update()); fill the freed top-left with the remaining info labels.
+    this.goldText.setPosition(10, 10)
+    this.talentBadge.setPosition(10, 28)
+    this.aggroText.setPosition(10, 46)
+    this.playerNameText.setPosition(10, 64)
+
+    // Quest tracker → right edge, just left of the menu button column.
+    this.questText
+      .setOrigin(1, 0)
+      .setPosition(this.W - 58, 12)
+      .setAlign('right')
+      .setWordWrapWidth(150)
+  }
+
   setPlayerName(name: string) { this.playerNameText.setText(name) }
   setQuestText(text: string)  { this.questText.setText(text) }
 
@@ -190,6 +213,7 @@ export class HUD {
     // Reposition elements that depend on current screen size
     this.controls.setX(this.W - 10)
     this.bossNameText.setX(this.W / 2)
+    if (this.mobile) this.questText.setX(this.W - 58)
     for (let i = 0; i < RINGS_BASE.length; i++) {
       this.ringLabels[i].setPosition(this.RING_X0 + i * RING_STEP, this.RING_CY + RING_R + 7)
     }
@@ -211,21 +235,47 @@ export class HUD {
     }
 
     // ── Stat bars ─────────────────────────────────────────────────────────
-    this.bar(g, 10, 10, 160, 12, stats.hp   / stats.maxHp,    0xdd2222, 0x440000)
-    this.bar(g, 10, 28, 160, 12, stats.mana / effMaxMana,     0x2255ee, 0x001144)
-    this.bar(g, 10, 46, 160, 12, stats.xp   / stats.xpToNext, 0xddaa00, 0x332200)
+    // Geometry differs by platform: desktop top-left, mobile above the spell grid.
+    let hpRect, manaRect, xpRect
+    if (this.mobile && this.mc) {
+      const a = this.mc.getStatBarAnchor()
+      const h = 10, gap = 4
+      const xpY   = a.bottomY - h
+      const manaY = xpY   - gap - h
+      const hpY   = manaY - gap - h
+      hpRect   = { x: a.x, y: hpY,   w: a.w, h }
+      manaRect = { x: a.x, y: manaY, w: a.w, h }
+      xpRect   = { x: a.x, y: xpY,   w: a.w, h }
+    } else {
+      hpRect   = { x: 10, y: 10, w: 160, h: 12 }
+      manaRect = { x: 10, y: 28, w: 160, h: 12 }
+      xpRect   = { x: 10, y: 46, w: 160, h: 12 }
+    }
+
+    this.bar(g, hpRect.x,   hpRect.y,   hpRect.w,   hpRect.h,   stats.hp   / stats.maxHp,    0xdd2222, 0x440000)
+    this.bar(g, manaRect.x, manaRect.y, manaRect.w, manaRect.h, stats.mana / effMaxMana,     0x2255ee, 0x001144)
+    this.bar(g, xpRect.x,   xpRect.y,   xpRect.w,   xpRect.h,   stats.xp   / stats.xpToNext, 0xddaa00, 0x332200)
 
     // Red overlay on mana bar when OOM
     const oomAge = now - this.oomAt
     if (oomAge < 500) {
       g.fillStyle(0xff2222, 0.40 * (1 - oomAge / 500))
-      g.fillRect(10, 28, 160, 12)
+      g.fillRect(manaRect.x, manaRect.y, manaRect.w, manaRect.h)
     }
 
     this.levelLabel.setText(`Lv ${stats.level}   ${stats.xp} / ${stats.xpToNext} XP`)
     this.hpText.setText(`${stats.hp}/${stats.maxHp}`)
     this.manaText.setText(`${Math.floor(stats.mana)}/${effMaxMana}`)
     this.goldText.setText(formatCopper(player.inventory.gold))
+
+    // On mobile, the value labels follow the bars to the bottom-right cluster
+    if (this.mobile) {
+      this.levelLabel.setText(`Lv ${stats.level}`)
+      this.levelLabel.setPosition(hpRect.x, hpRect.y - 15)
+      this.hpText.setPosition(hpRect.x + hpRect.w, hpRect.y - 3)
+      this.manaText.setPosition(manaRect.x + manaRect.w, manaRect.y - 3)
+      this.oomLabel.setPosition(manaRect.x + manaRect.w, manaRect.y - 3)
+    }
 
     const pts = player.talents.points
     if (pts > 0) {

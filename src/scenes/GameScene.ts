@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
-import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant, ALL_RARE_ENEMIES } from '../entities/EnemyTypes'
+import { EnemyConfig, ALL_ENEMIES } from '../entities/EnemyTypes'
 import { Boss } from '../entities/Boss'
 import { BossConfig, ALL_BOSSES } from '../entities/BossTypes'
 import { World, SpawnZone, ZoneDef, DungeonEntrance, getZoneAt, ZONE_DEFS } from '../world/World'
@@ -35,6 +35,104 @@ import { Device } from '../config/DeviceConfig'
 const WORLD       = 3600   // world height; also sets town center at WORLD/2
 const WORLD_W     = 5400   // total world width (expanded eastward for Volcanic Wastes)
 const RESPAWN_MS  = 6000
+
+// ── Humanoid sprite styling ───────────────────────────────────────────────────
+// The player mage and all humanoid NPCs / the bandit share one 32×48 figure;
+// only the colours, headwear, beard and held item differ per character.
+interface HumanoidStyle {
+  robe:     [string, string, string]   // robe gradient: top / mid / hem
+  robeHi:   string                     // robe left-edge highlight
+  fold:     string                     // robe fold shadow lines
+  belt:     string
+  sleeve:   string
+  hand:     string                     // skin
+  head:     [string, string]           // head radial gradient
+  eye:      string
+  beard:    'long' | 'none'
+  beardCol: [string, string]
+  headwear: 'wizardhat' | 'hood' | 'bandana' | 'strawhat' | 'merchanthat'
+  hwMain:   string
+  hwDark:   string
+  item:     'staff' | 'dagger' | 'pitchfork' | 'bow' | 'none'
+  crystal:  string                     // staff crystal tint
+  glow:     boolean                    // cast/crystal glow (mage-like casters)
+  glowRgb:  string                     // glow colour as "r,g,b"
+}
+
+const MAGE_STYLE: HumanoidStyle = {
+  robe: ['#9a948a', '#7c766b', '#544f47'], robeHi: '#b3ab9d', fold: '#4a463d',
+  belt: '#6b5436', sleeve: '#857f74', hand: '#d8a878', head: ['#e8c098', '#bf8a5e'],
+  eye: '#dff0ff', beard: 'long', beardCol: ['#e4e0d6', '#b4ad9f'],
+  headwear: 'wizardhat', hwMain: '#8d887d', hwDark: '#403c34',
+  item: 'staff', crystal: '#cfe8ff', glow: true, glowRgb: '180,215,255',
+}
+
+const HUMANOID_STYLES: Record<string, HumanoidStyle> = {
+  // Elder Mirwen — venerable purple archmage (same silhouette as the player)
+  npc_elder: {
+    robe: ['#6a4faa', '#503a86', '#352560'], robeHi: '#8a6fd0', fold: '#2a1d50',
+    belt: '#d9b34a', sleeve: '#5a4496', hand: '#e8c098', head: ['#e8c098', '#bf8a5e'],
+    eye: '#dff0ff', beard: 'long', beardCol: ['#eeeeee', '#c8c4ba'],
+    headwear: 'wizardhat', hwMain: '#5a3aa6', hwDark: '#352066',
+    item: 'staff', crystal: '#cfe8ff', glow: true, glowRgb: '200,180,255',
+  },
+  // Trader Brom — merchant in a floppy hat
+  npc_merchant: {
+    robe: ['#a8823e', '#8a6a30', '#5e4720'], robeHi: '#c2a058', fold: '#4a3318',
+    belt: '#3a2a14', sleeve: '#9a7838', hand: '#e8b88a', head: ['#e8b88a', '#c08a5e'],
+    eye: '#3a2a1a', beard: 'none', beardCol: ['#776655', '#554433'],
+    headwear: 'merchanthat', hwMain: '#5a4226', hwDark: '#332010',
+    item: 'none', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Farmer Holt — straw hat + pitchfork
+  npc_farmer: {
+    robe: ['#b89a5a', '#9a8048', '#6e5832'], robeHi: '#cdb070', fold: '#5a4528',
+    belt: '#4a3820', sleeve: '#a88e50', hand: '#d8a878', head: ['#e8b88a', '#c08a5e'],
+    eye: '#3a2a1a', beard: 'none', beardCol: ['#aa9988', '#887766'],
+    headwear: 'strawhat', hwMain: '#d9b94a', hwDark: '#b8962e',
+    item: 'pitchfork', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Mage Solvara — ice mage, blue hood + frost staff
+  npc_icemage: {
+    robe: ['#7fb8e8', '#4f8fc0', '#2d5f90'], robeHi: '#bfe4ff', fold: '#1f4570',
+    belt: '#cfe8ff', sleeve: '#4f8fc0', hand: '#e8c098', head: ['#e8c098', '#bf8a5e'],
+    eye: '#dff0ff', beard: 'none', beardCol: ['#dddddd', '#bbbbbb'],
+    headwear: 'hood', hwMain: '#2d5580', hwDark: '#1a3a5a',
+    item: 'staff', crystal: '#aef0ff', glow: true, glowRgb: '170,240,255',
+  },
+  // Ranger Aldric — green hood + bow
+  npc_ranger: {
+    robe: ['#4a6a38', '#3a5a2e', '#284018'], robeHi: '#6a8a4a', fold: '#1e3014',
+    belt: '#5a3e22', sleeve: '#3a5a2e', hand: '#d8a878', head: ['#e8b88a', '#c08a5e'],
+    eye: '#2a3a1a', beard: 'none', beardCol: ['#5a4a32', '#3a2e1e'],
+    headwear: 'hood', hwMain: '#2e4a22', hwDark: '#1c3014',
+    item: 'bow', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Hermit Zethkar — grey ragged robe, beard, gnarled staff
+  npc_hermit: {
+    robe: ['#6b675e', '#55514a', '#3a382f'], robeHi: '#807c70', fold: '#2a2820',
+    belt: '#4a473f', sleeve: '#55514a', hand: '#d8b890', head: ['#d8b890', '#b08a60'],
+    eye: '#cccccc', beard: 'long', beardCol: ['#dddddd', '#b4b0a4'],
+    headwear: 'hood', hwMain: '#4a473f', hwDark: '#2e2c24',
+    item: 'staff', crystal: '#aaffbb', glow: false, glowRgb: '150,255,170',
+  },
+  // Pyromancer Ignis — red robe, dark hood, flame staff
+  npc_pyromancer: {
+    robe: ['#c44726', '#9a2e1e', '#601810'], robeHi: '#ff7a40', fold: '#3a1008',
+    belt: '#ffaa33', sleeve: '#9a2e1e', hand: '#e8b88a', head: ['#e8b88a', '#c0785e'],
+    eye: '#ff6622', beard: 'none', beardCol: ['#552222', '#331111'],
+    headwear: 'hood', hwMain: '#3a1410', hwDark: '#1e0a08',
+    item: 'staff', crystal: '#ff8833', glow: true, glowRgb: '255,150,60',
+  },
+  // Bandit (enemy) — leather tunic + red bandana + dagger
+  bandit: {
+    robe: ['#9a7850', '#7a5c3a', '#503a22'], robeHi: '#b89868', fold: '#3a2a18',
+    belt: '#3a2a18', sleeve: '#7a5c3a', hand: '#d8a878', head: ['#e8b88a', '#c08a5e'],
+    eye: '#2a1a12', beard: 'none', beardCol: ['#3a2e1e', '#2a2014'],
+    headwear: 'bandana', hwMain: '#b02828', hwDark: '#7a1818',
+    item: 'dagger', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+}
 
 export class GameScene extends Phaser.Scene {
   private player!:     Player
@@ -99,14 +197,18 @@ export class GameScene extends Phaser.Scene {
   // NPCs
   private npcQuest!:    Phaser.GameObjects.Image
   private npcMerchant!: Phaser.GameObjects.Image
+  private npcFarmer!:   Phaser.GameObjects.Image
   private npcPrompt!:   Phaser.GameObjects.Text
-  private nearNPC:      'quest' | 'merchant' | 'zone' | null = null
-  private zoneNPCs:     Array<{ sprite: Phaser.GameObjects.Image; travelZone: string }> = []
+  private nearNPC:      'quest' | 'merchant' | 'zone' | 'farmer' | null = null
+  private nearZoneNPCIdx = -1
+  private nearChicken    = false
+  private zoneNPCs:     Array<{ sprite: Phaser.GameObjects.Image; travelZone: string; name: string }> = []
+  private chickenQuestState: 'none' | 'accepted' | 'fed' | 'complete' = 'none'
   private dialogOpen    = false
   private questDialogAction = false
   // Quest system
   private questDefs:     {
-    type?:        'kill' | 'travel'
+    type?:        'kill' | 'travel' | 'interact'
     title:        string
     desc:         string
     target:       number
@@ -243,6 +345,9 @@ export class GameScene extends Phaser.Scene {
               this.shopUI.isOpen()      && this.shopUI.hide()
               this.progressionUI.toggle()
               break
+            case '?':
+              this.openHelpPanel()
+              break
           }
         },
         // Interact button — same as E key
@@ -255,6 +360,7 @@ export class GameScene extends Phaser.Scene {
           this.hud.showQuestUpdate(frost ? '❄ Frostbolt' : '🔥 Firebolt', frost ? '#88ddff' : '#ff8844')
         },
       )
+      this.hud.setMobile(this.mobileControls)
     }
 
     // ── Social systems ────────────────────────────────────────────────────
@@ -303,7 +409,7 @@ export class GameScene extends Phaser.Scene {
       if (!bolt.active) return
       const isFrost = bolt.getData('isFrost') as boolean | undefined
       if (isFrost) { spawnFrostImpact(this, bolt.x, bolt.y); destroyFrostbolt(bolt); this.sfx.onFrostboltImpact() }
-      else         { spawnImpact(this, bolt.x, bolt.y);       destroyBolt(bolt) }
+      else         { spawnImpact(this, bolt.x, bolt.y);       destroyBolt(bolt);      this.sfx.onFireboltImpact() }
     })
     // Enemies push each other apart — prevents the classic "zerg stack" problem
     this.physics.add.collider(this.enemyGroup, this.enemyGroup)
@@ -329,7 +435,8 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(50, () => { if (!this.dead) this.physics.world.resume() })
 
       this.cameras.main.shake(70, 0.004)
-      this.sfx.onFireboltImpact()
+      if (isFrost) this.sfx.onFrostboltImpact()
+      else         this.sfx.onFireboltImpact()
 
       // Permafrost: frozen enemies take bonus damage
       if (this.player.talents.permafrostEnabled && enemy.isFrozen)
@@ -338,10 +445,29 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < this.player.critChance
       if (isCrit) dmg = Math.round(dmg * this.player.talents.bonusCritMult)
 
-      const sz    = dmg >= 80 ? 28 : dmg >= 40 ? 22 : 18
-      const label = isCrit ? `CRIT! -${dmg}` : `-${dmg}`
-      const col   = isCrit ? '#ffff44' : '#ff8800'
+      const baseSz = dmg >= 80 ? 28 : dmg >= 40 ? 22 : 18
+      const sz     = isCrit ? baseSz + 6 : baseSz
+      const normCol = isFrost ? '#66ccff' : '#ff8800'
+      const label  = isCrit ? `CRIT! -${dmg}` : `-${dmg}`
+      const col    = isCrit ? '#ffff44' : normCol
       this.hud.showFloatingText(hitX, hitY - 20, label, col, sz)
+
+      // Crit punch: extra shake + golden starburst
+      if (isCrit) {
+        this.cameras.main.shake(120, 0.009)
+        const critBurst = this.add.particles(hitX, hitY, 'particle', {
+          speed:     { min: 80, max: 290 },
+          scale:     { start: 1.1, end: 0 },
+          alpha:     { start: 1, end: 0 },
+          lifespan:  380,
+          tint:      [0xffff66, 0xffffff, 0xffcc22],
+          angle:     { min: 0, max: 360 },
+          blendMode: 'ADD',
+          emitting:  false,
+        }).setDepth(10)
+        critBurst.explode(Device.particleCount(14))
+        this.time.delayedCall(450, () => { if (critBurst.active) critBurst.destroy() })
+      }
 
       // Aggro chain: enemies near the impact point get pulled into combat
       for (const nearby of this.enemies) {
@@ -647,7 +773,7 @@ export class GameScene extends Phaser.Scene {
     if (!anyUIOpen) {
       if (Phaser.Input.Keyboard.JustDown(this.fKey)) this.castActiveBolt(ptr.worldX, ptr.worldY)
       if (Phaser.Input.Keyboard.JustDown(this.qKey)) this.castArcaneExplosion()
-      if (!this.nearNPC && !this.nearStash && !this.nearDungeon && eDown) this.castFrostNova()
+      if (!this.nearNPC && !this.nearChicken && !this.nearStash && !this.nearDungeon && eDown) this.castFrostNova()
       if (Phaser.Input.Keyboard.JustDown(this.rKey)) this.castBlizzard(ptr.worldX, ptr.worldY)
     }
 
@@ -1420,12 +1546,19 @@ export class GameScene extends Phaser.Scene {
     // Enemies — distinct creature art per type.
     // Texture padded by 8px each side (size = 2r+16) so horns/auras/wisps
     // aren't clipped; Enemy.ts centres the physics circle with offset 8.
-    for (const cfg of [Slime, Ghoul, Imp, Brute, Wraith, Elite, ...ALL_RARE_ENEMIES] as EnemyConfig[]) {
+    // Humanoid enemies (e.g. bandit) use the tall figure sheet instead, built below.
+    for (const cfg of ALL_ENEMIES) {
+      if (cfg.humanoid) continue
       const size = cfg.radius * 2 + 16
       const c    = size / 2
       this.drawEnemyArt(g, cfg, c, cfg.radius)
       g.generateTexture(cfg.key, size, size)
       g.clear()
+    }
+
+    // Humanoid NPCs + enemies reuse the player figure with themed styling
+    for (const key of Object.keys(HUMANOID_STYLES)) {
+      this.buildHumanoidTexture(key, HUMANOID_STYLES[key])
     }
 
     // Boss textures — large orbs with double ring + phase-ready glint
@@ -1525,7 +1658,7 @@ export class GameScene extends Phaser.Scene {
     const ctx = ct.getContext()
 
     for (let f = 0; f < FRAMES; f++) {
-      this.drawMageFrame(ctx, f * FW, f)
+      this.drawHumanoidFrame(ctx, f * FW, f, MAGE_STYLE)
     }
     ct.refresh()
 
@@ -1535,7 +1668,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private drawMageFrame(ctx: CanvasRenderingContext2D, ox: number, frame: number) {
+  /** Single static idle-frame humanoid texture (NPCs + humanoid enemies). */
+  private buildHumanoidTexture(key: string, style: HumanoidStyle) {
+    const ct = this.textures.createCanvas(key, 32, 48)
+    if (!ct) return
+    this.drawHumanoidFrame(ct.getContext(), 0, 0, style)
+    ct.refresh()
+  }
+
+  private drawHumanoidFrame(ctx: CanvasRenderingContext2D, ox: number, frame: number, style: HumanoidStyle) {
     const FW = 32
     // Animation parameters per frame
     type Anim = { bob: number; staffRaise: number; glow: number; footSwing: number; blink: boolean }
@@ -1559,10 +1700,10 @@ export class GameScene extends Phaser.Scene {
     const cx = ox + FW / 2        // horizontal centre of this frame
     const by = a.bob               // vertical body offset
 
-    // ── Cast glow behind everything (Gandalf's white-blue light) ─────────
-    if (a.glow > 0.3) {
+    // ── Cast glow behind everything (mage-like casters only) ─────────────
+    if (style.glow && a.glow > 0.3) {
       const grad = ctx.createRadialGradient(cx, by + 30, 0, cx, by + 30, 22)
-      grad.addColorStop(0, `rgba(180,215,255,${a.glow * 0.55})`)
+      grad.addColorStop(0, `rgba(${style.glowRgb},${a.glow * 0.55})`)
       grad.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = grad
       ctx.beginPath()
@@ -1576,69 +1717,8 @@ export class GameScene extends Phaser.Scene {
     ctx.ellipse(cx, by + 47, 10, 3.5, 0, 0, Math.PI * 2)
     ctx.fill()
 
-    // ── Staff (gnarled wood, crystal near the top) ───────────────────────
-    const sx   = cx + 12
-    const tipY = by + 4 - a.staffRaise
-    const botY = by + 45
-
-    // Shaft
-    ctx.save()
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#5a3d1e'
-    ctx.lineWidth   = 3
-    ctx.beginPath()
-    ctx.moveTo(sx, tipY + 8)
-    ctx.lineTo(sx + 1, botY)
-    ctx.stroke()
-    // Wood highlight
-    ctx.strokeStyle = '#8a6838'
-    ctx.lineWidth   = 1
-    ctx.beginPath()
-    ctx.moveTo(sx - 0.5, tipY + 9)
-    ctx.lineTo(sx + 0.5, botY)
-    ctx.stroke()
-    // Gnarled claw holding the crystal
-    ctx.strokeStyle = '#4a3318'
-    ctx.lineWidth   = 2
-    ctx.beginPath()
-    ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx - 4, tipY + 5, sx - 3, tipY + 1)
-    ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx + 4, tipY + 5, sx + 3, tipY + 1)
-    ctx.stroke()
-    ctx.restore()
-
-    // Crystal glow
-    if (a.glow > 0.2) {
-      const ogr = ctx.createRadialGradient(sx, tipY + 3, 0, sx, tipY + 3, 13 * a.glow)
-      ogr.addColorStop(0, `rgba(200,230,255,${a.glow * 0.85})`)
-      ogr.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = ogr
-      ctx.beginPath()
-      ctx.arc(sx, tipY + 3, 13 * a.glow, 0, Math.PI * 2)
-      ctx.fill()
-    }
-
-    // Crystal body
-    const cgr = ctx.createRadialGradient(sx - 1, tipY + 1, 0, sx, tipY + 3, 5)
-    cgr.addColorStop(0, '#ffffff')
-    cgr.addColorStop(0.4, '#cfe8ff')
-    cgr.addColorStop(1, `rgba(80,150,220,${0.85 + a.glow * 0.15})`)
-    ctx.fillStyle = cgr
-    ctx.beginPath()
-    ctx.moveTo(sx, tipY - 2 - a.glow)
-    ctx.lineTo(sx + 3.5, tipY + 3)
-    ctx.lineTo(sx, tipY + 6 + a.glow)
-    ctx.lineTo(sx - 3.5, tipY + 3)
-    ctx.closePath()
-    ctx.fill()
-    if (a.glow > 0.5) {
-      ctx.save()
-      ctx.fillStyle   = '#ffffff'
-      ctx.shadowColor = '#cfe8ff'
-      ctx.shadowBlur  = 5
-      this.drawStar5(ctx, sx, tipY + 3, 2.5, 1)
-      ctx.fill()
-      ctx.restore()
-    }
+    // ── Held item (behind the body) ──────────────────────────────────────
+    this.drawHeldItem(ctx, cx, by, a, style)
 
     // ── Boots peeking from the robe hem ──────────────────────────────────
     const lx = cx - 6 + a.footSwing * -3
@@ -1647,11 +1727,11 @@ export class GameScene extends Phaser.Scene {
     ctx.beginPath(); ctx.ellipse(lx, by + 45, 5, 3.5, -0.08, 0, Math.PI * 2); ctx.fill()
     ctx.beginPath(); ctx.ellipse(rx, by + 45, 5, 3.5, 0.08, 0, Math.PI * 2); ctx.fill()
 
-    // ── Robe body (grey, long) ───────────────────────────────────────────
+    // ── Robe body ────────────────────────────────────────────────────────
     const robeGr = ctx.createLinearGradient(cx - 13, by + 24, cx + 13, by + 45)
-    robeGr.addColorStop(0, '#9a948a')
-    robeGr.addColorStop(0.55, '#7c766b')
-    robeGr.addColorStop(1, '#544f47')
+    robeGr.addColorStop(0, style.robe[0])
+    robeGr.addColorStop(0.55, style.robe[1])
+    robeGr.addColorStop(1, style.robe[2])
     ctx.fillStyle = robeGr
     ctx.beginPath()
     ctx.moveTo(cx - 11, by + 25)
@@ -1662,125 +1742,277 @@ export class GameScene extends Phaser.Scene {
     ctx.fill()
 
     // Robe fold shadows
-    ctx.strokeStyle = '#4a463d'
+    ctx.strokeStyle = style.fold
     ctx.lineWidth   = 1
     ctx.beginPath()
     ctx.moveTo(cx - 3, by + 30); ctx.lineTo(cx - 4, by + 45)
     ctx.moveTo(cx + 4, by + 30); ctx.lineTo(cx + 5, by + 45)
     ctx.stroke()
     // Robe left highlight
-    ctx.strokeStyle = '#b3ab9d'
+    ctx.strokeStyle = style.robeHi
     ctx.lineWidth   = 1.2
     ctx.beginPath()
     ctx.moveTo(cx - 11, by + 25)
     ctx.bezierCurveTo(cx - 15, by + 33, cx - 14, by + 42, cx - 9, by + 46)
     ctx.stroke()
 
-    // Rope belt
-    ctx.strokeStyle = '#6b5436'
+    // Belt
+    ctx.strokeStyle = style.belt
     ctx.lineWidth   = 2
     ctx.beginPath()
     ctx.moveTo(cx - 9, by + 33); ctx.quadraticCurveTo(cx, by + 35, cx + 9, by + 33)
     ctx.stroke()
 
     // ── Sleeves + hands ──────────────────────────────────────────────────
-    ctx.fillStyle = '#857f74'
+    ctx.fillStyle = style.sleeve
     ctx.beginPath(); ctx.ellipse(cx - 12, by + 31, 5, 7.5, -0.18, 0, Math.PI * 2); ctx.fill()
     ctx.beginPath(); ctx.ellipse(cx + 11, by + 31, 4.5, 7, 0.18, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = '#d8a878'
+    ctx.fillStyle = style.hand
     ctx.beginPath(); ctx.arc(cx - 13, by + 38, 3.5, 0, Math.PI * 2); ctx.fill()
-    ctx.beginPath(); ctx.arc(cx + 12, by + 36, 3.5, 0, Math.PI * 2); ctx.fill()   // grips staff
+    ctx.beginPath(); ctx.arc(cx + 12, by + 36, 3.5, 0, Math.PI * 2); ctx.fill()
 
-    // ── Head (small, will be mostly hidden by hat + beard) ───────────────
+    // ── Head ─────────────────────────────────────────────────────────────
     const headX = cx, headY = by + 19, headR = 6.5
     const headGr = ctx.createRadialGradient(headX - 1, headY - 1, 0, headX, headY, headR)
-    headGr.addColorStop(0, '#e8c098')
-    headGr.addColorStop(1, '#bf8a5e')
+    headGr.addColorStop(0, style.head[0])
+    headGr.addColorStop(1, style.head[1])
     ctx.fillStyle = headGr
     ctx.beginPath()
     ctx.arc(headX, headY, headR, 0, Math.PI * 2)
     ctx.fill()
 
-    // ── Beard (long, flowing grey — Gandalf's signature) ─────────────────
-    const beardGr = ctx.createLinearGradient(cx, by + 18, cx, by + 38)
-    beardGr.addColorStop(0, '#e4e0d6')
-    beardGr.addColorStop(1, '#b4ad9f')
-    ctx.fillStyle = beardGr
-    ctx.beginPath()
-    ctx.moveTo(cx - 6.5, by + 17)
-    ctx.quadraticCurveTo(cx - 9, by + 26, cx - 4, by + 33)   // left side flares then in
-    ctx.quadraticCurveTo(cx - 2, by + 37, cx, by + 38)        // to the point
-    ctx.quadraticCurveTo(cx + 2, by + 37, cx + 4, by + 33)
-    ctx.quadraticCurveTo(cx + 9, by + 26, cx + 6.5, by + 17)  // right side
-    ctx.quadraticCurveTo(cx, by + 21, cx - 6.5, by + 17)      // top under the nose
-    ctx.closePath()
-    ctx.fill()
-    // Beard strands
-    ctx.strokeStyle = '#9f988a'
-    ctx.lineWidth   = 0.8
-    ctx.beginPath()
-    ctx.moveTo(cx - 2, by + 22); ctx.lineTo(cx - 2.5, by + 34)
-    ctx.moveTo(cx + 2, by + 22); ctx.lineTo(cx + 2.5, by + 34)
-    ctx.stroke()
-    // Moustache
-    ctx.fillStyle = '#dedacf'
-    ctx.beginPath()
-    ctx.ellipse(cx - 3, by + 19.5, 3, 1.8, 0.3, 0, Math.PI * 2)
-    ctx.ellipse(cx + 3, by + 19.5, 3, 1.8, -0.3, 0, Math.PI * 2)
-    ctx.fill()
+    // ── Beard (optional) ─────────────────────────────────────────────────
+    if (style.beard === 'long') {
+      const beardGr = ctx.createLinearGradient(cx, by + 18, cx, by + 38)
+      beardGr.addColorStop(0, style.beardCol[0])
+      beardGr.addColorStop(1, style.beardCol[1])
+      ctx.fillStyle = beardGr
+      ctx.beginPath()
+      ctx.moveTo(cx - 6.5, by + 17)
+      ctx.quadraticCurveTo(cx - 9, by + 26, cx - 4, by + 33)
+      ctx.quadraticCurveTo(cx - 2, by + 37, cx, by + 38)
+      ctx.quadraticCurveTo(cx + 2, by + 37, cx + 4, by + 33)
+      ctx.quadraticCurveTo(cx + 9, by + 26, cx + 6.5, by + 17)
+      ctx.quadraticCurveTo(cx, by + 21, cx - 6.5, by + 17)
+      ctx.closePath()
+      ctx.fill()
+      ctx.strokeStyle = style.beardCol[1]
+      ctx.lineWidth   = 0.8
+      ctx.beginPath()
+      ctx.moveTo(cx - 2, by + 22); ctx.lineTo(cx - 2.5, by + 34)
+      ctx.moveTo(cx + 2, by + 22); ctx.lineTo(cx + 2.5, by + 34)
+      ctx.stroke()
+      ctx.fillStyle = style.beardCol[0]
+      ctx.beginPath()
+      ctx.ellipse(cx - 3, by + 19.5, 3, 1.8, 0.3, 0, Math.PI * 2)
+      ctx.ellipse(cx + 3, by + 19.5, 3, 1.8, -0.3, 0, Math.PI * 2)
+      ctx.fill()
+    }
 
-    // ── Hat brim (wide, droops at the sides; shadows the face) ───────────
-    const brimY = by + 14
-    ctx.fillStyle = '#7e796e'
-    ctx.beginPath()
-    ctx.moveTo(cx - 13, brimY)
-    ctx.quadraticCurveTo(cx, brimY + 6, cx + 13, brimY)       // drooping front edge
-    ctx.quadraticCurveTo(cx, brimY - 4, cx - 13, brimY)
-    ctx.closePath()
-    ctx.fill()
-    // Brim underside shadow over the eyes
-    ctx.fillStyle = 'rgba(20,18,14,0.55)'
-    ctx.beginPath()
-    ctx.ellipse(cx, brimY + 1.5, 8, 2.5, 0, 0, Math.PI * 2)
-    ctx.fill()
+    // ── Headwear ─────────────────────────────────────────────────────────
+    this.drawHeadwear(ctx, cx, by, style)
 
-    // ── Eye glints under the brim shadow ─────────────────────────────────
+    // ── Eyes (on top, so headwear never hides them) ──────────────────────
     if (!a.blink) {
-      ctx.fillStyle = '#dff0ff'
+      ctx.fillStyle = style.eye
       ctx.beginPath()
       ctx.arc(cx - 3, by + 16.5, 1, 0, Math.PI * 2)
       ctx.arc(cx + 3, by + 16.5, 1, 0, Math.PI * 2)
       ctx.fill()
     }
+  }
 
-    // ── Hat cone (bent tip drooping to the left) ─────────────────────────
-    const coneGr = ctx.createLinearGradient(cx - 9, by, cx + 9, brimY)
-    coneGr.addColorStop(0, '#928d82')
-    coneGr.addColorStop(1, '#625d53')
-    ctx.fillStyle = coneGr
-    ctx.beginPath()
-    ctx.moveTo(cx - 9, brimY - 1)
-    ctx.quadraticCurveTo(cx - 12, by + 6, cx - 8, by + 2)      // up the left, bulging (droop)
-    ctx.quadraticCurveTo(cx - 6, by - 1, cx - 3, by + 2)        // over the bent tip
-    ctx.quadraticCurveTo(cx + 4, by + 6, cx + 9, brimY - 1)     // down the right edge
-    ctx.closePath()
-    ctx.fill()
-    // Cone shading seam
-    ctx.strokeStyle = '#4f4a41'
-    ctx.lineWidth   = 0.8
-    ctx.beginPath()
-    ctx.moveTo(cx - 1, by + 3); ctx.quadraticCurveTo(cx + 1, by + 8, cx + 2, brimY - 1)
-    ctx.stroke()
+  /** Held item (staff / dagger / pitchfork / bow) on the figure's right side. */
+  private drawHeldItem(
+    ctx: CanvasRenderingContext2D, cx: number, by: number,
+    a: { staffRaise: number; glow: number }, style: HumanoidStyle,
+  ) {
+    if (style.item === 'none') return
+    const sx = cx + 12
 
-    // Hat band
-    ctx.fillStyle = '#403c34'
-    ctx.beginPath()
-    ctx.moveTo(cx - 8.5, brimY - 2)
-    ctx.quadraticCurveTo(cx, brimY + 1, cx + 8.5, brimY - 2)
-    ctx.lineTo(cx + 8, brimY - 5)
-    ctx.quadraticCurveTo(cx, brimY - 2, cx - 8, brimY - 5)
-    ctx.closePath()
-    ctx.fill()
+    if (style.item === 'staff') {
+      const tipY = by + 4 - a.staffRaise
+      const botY = by + 45
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = '#5a3d1e'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(sx, tipY + 8); ctx.lineTo(sx + 1, botY); ctx.stroke()
+      ctx.strokeStyle = '#8a6838'; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(sx - 0.5, tipY + 9); ctx.lineTo(sx + 0.5, botY); ctx.stroke()
+      ctx.strokeStyle = '#4a3318'; ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx - 4, tipY + 5, sx - 3, tipY + 1)
+      ctx.moveTo(sx, tipY + 8); ctx.quadraticCurveTo(sx + 4, tipY + 5, sx + 3, tipY + 1)
+      ctx.stroke()
+      ctx.restore()
+      // Crystal glow (casters)
+      if (style.glow && a.glow > 0.2) {
+        const ogr = ctx.createRadialGradient(sx, tipY + 3, 0, sx, tipY + 3, 13 * a.glow)
+        ogr.addColorStop(0, `rgba(${style.glowRgb},${a.glow * 0.85})`)
+        ogr.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = ogr
+        ctx.beginPath(); ctx.arc(sx, tipY + 3, 13 * a.glow, 0, Math.PI * 2); ctx.fill()
+      }
+      // Crystal body
+      const cgr = ctx.createRadialGradient(sx - 1, tipY + 1, 0, sx, tipY + 3, 5)
+      cgr.addColorStop(0, '#ffffff')
+      cgr.addColorStop(0.4, style.crystal)
+      cgr.addColorStop(1, `rgba(${style.glowRgb},0.9)`)
+      ctx.fillStyle = cgr
+      ctx.beginPath()
+      ctx.moveTo(sx, tipY - 2 - a.glow)
+      ctx.lineTo(sx + 3.5, tipY + 3)
+      ctx.lineTo(sx, tipY + 6 + a.glow)
+      ctx.lineTo(sx - 3.5, tipY + 3)
+      ctx.closePath()
+      ctx.fill()
+      if (style.glow && a.glow > 0.5) {
+        ctx.save()
+        ctx.fillStyle   = '#ffffff'
+        ctx.shadowColor = style.crystal
+        ctx.shadowBlur  = 5
+        this.drawStar5(ctx, sx, tipY + 3, 2.5, 1)
+        ctx.fill()
+        ctx.restore()
+      }
+      return
+    }
+
+    if (style.item === 'dagger') {
+      const hy = by + 34
+      ctx.fillStyle = '#cdd6e0'
+      ctx.beginPath()
+      ctx.moveTo(sx, hy); ctx.lineTo(sx - 2.5, hy - 2); ctx.lineTo(sx - 1.5, hy - 13)
+      ctx.lineTo(sx, hy - 15); ctx.lineTo(sx + 1.5, hy - 13); ctx.lineTo(sx + 2.5, hy - 2)
+      ctx.closePath(); ctx.fill()
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.6
+      ctx.beginPath(); ctx.moveTo(sx, hy - 2); ctx.lineTo(sx, hy - 14); ctx.stroke()
+      ctx.fillStyle = '#6a4a2a'; ctx.fillRect(sx - 3, hy, 6, 1.6)       // crossguard
+      ctx.fillStyle = '#4a3318'; ctx.fillRect(sx - 1, hy + 1.6, 2, 4)   // hilt
+      return
+    }
+
+    if (style.item === 'pitchfork') {
+      ctx.save(); ctx.lineCap = 'round'
+      ctx.strokeStyle = '#8a6838'; ctx.lineWidth = 1.8
+      ctx.beginPath(); ctx.moveTo(sx, by + 8); ctx.lineTo(sx + 1, by + 46); ctx.stroke()
+      ctx.strokeStyle = '#c0c4cc'; ctx.lineWidth = 1.3
+      ctx.beginPath()
+      ctx.moveTo(sx - 3, by + 10); ctx.lineTo(sx - 3, by + 1)
+      ctx.moveTo(sx,     by + 9);  ctx.lineTo(sx,     by)
+      ctx.moveTo(sx + 3, by + 10); ctx.lineTo(sx + 3, by + 1)
+      ctx.moveTo(sx - 3.5, by + 10); ctx.lineTo(sx + 3.5, by + 10)
+      ctx.stroke(); ctx.restore()
+      return
+    }
+
+    if (style.item === 'bow') {
+      ctx.save(); ctx.lineCap = 'round'
+      ctx.strokeStyle = '#7a5a32'; ctx.lineWidth = 1.8
+      ctx.beginPath(); ctx.arc(sx - 1, by + 30, 14, -1.2, 1.2, false); ctx.stroke()
+      ctx.strokeStyle = '#e0ddd0'; ctx.lineWidth = 0.6
+      const a1 = -1.2, a2 = 1.2
+      ctx.beginPath()
+      ctx.moveTo(sx - 1 + 14 * Math.cos(a1), by + 30 + 14 * Math.sin(a1))
+      ctx.lineTo(sx - 1 + 14 * Math.cos(a2), by + 30 + 14 * Math.sin(a2))
+      ctx.stroke(); ctx.restore()
+      return
+    }
+  }
+
+  /** Headwear drawn over the head: wizard hat / hood / bandana / straw / cap. */
+  private drawHeadwear(ctx: CanvasRenderingContext2D, cx: number, by: number, style: HumanoidStyle) {
+    const brimY = by + 14
+    switch (style.headwear) {
+      case 'wizardhat': {
+        ctx.fillStyle = style.hwMain
+        ctx.beginPath()
+        ctx.moveTo(cx - 13, brimY)
+        ctx.quadraticCurveTo(cx, brimY + 6, cx + 13, brimY)
+        ctx.quadraticCurveTo(cx, brimY - 4, cx - 13, brimY)
+        ctx.closePath(); ctx.fill()
+        const coneGr = ctx.createLinearGradient(cx - 9, by, cx + 9, brimY)
+        coneGr.addColorStop(0, style.hwMain); coneGr.addColorStop(1, style.hwDark)
+        ctx.fillStyle = coneGr
+        ctx.beginPath()
+        ctx.moveTo(cx - 9, brimY - 1)
+        ctx.quadraticCurveTo(cx - 12, by + 6, cx - 8, by + 2)
+        ctx.quadraticCurveTo(cx - 6, by - 1, cx - 3, by + 2)
+        ctx.quadraticCurveTo(cx + 4, by + 6, cx + 9, brimY - 1)
+        ctx.closePath(); ctx.fill()
+        ctx.fillStyle = style.hwDark
+        ctx.beginPath()
+        ctx.moveTo(cx - 8.5, brimY - 2)
+        ctx.quadraticCurveTo(cx, brimY + 1, cx + 8.5, brimY - 2)
+        ctx.lineTo(cx + 8, brimY - 5)
+        ctx.quadraticCurveTo(cx, brimY - 2, cx - 8, brimY - 5)
+        ctx.closePath(); ctx.fill()
+        break
+      }
+      case 'hood': {
+        ctx.fillStyle = style.hwMain
+        // Forehead dome
+        ctx.beginPath()
+        ctx.moveTo(cx - 8.5, by + 16)
+        ctx.quadraticCurveTo(cx - 10, by + 2, cx, by + 1)
+        ctx.quadraticCurveTo(cx + 10, by + 2, cx + 8.5, by + 16)
+        ctx.quadraticCurveTo(cx, by + 10, cx - 8.5, by + 16)
+        ctx.closePath(); ctx.fill()
+        // Side flaps framing the face
+        ctx.beginPath()
+        ctx.moveTo(cx - 8.5, by + 15); ctx.quadraticCurveTo(cx - 10, by + 24, cx - 5, by + 27)
+        ctx.lineTo(cx - 4, by + 22); ctx.quadraticCurveTo(cx - 7, by + 19, cx - 7, by + 15)
+        ctx.closePath(); ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(cx + 8.5, by + 15); ctx.quadraticCurveTo(cx + 10, by + 24, cx + 5, by + 27)
+        ctx.lineTo(cx + 4, by + 22); ctx.quadraticCurveTo(cx + 7, by + 19, cx + 7, by + 15)
+        ctx.closePath(); ctx.fill()
+        // Inner rim shade
+        ctx.strokeStyle = style.hwDark; ctx.lineWidth = 1.4
+        ctx.beginPath(); ctx.moveTo(cx - 7.5, by + 15); ctx.quadraticCurveTo(cx, by + 10, cx + 7.5, by + 15); ctx.stroke()
+        break
+      }
+      case 'bandana': {
+        // Skullcap above the band
+        ctx.fillStyle = style.hwDark
+        ctx.beginPath(); ctx.ellipse(cx, by + 13, 7, 5.5, 0, Math.PI, 0); ctx.fill()
+        // Band across the forehead
+        ctx.fillStyle = style.hwMain
+        ctx.beginPath()
+        ctx.moveTo(cx - 7.5, by + 15); ctx.quadraticCurveTo(cx, by + 11.5, cx + 7.5, by + 15)
+        ctx.lineTo(cx + 7.5, by + 17.5); ctx.quadraticCurveTo(cx, by + 14, cx - 7.5, by + 17.5)
+        ctx.closePath(); ctx.fill()
+        // Knot + trailing tails (left side)
+        ctx.beginPath(); ctx.arc(cx - 7.5, by + 16, 2, 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.moveTo(cx - 7, by + 16); ctx.lineTo(cx - 12, by + 19); ctx.lineTo(cx - 10, by + 21); ctx.closePath(); ctx.fill()
+        ctx.beginPath(); ctx.moveTo(cx - 7, by + 16); ctx.lineTo(cx - 11, by + 23); ctx.lineTo(cx - 9, by + 24); ctx.closePath(); ctx.fill()
+        break
+      }
+      case 'strawhat': {
+        const y = by + 13
+        ctx.fillStyle = style.hwMain
+        ctx.beginPath(); ctx.ellipse(cx, y, 13, 4.2, 0, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = style.hwDark
+        ctx.beginPath(); ctx.ellipse(cx, y - 3.5, 7, 4.5, 0, Math.PI, 0); ctx.fill()
+        ctx.fillStyle = style.hwMain
+        ctx.beginPath(); ctx.ellipse(cx, y - 2.5, 6.2, 3.5, 0, Math.PI, 0); ctx.fill()
+        break
+      }
+      case 'merchanthat': {
+        const y = by + 13
+        ctx.fillStyle = style.hwMain
+        ctx.beginPath(); ctx.ellipse(cx, y, 12, 3.6, 0, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = style.hwDark
+        ctx.beginPath()
+        ctx.moveTo(cx - 6, y); ctx.lineTo(cx - 5, by + 4)
+        ctx.quadraticCurveTo(cx, by + 2, cx + 5, by + 4); ctx.lineTo(cx + 6, y)
+        ctx.closePath(); ctx.fill()
+        // Feather
+        ctx.strokeStyle = '#cc4444'; ctx.lineWidth = 1.4; ctx.lineCap = 'round'
+        ctx.beginPath(); ctx.moveTo(cx + 5, by + 3); ctx.lineTo(cx + 9, by - 3); ctx.stroke()
+        break
+      }
+    }
   }
 
   /** Draw a 5-pointed star path (call ctx.fill() after). */
@@ -1801,23 +2033,175 @@ export class GameScene extends Phaser.Scene {
   private drawEnemyArt(g: Phaser.GameObjects.Graphics, cfg: EnemyConfig, c: number, r: number) {
     switch (cfg.key) {
       case 'slime': {
-        // Squashed green blob with glossy belly + big eyes
-        g.fillStyle(0x2f9e2f)
-        g.fillEllipse(c, c + r * 0.25, r * 2, r * 1.7)
-        g.fillStyle(0x44cc44)
-        g.fillEllipse(c, c + r * 0.1, r * 1.9, r * 1.5)
-        g.fillStyle(0x66dd66, 0.55)
-        g.fillEllipse(c - r * 0.3, c - r * 0.2, r * 0.9, r * 0.7)
+        // Translucent green jelly with a glossy dome + wobbly eyes
+        g.fillStyle(0x247a24)                              // dark base puddle
+        g.fillEllipse(c, c + r * 0.32, r * 2.05, r * 1.7)
+        g.fillStyle(0x3fbf3f)                              // body
+        g.fillEllipse(c, c + r * 0.12, r * 1.9, r * 1.55)
+        g.fillStyle(0x66dd66, 0.55)                        // inner glow
+        g.fillEllipse(c - r * 0.25, c - r * 0.15, r * 1.0, r * 0.8)
+        // Big dome highlight (gives it the gel sheen)
+        g.fillStyle(0xffffff, 0.5)
+        g.fillEllipse(c - r * 0.35, c - r * 0.5, r * 0.62, r * 0.4)
         // Eyes
         g.fillStyle(0xffffff)
-        g.fillCircle(c - r * 0.4, c - r * 0.1, r * 0.28)
-        g.fillCircle(c + r * 0.4, c - r * 0.1, r * 0.28)
+        g.fillCircle(c - r * 0.4, c, r * 0.3)
+        g.fillCircle(c + r * 0.4, c, r * 0.3)
+        g.fillStyle(0x113311)
+        g.fillCircle(c - r * 0.36, c + r * 0.05, r * 0.15)
+        g.fillCircle(c + r * 0.44, c + r * 0.05, r * 0.15)
+        // Eye glints
+        g.fillStyle(0xffffff)
+        g.fillCircle(c - r * 0.42, c - r * 0.04, r * 0.06)
+        g.fillCircle(c + r * 0.38, c - r * 0.04, r * 0.06)
+        break
+      }
+      case 'wolf': {
+        // Dire wolf — side profile facing right, hunched aggressive stance,
+        // dark fur with pale underbelly, raised hackles, snarling muzzle.
+        const by = c + r * 0.18
+        const D  = 0x4f4a45, M = 0x6e665d, L = 0x8b837a   // dark / mid / light fur
+
+        // Bushy raised tail (back-left)
+        g.fillStyle(M)
+        g.fillTriangle(c - r * 0.55, by - r * 0.15, c - r * 1.4, by - r * 1.0, c - r * 1.25, by + r * 0.05)
+        g.fillStyle(D)
+        g.fillTriangle(c - r * 0.95, by - r * 0.5, c - r * 1.4, by - r * 1.0, c - r * 1.2, by - r * 0.35)
+
+        // Legs (darker, with paws)
+        g.fillStyle(D)
+        for (const lx of [-0.8, -0.25, 0.35, 0.78]) {
+          g.fillRect(c + lx * r, by + r * 0.5, r * 0.28, r * 1.0)
+          g.fillEllipse(c + lx * r + r * 0.14, by + r * 1.5, r * 0.4, r * 0.22)  // paw
+        }
+
+        // Body (mid fur)
+        g.fillStyle(M)
+        g.fillEllipse(c, by, r * 2.05, r * 1.3)
+        // Pale underbelly
+        g.fillStyle(L, 0.55)
+        g.fillEllipse(c, by + r * 0.4, r * 1.6, r * 0.55)
+        // Raised hackles along the back (dark spikes)
+        g.fillStyle(D)
+        for (let k = -3; k <= 1; k++) {
+          const hx = c + k * r * 0.34
+          g.fillTriangle(hx - r * 0.14, by - r * 0.5, hx + r * 0.14, by - r * 0.5, hx, by - r * 0.95)
+        }
+
+        // Neck + head (lowered, hunting posture)
+        g.fillStyle(M)
+        g.fillCircle(c + r * 0.9, by - r * 0.2, r * 0.62)
+        // Muzzle
+        g.fillStyle(D)
+        g.fillTriangle(c + r * 1.15, by - r * 0.42, c + r * 1.85, by - r * 0.02, c + r * 1.15, by + r * 0.18)
+        // Nose
+        g.fillStyle(0x1a1714)
+        g.fillCircle(c + r * 1.8, by - r * 0.02, r * 0.12)
+        // Ears (pointed, alert)
+        g.fillStyle(M)
+        g.fillTriangle(c + r * 0.6, by - r * 0.7, c + r * 0.9, by - r * 0.7, c + r * 0.66, by - r * 1.35)
+        g.fillTriangle(c + r * 0.98, by - r * 0.7, c + r * 1.26, by - r * 0.7, c + r * 1.2, by - r * 1.28)
+        g.fillStyle(D)   // inner ear
+        g.fillTriangle(c + r * 0.72, by - r * 0.75, c + r * 0.86, by - r * 0.75, c + r * 0.74, by - r * 1.1)
+        // Amber glaring eye
+        g.fillStyle(0xffcc33)
+        g.fillCircle(c + r * 1.0, by - r * 0.3, r * 0.14)
         g.fillStyle(0x111111)
-        g.fillCircle(c - r * 0.36, c - r * 0.02, r * 0.14)
-        g.fillCircle(c + r * 0.44, c - r * 0.02, r * 0.14)
-        // Top gloss
-        g.fillStyle(0xffffff, 0.5)
-        g.fillCircle(c - r * 0.35, c - r * 0.55, r * 0.22)
+        g.fillCircle(c + r * 1.03, by - r * 0.3, r * 0.06)
+        // Snarl fangs
+        g.fillStyle(0xffffff)
+        g.fillTriangle(c + r * 1.3, by + r * 0.05, c + r * 1.44, by + r * 0.05, c + r * 1.37, by + r * 0.3)
+        g.fillTriangle(c + r * 1.5, by + r * 0.05, c + r * 1.62, by + r * 0.05, c + r * 1.56, by + r * 0.26)
+        break
+      }
+      case 'bear': {
+        // Hulking brown bear — front 3/4, round ears, broad shoulders, claws.
+        const D = 0x4d3520, M = 0x6b4a2e, L = 0x8a6238
+
+        // Hind/standing legs
+        g.fillStyle(D)
+        g.fillEllipse(c - r * 0.55, c + r * 0.95, r * 0.7, r * 1.0)
+        g.fillEllipse(c + r * 0.55, c + r * 0.95, r * 0.7, r * 1.0)
+        // Body (broad)
+        g.fillStyle(M)
+        g.fillEllipse(c, c + r * 0.25, r * 2.0, r * 1.95)
+        // Lighter chest
+        g.fillStyle(L, 0.5)
+        g.fillEllipse(c, c + r * 0.45, r * 1.1, r * 1.2)
+        // Shoulders hump
+        g.fillStyle(M)
+        g.fillCircle(c - r * 0.75, c - r * 0.35, r * 0.6)
+        g.fillCircle(c + r * 0.75, c - r * 0.35, r * 0.6)
+        // Front paws with claws
+        g.fillStyle(D)
+        g.fillEllipse(c - r * 0.7, c + r * 1.1, r * 0.6, r * 0.5)
+        g.fillEllipse(c + r * 0.7, c + r * 1.1, r * 0.6, r * 0.5)
+        g.fillStyle(0xe8dcc8)
+        for (const px of [-0.85, -0.65, -0.45]) {
+          g.fillTriangle(c + px * r, c + r * 1.25, c + px * r + r * 0.1, c + r * 1.25, c + (px + 0.05) * r, c + r * 1.5)
+        }
+        for (const px of [0.45, 0.65, 0.85]) {
+          g.fillTriangle(c + px * r, c + r * 1.25, c + px * r + r * 0.1, c + r * 1.25, c + (px + 0.05) * r, c + r * 1.5)
+        }
+        // Head
+        g.fillStyle(M)
+        g.fillCircle(c, c - r * 0.55, r * 0.78)
+        // Round ears
+        g.fillStyle(D)
+        g.fillCircle(c - r * 0.62, c - r * 1.1, r * 0.32)
+        g.fillCircle(c + r * 0.62, c - r * 1.1, r * 0.32)
+        g.fillStyle(M)
+        g.fillCircle(c - r * 0.62, c - r * 1.08, r * 0.18)
+        g.fillCircle(c + r * 0.62, c - r * 1.08, r * 0.18)
+        // Snout
+        g.fillStyle(L)
+        g.fillEllipse(c, c - r * 0.28, r * 0.7, r * 0.5)
+        g.fillStyle(0x1a1410)
+        g.fillEllipse(c, c - r * 0.42, r * 0.26, r * 0.18)   // nose
+        // Small angry eyes
+        g.fillStyle(0x1a1410)
+        g.fillCircle(c - r * 0.34, c - r * 0.68, r * 0.12)
+        g.fillCircle(c + r * 0.34, c - r * 0.68, r * 0.12)
+        g.fillStyle(0xffaa44, 0.9)
+        g.fillCircle(c - r * 0.32, c - r * 0.7, r * 0.05)
+        g.fillCircle(c + r * 0.36, c - r * 0.7, r * 0.05)
+        break
+      }
+      case 'spider': {
+        // Top-down spider — bulbous abdomen, 8 bent legs, red eye cluster
+        g.lineStyle(Math.max(1.5, r * 0.18), 0x261d30, 1)
+        const legSpread = [-0.95, -0.32, 0.32, 0.95]
+        for (const sign of [-1, 1]) {
+          for (const a of legSpread) {
+            const baseX = c + sign * r * 0.35
+            const baseY = c + a * r * 0.55
+            const kneeX = c + sign * r * 1.2
+            const kneeY = c + a * r * 1.05
+            const footX = c + sign * r * 1.75
+            const footY = c + a * r * 1.5
+            g.lineBetween(baseX, baseY, kneeX, kneeY)
+            g.lineBetween(kneeX, kneeY, footX, footY)
+          }
+        }
+        // Abdomen (rear)
+        g.fillStyle(0x3a2d48)
+        g.fillEllipse(c, c + r * 0.4, r * 1.55, r * 1.35)
+        // Pale marking
+        g.fillStyle(0x7a5a8c, 0.85)
+        g.fillEllipse(c, c + r * 0.45, r * 0.55, r * 0.85)
+        // Cephalothorax (front)
+        g.fillStyle(0x4a3a5c)
+        g.fillCircle(c, c - r * 0.5, r * 0.68)
+        // Red eye cluster
+        g.fillStyle(0xff3322)
+        g.fillCircle(c - r * 0.25, c - r * 0.6, r * 0.13)
+        g.fillCircle(c + r * 0.25, c - r * 0.6, r * 0.13)
+        g.fillCircle(c - r * 0.1,  c - r * 0.78, r * 0.08)
+        g.fillCircle(c + r * 0.1,  c - r * 0.78, r * 0.08)
+        // Fangs (very front)
+        g.fillStyle(0x160f1c)
+        g.fillTriangle(c - r * 0.22, c - r * 0.95, c - r * 0.04, c - r * 0.95, c - r * 0.13, c - r * 1.22)
+        g.fillTriangle(c + r * 0.22, c - r * 0.95, c + r * 0.04, c - r * 0.95, c + r * 0.13, c - r * 1.22)
         break
       }
       case 'ghoul': {
@@ -2171,9 +2555,12 @@ export class GameScene extends Phaser.Scene {
       if (this.dialogOpen) {
         ;(window as any).__frostModal?.hide()
         this.dismissDialog()
-      } else if (this.nearNPC === 'quest') this.openQuestDialog()
-      else if (this.nearNPC === 'zone') this.completeTravelQuest()
-      else this.openMerchantDialog()
+      } else if (this.nearNPC === 'quest')   this.openQuestDialog()
+      else if (this.nearNPC === 'zone')      this.openZoneNPCDialog(this.nearZoneNPCIdx)
+      else if (this.nearNPC === 'farmer')    this.openFarmerDialog()
+      else                                   this.openMerchantDialog()
+    } else if (this.nearChicken) {
+      this.feedChicken()
     } else if (this.nearStash) {
       if (this.stashUI.isOpen()) this.stashUI.hide()
       else {
@@ -2195,7 +2582,7 @@ export class GameScene extends Phaser.Scene {
     const cy = WORLD / 2
 
     // Quest NPC
-    this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_quest').setDepth(4).setOrigin(0.5, 1)
+    this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_elder').setDepth(4).setOrigin(0.5, 1)
     this.add.text(cx - 180, cy - 68, 'Elder Mirwen', {
       fontSize: '13px', fontStyle: 'bold',
       fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#cc88ff',
@@ -2219,14 +2606,14 @@ export class GameScene extends Phaser.Scene {
     }).setDepth(4).setOrigin(0.5)
 
     // Zone quest-giver NPCs — placed inside each zone, visible once unlocked
-    const zoneNPCDefs: Array<{ x: number; y: number; name: string; travelZone: string; color: number; label: string }> = [
-      { x: 1800, y: 550,  name: 'Mage Solvara',      travelZone: 'Frozen Ruins',     color: 0x88eeff, label: '! Quest' },
-      { x: 750,  y: 1800, name: 'Ranger Aldric',      travelZone: 'Corrupted Fields', color: 0xff8844, label: '! Quest' },
-      { x: 2850, y: 1800, name: 'Hermit Zethkar',     travelZone: 'Arcane Caves',     color: 0xcc88ff, label: '! Quest' },
-      { x: 3900, y: 1800, name: 'Pyromancer Ignis',   travelZone: 'Volcanic Wastes',  color: 0xff5522, label: '! Quest' },
+    const zoneNPCDefs: Array<{ x: number; y: number; name: string; travelZone: string; texture: string; label: string }> = [
+      { x: 1800, y: 550,  name: 'Mage Solvara',      travelZone: 'Frozen Ruins',     texture: 'npc_icemage',    label: '! Quest' },
+      { x: 750,  y: 1800, name: 'Ranger Aldric',      travelZone: 'Corrupted Fields', texture: 'npc_ranger',     label: '! Quest' },
+      { x: 2850, y: 1800, name: 'Hermit Zethkar',     travelZone: 'Arcane Caves',     texture: 'npc_hermit',     label: '! Quest' },
+      { x: 3900, y: 1800, name: 'Pyromancer Ignis',   travelZone: 'Volcanic Wastes',  texture: 'npc_pyromancer', label: '! Quest' },
     ]
     for (const def of zoneNPCDefs) {
-      const sprite = this.add.image(def.x, def.y, 'npc_quest').setDepth(4).setOrigin(0.5, 1).setTint(def.color)
+      const sprite = this.add.image(def.x, def.y, def.texture).setDepth(4).setOrigin(0.5, 1)
       this.add.text(def.x, def.y - 48, def.name, {
         fontSize: '13px', fontStyle: 'bold',
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffffff',
@@ -2236,7 +2623,7 @@ export class GameScene extends Phaser.Scene {
         fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
         stroke: '#000', strokeThickness: 3,
       }).setDepth(4).setOrigin(0.5)
-      this.zoneNPCs.push({ sprite, travelZone: def.travelZone })
+      this.zoneNPCs.push({ sprite, travelZone: def.travelZone, name: def.name })
     }
 
     // Direction signs
@@ -2245,6 +2632,19 @@ export class GameScene extends Phaser.Scene {
     this.add.text(cx, cy - 260, '▲  Frozen Ruins (Danger)',  sty('#88ccff')).setDepth(4).setOrigin(0.5)
     this.add.text(cx - 290, cy, '◄  Corrupted Fields',       sty('#cc4444')).setDepth(4).setOrigin(0.5)
     this.add.text(cx + 290, cy, 'Arcane Caves  ►',           sty('#aa44ff')).setDepth(4).setOrigin(0.5)
+
+    // Farmer Holt — stands at the south border of town near the forest road
+    this.npcFarmer = this.add.image(cx - 110, cy + 215, 'npc_farmer')
+      .setDepth(4).setOrigin(0.5, 1)
+    this.add.text(cx - 110, cy + 215 - 48, 'Farmer Holt', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddcc88',
+      stroke: '#000', strokeThickness: 4,
+    }).setDepth(4).setOrigin(0.5)
+    this.add.text(cx - 110, cy + 215 - 32, '! Quest', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
 
     // Proximity prompt (world-space, follows camera)
     this.npcPrompt = this.add.text(0, 0, 'Press E to talk', {
@@ -2256,39 +2656,59 @@ export class GameScene extends Phaser.Scene {
 
   private updateNPCProximity() {
     const px = this.player.x, py = this.player.y
-    const dQ = Phaser.Math.Distance.Between(px, py, this.npcQuest.x,    this.npcQuest.y)
-    const dM = Phaser.Math.Distance.Between(px, py, this.npcMerchant.x, this.npcMerchant.y)
-    // Check zone NPC proximity first (only when the matching travel quest is active)
-    const activeQ = this.questDefs[this.activeQuestIdx]
-    let nearZone = false
-    if (activeQ?.type === 'travel') {
-      for (const znpc of this.zoneNPCs) {
-        if (znpc.travelZone !== activeQ.travelZone) continue
-        const d = Phaser.Math.Distance.Between(px, py, znpc.sprite.x, znpc.sprite.y)
-        if (d < 90) {
-          this.nearNPC = 'zone'
-          this.npcPrompt.setPosition(znpc.sprite.x, znpc.sprite.y - 72).setVisible(true)
-          this.mobileControls?.showInteract('Talk')
-          nearZone = true
-          break
+
+    // Zone NPCs — always detectable, not locked to travel quest state
+    this.nearZoneNPCIdx = -1
+    for (let i = 0; i < this.zoneNPCs.length; i++) {
+      const znpc = this.zoneNPCs[i]
+      const d = Phaser.Math.Distance.Between(px, py, znpc.sprite.x, znpc.sprite.y)
+      if (d < 90) {
+        this.nearNPC = 'zone'
+        this.nearZoneNPCIdx = i
+        this.npcPrompt.setText('Press E to talk').setPosition(znpc.sprite.x, znpc.sprite.y - 72).setVisible(true)
+        this.mobileControls?.showInteract('Talk')
+        return
+      }
+    }
+
+    // Farmer Holt
+    const dF = Phaser.Math.Distance.Between(px, py, this.npcFarmer.x, this.npcFarmer.y)
+    if (dF < 90) {
+      this.nearNPC = 'farmer'
+      this.npcPrompt.setText('Press E to talk').setPosition(this.npcFarmer.x, this.npcFarmer.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
+      return
+    }
+
+    // Chicken — only when the feed quest is active
+    this.nearChicken = false
+    if (this.chickenQuestState === 'accepted') {
+      for (const c of this.world.chickenPositions) {
+        const dc = Phaser.Math.Distance.Between(px, py, c.x, c.y)
+        if (dc < 55) {
+          this.nearChicken = true
+          this.nearNPC = null
+          this.npcPrompt.setText('Press E to feed').setPosition(c.x, c.y - 28).setVisible(true)
+          this.mobileControls?.showInteract('Feed')
+          return
         }
       }
     }
 
-    if (!nearZone) {
-      if (dQ < 90) {
-        this.nearNPC = 'quest'
-        this.npcPrompt.setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
-        this.mobileControls?.showInteract('Talk')
-      } else if (dM < 90) {
-        this.nearNPC = 'merchant'
-        this.npcPrompt.setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
-        this.mobileControls?.showInteract('Talk')
-      } else {
-        this.nearNPC = null
-        if (!this.dialogOpen) this.npcPrompt.setVisible(false)
-        if (!this.nearStash && !this.nearDungeon) this.mobileControls?.hideInteract()
-      }
+    const dQ = Phaser.Math.Distance.Between(px, py, this.npcQuest.x,    this.npcQuest.y)
+    const dM = Phaser.Math.Distance.Between(px, py, this.npcMerchant.x, this.npcMerchant.y)
+    if (dQ < 90) {
+      this.nearNPC = 'quest'
+      this.npcPrompt.setText('Press E to talk').setPosition(this.npcQuest.x, this.npcQuest.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
+    } else if (dM < 90) {
+      this.nearNPC = 'merchant'
+      this.npcPrompt.setText('Press E to talk').setPosition(this.npcMerchant.x, this.npcMerchant.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
+    } else {
+      this.nearNPC = null
+      if (!this.dialogOpen) this.npcPrompt.setVisible(false)
+      if (!this.nearStash && !this.nearDungeon) this.mobileControls?.hideInteract()
     }
   }
 
@@ -2370,6 +2790,192 @@ export class GameScene extends Phaser.Scene {
     this.dialogOpen = true
   }
 
+  private openZoneNPCDialog(idx: number) {
+    if (this.dialogOpen || idx < 0) return
+    const npc   = this.zoneNPCs[idx]
+    const { name, travelZone } = npc
+    const activeQ = this.questDefs[this.activeQuestIdx]
+
+    // Travel quest for this zone — show quest offer
+    if (activeQ?.type === 'travel' && activeQ.travelZone === travelZone) {
+      const lines = [
+        `${name}:`,
+        ...(activeQ.arriveLines ?? [
+          `"You made it to ${travelZone}."`,
+          '"There is work to be done here."',
+        ]),
+        '',
+        '[E] Accept quest',
+      ]
+      this.questDialogAction = true
+      this.showDialog(lines)
+      this.dialogOpen = true
+      return
+    }
+
+    // Find zone kill quests for this NPC
+    const zoneKillQuests = this.questDefs.map((q, i) => ({ q, i })).filter(({ q }) => q.zone === travelZone)
+    const currentZoneQ   = zoneKillQuests.find(({ i }) => i === this.activeQuestIdx)
+    const travelIdx      = this.questDefs.findIndex(q => q.type === 'travel' && q.travelZone === travelZone)
+    const pastZone       = zoneKillQuests.length > 0 && zoneKillQuests.every(({ i }) => i < this.activeQuestIdx)
+    const notYetReached  = travelIdx >= 0 && this.activeQuestIdx < travelIdx
+
+    let lines: string[]
+    if (notYetReached) {
+      lines = [
+        `${name}:`,
+        '',
+        '"I don\'t know you yet, traveler."',
+        '"Come back when you have business here."',
+        '',
+        '[E] Close',
+      ]
+    } else if (currentZoneQ) {
+      const { q } = currentZoneQ
+      const left = Math.max(0, q.target - this.questKills)
+      if (this.questKills >= q.target) {
+        lines = [
+          `${name}:`,
+          '',
+          `"You've done it — ${q.title} complete!"`,
+          '"Keep pushing. There\'s more work ahead."',
+          '',
+          `Progress: ${q.target} / ${q.target} ★`,
+          '',
+          '[E] Close',
+        ]
+      } else {
+        lines = [
+          `${name}:`,
+          '',
+          `Quest: ${q.title}`,
+          q.desc,
+          '',
+          `Progress: ${this.questKills} / ${q.target}  (${left} left)`,
+          '',
+          '[E] Close',
+        ]
+      }
+    } else if (pastZone) {
+      lines = [
+        `${name}:`,
+        '',
+        '"You cleared this land. Well done."',
+        '"The next frontier awaits you."',
+        '',
+        '[E] Close',
+      ]
+    } else {
+      lines = [
+        `${name}:`,
+        '',
+        '"Dangerous times..."',
+        '"Stay sharp out there."',
+        '',
+        '[E] Close',
+      ]
+    }
+
+    this.questDialogAction = false
+    this.showDialog(lines)
+    this.dialogOpen = true
+  }
+
+  private openFarmerDialog() {
+    if (this.dialogOpen) return
+    let lines: string[]
+
+    if (this.chickenQuestState === 'none') {
+      lines = [
+        'Farmer Holt:',
+        '',
+        '"Ah — a wandering mage, heading into the wilds?"',
+        '"Before you go — my old hen Bessie hasn\'t been fed today."',
+        '"She\'s just pecking around nearby."',
+        '"Would you toss her some grain? Just press E near her."',
+        '',
+        '[E] Sure, I\'ll feed her',
+      ]
+      this.questDialogAction = true
+    } else if (this.chickenQuestState === 'accepted') {
+      lines = [
+        'Farmer Holt:',
+        '',
+        '"Bessie\'s just right there, pecking around!"',
+        '"Walk up to her and press E to give her some grain."',
+        '',
+        '[E] Close',
+      ]
+      this.questDialogAction = false
+    } else if (this.chickenQuestState === 'fed') {
+      lines = [
+        'Farmer Holt:',
+        '',
+        '"She\'s full and happy — bless you, mage!"',
+        '"Take this for your trouble. Safe travels out there."',
+        '',
+        'Reward: +60 XP  +5s',
+        '',
+        '[E] Collect reward',
+      ]
+      this.questDialogAction = true
+    } else {
+      lines = [
+        'Farmer Holt:',
+        '',
+        '"Thanks again for feeding old Bessie!"',
+        '"Come back safe from the wilds."',
+        '',
+        '[E] Close',
+      ]
+      this.questDialogAction = false
+    }
+
+    this.showDialog(lines)
+    this.dialogOpen = true
+  }
+
+  private feedChicken() {
+    if (this.chickenQuestState !== 'accepted') return
+    this.chickenQuestState = 'fed'
+    this.nearChicken = false
+    this.npcPrompt.setVisible(false)
+    this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Chicken fed!', '#ffdd44', 16)
+    this.hud.showQuestUpdate('Bessie is fed!\nReturn to Farmer Holt.', '#aadd44')
+    const burst = this.add.particles(this.player.x, this.player.y - 10, 'particle', {
+      speed: { min: 20, max: 80 }, scale: { start: 0.5, end: 0 },
+      alpha: { start: 1, end: 0 }, lifespan: 500,
+      tint: [0xffdd44, 0xffffff, 0xffcc88],
+      angle: { min: 0, max: 360 }, emitting: false,
+    }).setDepth(9)
+    burst.explode(8)
+    this.time.delayedCall(600, () => { if (burst.active) burst.destroy() })
+  }
+
+  private openHelpPanel() {
+    const frostModal = (window as any).__frostModal
+    if (!frostModal) return
+    frostModal.show({
+      title: 'Controls & Help',
+      lines: [
+        '◆ Move — WASD keys or the joystick',
+        '◆ Bolt — Left-click or the F button',
+        '◆ Swap bolt — X key or the 🔥/❄ button',
+        '◆ Arcane Explosion — Q',
+        '◆ Frost Nova — E',
+        '◆ Blizzard — R',
+        '',
+        '◆ Inventory — I',
+        '◆ Talents — T',
+        '◆ Progress — P',
+        '',
+        '◆ Interact / talk — E or the green button',
+      ],
+      buttons: [{ label: 'Got it', primary: true, onClick: () => {} }],
+      onClose: () => {},
+    })
+  }
+
   private openMerchantDialog() {
     if (this.dialogOpen || this.shopUI.isOpen()) return
     this.inventoryUI.isOpen() && this.inventoryUI.hide()
@@ -2411,6 +3017,27 @@ export class GameScene extends Phaser.Scene {
     this.npcPrompt.setVisible(false)
 
     if (!hadAction) return
+
+    // Farmer Holt chicken quest hand-in
+    if (this.nearNPC === 'farmer') {
+      if (this.chickenQuestState === 'none') {
+        this.chickenQuestState = 'accepted'
+        this.hud.showQuestUpdate('Quest accepted!\nFeed the Chicken', '#aadd44')
+      } else if (this.chickenQuestState === 'fed') {
+        this.chickenQuestState = 'complete'
+        this.player.gainXP(60)
+        this.player.inventory.gold += 500
+        this.player.inventory.notifyChange()
+        this.hud.showQuestUpdate('Quest complete!\n+60 XP  +5s', '#ffdd44')
+      }
+      return
+    }
+
+    // Zone NPC — accept travel quest and start kill quest
+    if (this.nearNPC === 'zone') {
+      this.completeTravelQuest()
+      return
+    }
 
     const q = this.questDefs[this.activeQuestIdx]
     if (this.activeQuestIdx < 0) {
@@ -2619,6 +3246,15 @@ export class GameScene extends Phaser.Scene {
     if (q.zone && getZoneAt(this.player.x, this.player.y)?.name !== q.zone) return
     this.questKills++
     this.updateQuestHUD()
+
+    // WoW-style quest progress popup above the player's head
+    const capped = Math.min(this.questKills, q.target)
+    this.hud.showFloatingText(
+      this.player.x, this.player.y - 52,
+      `${q.title}: ${capped}/${q.target}`,
+      '#ffe066', 16,
+    )
+
     if (this.questKills >= q.target) {
       if (q.autoCollect) {
         this.hud.showQuestUpdate(`Quest complete!\n${q.title}`, '#ffdd44')
@@ -2718,20 +3354,13 @@ export class GameScene extends Phaser.Scene {
     this.player.inventory.gold += q.gold
     this.player.inventory.notifyChange()
     this.hideQuestObjectiveMarker()
-    const frostModal = (window as any).__frostModal
-    if (frostModal && q.arriveLines) {
-      frostModal.show({
-        title: q.giver ?? 'Stranger',
-        lines: q.arriveLines,
-        buttons: [{ label: "Let's do it!", primary: true, onClick: () => {} }],
-        onClose: () => {},
-      })
-    }
     const next = this.activeQuestIdx + 1
     if (next < this.questDefs.length) {
       this.activeQuestIdx = next
       this.questKills = 0
       this.updateQuestHUD()
+      const nq = this.questDefs[next]
+      this.hud.showQuestUpdate(`Quest accepted!\n${nq.title}`, '#aadd44')
     }
   }
 

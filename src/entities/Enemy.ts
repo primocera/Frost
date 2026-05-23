@@ -50,8 +50,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     scene.add.existing(this)
     scene.physics.add.existing(this)
-    // Texture is padded 8px each side (size = 2r+16); centre the body circle
-    ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, 8, 8)
+    if (cfg.humanoid) {
+      // Tall 32×48 humanoid sprite (player model). Anchor feet near the body
+      // centre and place the collision circle over the torso/lower body.
+      this.setOrigin(0.5, 0.78)
+      const r = cfg.radius
+      ;(this.body as Phaser.Physics.Arcade.Body).setCircle(r, 16 - r, 34 - r)
+    } else {
+      // Texture is padded 8px each side (size = 2r+16); centre the body circle
+      ;(this.body as Phaser.Physics.Arcade.Body).setCircle(cfg.radius, 8, 8)
+    }
     this.setDepth(4)
 
     this.hpBar = scene.add.graphics().setDepth(6)
@@ -119,6 +127,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.hpBar.setPosition(this.x, this.y)
     this.nameLabel?.setPosition(this.x, this.y - this.cfg.radius - 14)
+
+    // Face the direction of travel (sprites are drawn facing right by default)
+    const vx = (this.body as Phaser.Physics.Arcade.Body).velocity.x
+    if (vx > 6)       this.setFlipX(false)
+    else if (vx < -6) this.setFlipX(true)
 
     // These states block all other logic
     if (this.telegraphing) return

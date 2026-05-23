@@ -33,6 +33,10 @@ export interface EnemyConfig {
   label?:          string  // display name shown above the enemy
   rare?:           boolean
   lootMultiplier?: number  // gold multiplier on kill
+
+  // Uses the tall 32×48 humanoid sprite (player model) instead of a square
+  // creature texture — changes the body origin + collision setup in Enemy.
+  humanoid?: boolean
 }
 
 // ── Enemy roster ───────────────────────────────────────────────────────────────
@@ -85,6 +89,44 @@ export const Elite: EnemyConfig = {
   wanderRadius: 80, idleTime: [600, 1400],
   chargeMs: 650, chargeCooldownMs: 5500, chargeMult: 3.6,
   guaranteedDrop: true,
+}
+
+// ── Starter Forest fauna ─────────────────────────────────────────────────────
+// Each reuses a core AI archetype's stats so combat feel is unchanged — only
+// the silhouette, theme colour, and size read differently.
+
+/** Fast pack hunter — closes distance quickly (melee archetype, faster). */
+export const Wolf: EnemyConfig = {
+  key: 'wolf', color: 0x9a9088, radius: 12, aiType: 'melee',
+  hp: 100, speed: 178, damage: 18, xpReward: 80,
+  aggroRange: 300, attackRange: 48, attackRate: 950,
+  wanderRadius: 160, idleTime: [800, 2200],
+}
+
+/** Skittering swarm — fragile, rushes in numbers (swarm archetype). */
+export const Spider: EnemyConfig = {
+  key: 'spider', color: 0x4a3a55, radius: 9, aiType: 'swarm',
+  hp: 34, speed: 235, damage: 9, xpReward: 34,
+  aggroRange: 280, attackRange: 22, attackRate: 820,
+  wanderRadius: 150, idleTime: [200, 800],
+}
+
+/** Outlaw bruiser — standard blade-wielding melee threat (melee archetype). */
+export const Bandit: EnemyConfig = {
+  key: 'bandit', color: 0x8a6a44, radius: 12, aiType: 'melee',
+  hp: 135, speed: 150, damage: 22, xpReward: 95,
+  aggroRange: 270, attackRange: 52, attackRate: 1000,
+  wanderRadius: 130, idleTime: [1000, 2800],
+  humanoid: true,
+}
+
+/** Forest bruiser — big, slow, telegraphed swipe (tank archetype, lighter). */
+export const Bear: EnemyConfig = {
+  key: 'bear', color: 0x6b4a2e, radius: 18, aiType: 'tank',
+  hp: 240, speed: 88, damage: 26, xpReward: 140,
+  aggroRange: 250, attackRange: 58, attackRate: 2200,
+  wanderRadius: 100, idleTime: [1400, 3200],
+  telegraphMs: 520,
 }
 
 // ── Rare roaming elites ─────────────────────────────────────────────────────
@@ -141,4 +183,11 @@ export const AshenGiant: EnemyConfig = {
 
 export const ALL_RARE_ENEMIES: EnemyConfig[] = [
   Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant,
+]
+
+/** Every enemy config — used to pre-generate all textures at boot. */
+export const ALL_ENEMIES: EnemyConfig[] = [
+  Slime, Ghoul, Imp, Brute, Wraith, Elite,
+  Wolf, Spider, Bandit, Bear,
+  ...ALL_RARE_ENEMIES,
 ]

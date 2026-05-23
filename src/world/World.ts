@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant } from '../entities/EnemyTypes'
+import { EnemyConfig, Slime, Ghoul, Imp, Brute, Wraith, Elite, Wolf, Spider, Bandit, Bear, Thornback, FrostWarden, CorruptedMage, ArcaneLich, AshenGiant } from '../entities/EnemyTypes'
 
 export interface SpawnZone {
   cx: number
@@ -78,6 +78,7 @@ export class World {
   readonly spawnZones:       SpawnZone[] = []
   readonly dungeonEntrances: DungeonEntrance[] = []
   readonly stashChestPos:    { x: number; y: number } = { x: 0, y: 0 }
+  readonly chickenPositions: { x: number; y: number }[] = []
 
   constructor(private scene: Phaser.Scene, size: number, worldW?: number) {
     this.size   = size
@@ -174,31 +175,7 @@ export class World {
     g.generateTexture('campfire', 32, 36)
     g.clear()
 
-    // ── NPC: Quest Giver ─────────────────────────────────────────────────────
-    g.fillStyle(0x5533aa)
-    g.fillEllipse(14, 20, 20, 24)          // robe
-    g.fillStyle(0xffcc88)
-    g.fillCircle(14, 9, 7)                 // face
-    g.fillStyle(0x3322aa)
-    g.fillEllipse(14, 7, 18, 10)           // hood
-    g.fillStyle(0xffd700, 0.8)
-    g.fillRect(24, 5, 3, 26)               // staff
-    g.fillCircle(25, 4, 4)
-    g.generateTexture('npc_quest', 30, 36)
-    g.clear()
-
-    // ── NPC: Merchant ────────────────────────────────────────────────────────
-    g.fillStyle(0x886622)
-    g.fillEllipse(14, 20, 20, 24)          // tunic
-    g.fillStyle(0xffcc88)
-    g.fillCircle(14, 9, 7)                 // face
-    g.fillStyle(0x553300)
-    g.fillEllipse(14, 6, 22, 8)            // hat brim
-    g.fillRect(8, 4, 12, 7)               // hat crown
-    g.fillStyle(0xffdd00, 0.7)
-    g.fillCircle(20, 22, 4)                // coin glint
-    g.generateTexture('npc_merchant', 30, 36)
-    g.clear()
+    // NPC sprites are built from the player humanoid model in GameScene.
 
     // ── Ice crystal (frozen ruins) ────────────────────────────────────────────
     g.fillStyle(0x88bbdd, 0.92)
@@ -1281,6 +1258,7 @@ export class World {
       [cx + 130, cy + 150], [cx + 180, cy + 190], [cx - 60, cy + 180],
     ]
     for (const [px, py] of chickenSpots) {
+      this.chickenPositions.push({ x: px, y: py })
       const chick = this.scene.add.image(px, py, 'chicken').setDepth(3).setOrigin(0.5, 1)
       if (Math.random() < 0.5) chick.setFlipX(true)
       // Pecking bob
@@ -1805,24 +1783,24 @@ export class World {
       this.spawnZones.push({ cx, cy, radius, table, maxEnemies, zoneBounds: zoneBoundsFor(cx, cy) })
 
     // ── Beginner Forest (y: 2500–3600) — danger 1 ────────────────────────
-    // Entry camps (y: 2520–2700) — only Slimes, tiny group, low density
+    // Entry camps (y: 2520–2700) — slimes + a skittering spider, low density
     for (const [cx, cy] of [
       [900,  2560], [1800, 2580], [2700, 2560],
     ] as [number, number][]) {
-      push(cx, cy, 160, [Slime, Slime, Slime], 2)
+      push(cx, cy, 160, [Slime, Slime, Spider], 2)
     }
-    // Core camps (y: 2750–3150) — Slimes with occasional Ghoul
+    // Core camps (y: 2750–3150) — slimes, spiders, wolves + roving bandits
     for (const [cx, cy] of [
       [500, 2900], [1200, 2850], [1800, 3050],
       [2500, 2950], [3100, 2900],
     ] as [number, number][]) {
-      push(cx, cy, 240, [Slime, Slime, Slime, Ghoul], 3)
+      push(cx, cy, 240, [Slime, Spider, Wolf, Bandit], 3)
     }
-    // Deep camps (y: 3200–3520) — heavier Ghoul mix; Thornback roams here
+    // Deep camps (y: 3200–3520) — wolf packs, bandits + a lumbering bear; Thornback roams here
     for (const [cx, cy] of [
       [800, 3300], [1800, 3420], [2900, 3280],
     ] as [number, number][]) {
-      push(cx, cy, 250, [Slime, Ghoul, Ghoul, Slime, Ghoul, Thornback], 4)
+      push(cx, cy, 250, [Wolf, Bandit, Bear, Spider, Bandit, Thornback], 4)
     }
 
     // ── Frozen Ruins (y: 0–1100) — danger 2 ───────────────────────────────

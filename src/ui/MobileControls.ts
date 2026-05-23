@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 
 const SPELL_COLORS = [0xcc44ff, 0x44aaff, 0x0088dd, 0xff8800] as const
 const SPELL_KEYS   = ['Q', 'E', 'R', 'F'] as const
-const MENU_KEYS    = ['I', 'T', 'P'] as const
+const MENU_KEYS    = ['I', 'T', 'P', '?'] as const
 const ICOL         = 0x33bb77
 
 export interface SpellCooldown { cd: number; max: number }
@@ -146,6 +146,19 @@ export class MobileControls {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   isJoystickPtr(ptrId: number): boolean { return ptrId === this.joystickPtrId }
+
+  /**
+   * Screen-pixel box just above the spell grid + swap button, where the HUD
+   * can stack the HP/mana/XP bars. All values are screen pixels (matches the
+   * HUD's zoom-corrected coordinate space).
+   */
+  getStatBarAnchor(): { x: number; w: number; bottomY: number } {
+    const L     = this.getLayout()
+    const left  = L.spells[0].cx - L.spellR        // left edge of left column
+    const right = L.spells[1].cx + L.spellR        // right edge of right column
+    const swapTop = L.swap.cy - L.swapR            // top of the bolt-swap button
+    return { x: left, w: right - left, bottomY: swapTop - 12 }
+  }
 
   /** True if a screen-pixel x is inside the joystick activation zone. */
   isJoystickZone(screenX: number): boolean {
