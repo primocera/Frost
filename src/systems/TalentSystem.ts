@@ -34,22 +34,22 @@ export class TalentSystem {
   // ── Passive stat bonuses ──────────────────────────────────────────────────
 
   /** Flat bonus added to base spell damage. */
-  get bonusSpellDamage(): number { return this.getRank('arc_power') * 10 }
+  get bonusSpellDamage(): number { return this.getRank('arc_power') * 6 }
 
   /** Additional mana/sec added to base regen. */
-  get bonusManaRegen(): number { return this.getRank('arc_regen') * 1.5 }
+  get bonusManaRegen(): number { return this.getRank('arc_regen') * 1.2 }
 
   /** Flat bonus added to movement speed. */
-  get bonusSpeed(): number { return this.getRank('frost_kite') * 8 }
+  get bonusSpeed(): number { return this.getRank('frost_kite') * 2 }
 
   /** Additional CDR fraction (stacks with gear CDR before 40% cap). */
-  get bonusCDR(): number { return this.getRank('arc_cdr') * 0.08 }
+  get bonusCDR(): number { return this.getRank('arc_cdr') * 0.06 }
 
   /** Additional crit chance fraction. */
-  get bonusCritChance(): number { return this.getRank('fire_crit') * 0.04 }
+  get bonusCritChance(): number { return this.getRank('fire_crit') * 0.03 }
 
-  /** Final crit damage multiplier (1.5 base, +0.25 per Combustion rank). */
-  get bonusCritMult(): number { return 1.5 + this.getRank('fire_crit_dmg') * 0.25 }
+  /** Final crit damage multiplier (1.5 base, +0.15 per Combustion rank). */
+  get bonusCritMult(): number { return 1.5 + this.getRank('fire_crit_dmg') * 0.15 }
 
   /** Fraction of incoming damage blocked. */
   get bonusDamageReduction(): number { return this.getRank('frost_armor') * 0.08 }
@@ -58,10 +58,10 @@ export class TalentSystem {
   get bonusFreezeMs(): number { return this.getRank('frost_nova_ext') * 500 }
 
   /** Flat bonus added to Arcane Explosion base damage. */
-  get bonusArcExDamage(): number { return this.getRank('fire_arcex') * 15 }
+  get bonusArcExDamage(): number { return this.getRank('fire_arcex') * 10 }
 
   /** Multiplier applied to all AoE radii (1.0 = no change). */
-  get bonusAoEMult(): number { return 1 + this.getRank('arc_radius') * 0.12 }
+  get bonusAoEMult(): number { return 1 + this.getRank('arc_radius') * 0.08 }
 
   /** Multiplier applied to mana costs (0.80 = 20% cheaper). */
   get bonusManaCostMult(): number { return 1 - this.getRank('arc_mana') * 0.10 }

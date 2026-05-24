@@ -30,7 +30,7 @@ export const ZONE_DEFS: readonly ZoneDef[] = [
   },
   {
     name: 'Frozen Ruins',     labelColor: '#aaddff',
-    atmosphere: 0x88ccff, atmoAlpha: 0.14,
+    atmosphere: 0x040d1e, atmoAlpha: 0.72,
     danger: 2, x: 1500, y: 1800, w: 3600, h: 1100,  // x:1500-5100
   },
   {
@@ -44,9 +44,19 @@ export const ZONE_DEFS: readonly ZoneDef[] = [
     danger: 4, x: 3600, y: 2900, w: 1500, h: 1400,  // x:3600-5100
   },
   {
+    name: 'Mount Hyjal',      labelColor: '#44ff88',
+    atmosphere: 0x010d04, atmoAlpha: 0.20,
+    danger: 4, x: 0, y: 0,    w: 1500, h: 2900,  // left column, top — ancient World Tree
+  },
+  {
+    name: 'Hillsbrad Foothills', labelColor: '#aacc55',
+    atmosphere: 0x080e00, atmoAlpha: 0.06,
+    danger: 3, x: 0, y: 2900, w: 1500, h: 1400,  // left column — pastoral farmland
+  },
+  {
     name: 'Elven Wilds',      labelColor: '#88ffcc',
     atmosphere: 0x001a14, atmoAlpha: 0.10,
-    danger: 1, x: 0,    y: 4300, w: 1500, h: 1100,  // NEW — moonlit elven forest (left)
+    danger: 1, x: 0,    y: 4300, w: 1500, h: 1100,  // moonlit elven forest (left bottom)
   },
   {
     name: 'Beginner Forest',  labelColor: '#44cc44',
@@ -86,12 +96,12 @@ export class World {
   readonly stashChestPos:    { x: number; y: number } = { x: 0, y: 0 }
   readonly chickenPositions: { x: number; y: number }[] = []
 
-  constructor(private scene: Phaser.Scene, size: number, worldW?: number, worldH?: number) {
+  constructor(private scene: Phaser.Scene, size: number, worldW?: number, worldH?: number, cityH?: number) {
     this.size   = size
     this.worldW = worldW ?? size
     this.worldH = worldH ?? size
-    this.cx     = this.worldW - size / 2         // 3300 — town center (1800px from right of base world)
-    this.cy     = this.worldH - size / 2         // 3600 — town center (size/2 from bottom)
+    this.cx     = this.worldW - size / 2                        // 3300 — main city center x
+    this.cy     = (cityH ?? this.worldH) - size / 2            // 3600 — main city center y (uses cityH so cy stays fixed when worldH grows)
     this.obstacles = scene.physics.add.staticGroup()
 
     this.buildTextures()
@@ -99,6 +109,7 @@ export class World {
     this.buildDecor()
     this.buildZoneArchitecture()
     this.buildTown()
+    this.buildStarterVillage()
     this.buildForest()
     this.buildCamps()
     this.buildBoundary()
@@ -116,22 +127,20 @@ export class World {
     const g = this.scene.add.graphics()
 
     // ── Terrain tiles ─────────────────────────────────────────────────────────
-    const tile = (key: string, base: number, line: number) => {
+    const tile = (key: string, base: number) => {
       g.fillStyle(base)
       g.fillRect(0, 0, 64, 64)
-      g.lineStyle(1, line, 0.4)
-      g.strokeRect(0, 0, 64, 64)
       g.generateTexture(key, 64, 64)
       g.clear()
     }
 
-    tile('t_plains',  0x1e3a1e, 0x243f24)   // neutral green
-    tile('t_forest',  0x112211, 0x172817)   // beginner forest — dark green
-    tile('t_frozen',  0x7aa8c0, 0x8abcd0)   // frozen ruins — pale glacial ice
-    tile('t_snow',    0xc8dce8, 0xd4e6f2)   // snow patches — near-white blue
-    tile('t_corrupt', 0x1c0c0c, 0x271414)   // corrupted fields — dark blood-red
-    tile('t_arcane',  0x0e0618, 0x150820)   // arcane caves — deep void purple
-    tile('t_elven',   0x081a14, 0x0c2218)   // elven wilds — deep moonlit blue-green
+    tile('t_plains',  0x1e3a1e)   // neutral green
+    tile('t_forest',  0x112211)   // beginner forest — dark green
+    tile('t_frozen',  0x06101e)   // frozen ruins — deep navy
+    tile('t_snow',    0x0a1f38)   // snow patches — mid navy blue
+    tile('t_corrupt', 0x1c0c0c)   // corrupted fields — dark blood-red
+    tile('t_arcane',  0x0e0618)   // arcane caves — deep void purple
+    tile('t_elven',   0x081a14)   // elven wilds — deep moonlit blue-green
 
     // ── Tree (beginner forest) ────────────────────────────────────────────────
     g.fillStyle(0x1e5c1e)
@@ -547,8 +556,8 @@ export class World {
     g.clear()
 
     // ── Volcanic ground ───────────────────────────────────────────────────────
-    tile('t_volcanic', 0x1e0806, 0x2a0c06)   // dark scorched rock
-    tile('t_lava',     0x7a1e00, 0x992800)   // molten lava tile
+    tile('t_volcanic', 0x1e0806)   // dark scorched rock
+    tile('t_lava',     0x7a1e00)   // molten lava tile
 
     // ── Volcanic rock — cracked obsidian boulder ──────────────────────────────
     g.fillStyle(0x120808)
@@ -604,6 +613,41 @@ export class World {
     g.generateTexture('dungeon_portal', 40, 48)
     g.clear()
 
+    // ── New zone terrain tiles ────────────────────────────────────────────────
+    tile('t_hillsbrad', 0x243e10)  // hillsbrad — warm sunny farmland green
+    tile('t_hyjal',     0x061a0c)  // mount hyjal — deep ancient forest
+
+    // ── Hillsbrad tree (warm deciduous — fuller, brighter than beginner forest) ─
+    g.fillStyle(0x2e6e1e)
+    g.fillCircle(19, 18, 17)               // main canopy
+    g.fillStyle(0x4a9a28, 0.70)
+    g.fillCircle(12, 13, 10)               // side cluster
+    g.fillStyle(0x72c83a, 0.45)            // bright sunlit tips
+    g.fillCircle(24, 11, 7)
+    g.fillStyle(0x8ed450, 0.28)            // highlight
+    g.fillCircle(20, 8, 4)
+    g.fillStyle(0x6b4a2e)                  // brown bark trunk
+    g.fillRect(15, 30, 8, 18)
+    g.generateTexture('hillsbrad_tree', 38, 48)
+    g.clear()
+
+    // ── Hyjal ancient oak (massive, gnarled, night elf sacred grove tree) ────
+    g.fillStyle(0x143820)
+    g.fillCircle(19, 17, 17)               // deep canopy
+    g.fillStyle(0x1e5228, 0.80)
+    g.fillCircle(13, 12, 11)
+    g.fillStyle(0x2a7040, 0.55)            // moonlit inner leaves
+    g.fillCircle(22, 10, 8)
+    g.fillStyle(0x44ff88, 0.12)            // faint life-energy glow
+    g.fillCircle(19, 8, 6)
+    g.fillStyle(0x2a1a0c)                  // ancient gnarled bark
+    g.fillRect(15, 29, 8, 19)
+    g.fillStyle(0x1e1206, 0.5)
+    g.fillRect(13, 34, 3, 14)              // exposed root
+    g.fillRect(24, 36, 3, 12)
+    g.generateTexture('hyjal_tree', 38, 48)
+    g.clear()
+
     g.destroy()
   }
 
@@ -657,6 +701,37 @@ export class World {
     // Transition softeners between Elven Wilds and Beginner Forest (x ≈ EX)
     add(EX - 40, 4300, 80, 1100, 't_forest', 0.07)
     add(EX - 100, 4300, 80, 1100, 't_elven',  0.06)
+
+    // ── Hillsbrad Foothills (y: 2900–4300, x: 0–EX) ─────────────────────────
+    add(0,   2900, EX,  1400, 't_hillsbrad', 0.10)
+    add(80,  3000, 460, 340,  't_plains',    0.06)  // open farmland clearing
+    add(650, 3500, 480, 380,  't_plains',    0.06)  // second farm clearing
+    add(180, 4000, 420, 260,  't_hillsbrad', 0.08)
+
+    // ── Mount Hyjal (y: 0–2900, x: 0–EX) ────────────────────────────────────
+    add(0, 0, EX, 2900, 't_hyjal', 0.10)
+    // Sunlit clearings near the World Tree (summit)
+    add(550, 200,  500, 600, 't_hyjal',  0.08)
+    add(100, 100,  400, 400, 't_hyjal',  0.07)
+    // Firelands corruption bleeding in from south border (near y:2900)
+    add(200, 2500, 700, 400,  't_volcanic', 0.05)
+    add(800, 2600, 600, 300,  't_corrupt',  0.04)
+
+    // Transition softener between Hillsbrad and Hyjal (y ≈ 2900)
+    add(0, 2860, EX, 80, 't_hillsbrad', 0.05)
+    // Transition softener between Hillsbrad and Elven Wilds (y ≈ 4300)
+    add(0, 4260, EX, 80, 't_elven',     0.06)
+    // Transition softeners at x=EX boundary
+    add(EX - 40, 2900, 80, 1400, 't_hillsbrad', 0.07)
+    add(EX - 40, 0,    80, 2900, 't_hyjal',     0.07)
+
+    // ── Starter Village strip (y: 5400–worldH) — open grassy plains ──────────
+    if (WH > 5400) {
+      add(0, 5400, WW, WH - 5400, 't_plains', 0.1)
+      // Soft transition from Beginner Forest above
+      add(0, 5360, WW, 80, 't_forest', 0.05)
+      add(0, 5400, WW, 60, 't_plains', 0.08)
+    }
   }
 
   // ── Decorative details (no physics) ───────────────────────────────────────
@@ -805,6 +880,123 @@ export class World {
       g.fillEllipse(x, y, r * 3, r)
     }
 
+    // ── Hillsbrad Foothills — farm fields, stone walls, crop rows ────────────
+    // Field patches (light warm green, crop stripes)
+    g.fillStyle(0x3a5820, 0.35)
+    for (const [fx, fy, fw, fh] of [
+      [80, 2960, 280, 180], [420, 3080, 320, 200], [820, 2980, 260, 160],
+      [1100, 3100, 300, 180], [180, 3600, 340, 220], [680, 3700, 280, 200],
+      [1050, 3650, 320, 180], [300, 4050, 260, 160], [800, 4100, 300, 180],
+    ] as [number, number, number, number][]) g.fillRect(fx, fy, fw, fh)
+    // Crop row lines on farm fields
+    g.lineStyle(1, 0x4a7028, 0.45)
+    for (const [fx, fy, fw, fh] of [
+      [80, 2960, 280, 180], [420, 3080, 320, 200], [820, 2980, 260, 160],
+    ] as [number, number, number, number][]) {
+      for (let row = fy + 16; row < fy + fh; row += 18) g.lineBetween(fx, row, fx + fw, row)
+    }
+    // Stone wall lines (Hillsbrad farmsteads have stone fences)
+    g.lineStyle(3, 0x8a7a6a, 0.55)
+    for (const [x1, y1, x2, y2] of [
+      [360, 2960, 360, 3280], [700, 3080, 700, 3300], [80, 3140, 700, 3140],
+      [820, 3140, 1120, 3140], [380, 3600, 380, 3900], [720, 3700, 720, 3900],
+      [180, 3820, 720, 3820],  [1050, 3650, 1050, 3830], [1050, 3830, 1350, 3830],
+    ] as [number, number, number, number][]) g.lineBetween(x1, y1, x2, y2)
+    // Dirt paths between farms
+    g.fillStyle(0x6e5838, 0.28)
+    g.fillRect(680, 2900, 28, 1400)        // main north-south road
+    g.fillRect(0,   3280, 1500, 24)        // east-west farm road
+    g.fillRect(0,   3900, 1500, 20)        // lower road
+    // Pond (Hillsbrad has a lake near Southshore)
+    g.fillStyle(0x1a3a5c, 0.65)
+    g.fillEllipse(260, 3480, 160, 80)
+    g.fillStyle(0x2a5a8c, 0.45)
+    g.fillEllipse(260, 3480, 100, 50)
+    g.fillStyle(0x66aacc, 0.30)
+    g.fillEllipse(250, 3475, 55, 26)
+
+    // ── Mount Hyjal — ancient forest glades, roots, druidic circles ───────────
+    // Forest glade clearings (moonlit)
+    g.fillStyle(0x0e3020, 0.38)
+    for (let i = 0; i < 22; i++) {
+      const x = Phaser.Math.FloatBetween(60, 1440)
+      const y = Phaser.Math.FloatBetween(60, 2840)
+      g.fillCircle(x, y, Phaser.Math.Between(18, 55))
+    }
+    // Ancient druidic stone circles
+    g.lineStyle(2, 0x2a5a3a, 0.50)
+    for (const [cx2, cy2, r] of [
+      [740, 1450, 90], [280, 800, 70], [1150, 1200, 80],
+      [480, 2100, 75], [1050, 600, 65], [200, 1700, 85],
+    ] as [number, number, number][]) {
+      g.strokeCircle(cx2, cy2, r)
+      // Spoke lines (ley lines)
+      for (let j = 0; j < 4; j++) {
+        const a = (j / 4) * Math.PI * 2
+        g.lineBetween(cx2, cy2, cx2 + Math.cos(a) * r, cy2 + Math.sin(a) * r)
+      }
+    }
+    // Ancient roots spreading from World Tree base (center summit)
+    g.lineStyle(6, 0x1e1206, 0.55)
+    g.lineBetween(750, 480, 480, 720); g.lineBetween(480, 720, 320, 900)
+    g.lineBetween(750, 480, 1020, 700); g.lineBetween(1020, 700, 1180, 920)
+    g.lineBetween(750, 480, 740, 820); g.lineBetween(740, 820, 700, 1100)
+    g.lineStyle(4, 0x1e1206, 0.35)
+    g.lineBetween(320, 900, 120, 1100); g.lineBetween(1180, 920, 1380, 1150)
+    // Firelands lava cracks (south Hyjal, near y:2900)
+    g.lineStyle(2, 0xff4400, 0.35)
+    for (const [x1, y1, x2, y2] of [
+      [180, 2520, 380, 2640], [600, 2580, 820, 2700],
+      [980, 2550, 1200, 2670], [300, 2700, 520, 2820],
+      [750, 2720, 1050, 2840], [1250, 2620, 1430, 2780],
+    ] as [number, number, number, number][]) g.lineBetween(x1, y1, x2, y2)
+    g.fillStyle(0xff2200, 0.12)
+    for (const [lx, ly, lw, lh] of [
+      [120, 2480, 400, 180], [620, 2540, 380, 200], [1050, 2500, 420, 220],
+    ] as [number, number, number, number][]) g.fillEllipse(lx + lw / 2, ly + lh / 2, lw, lh)
+
+    // ── Nordrassil World Tree (visual centrepiece, summit of Hyjal) ───────────
+    const wtG = this.scene.add.graphics().setDepth(1.5)
+    const WTX = 750, WTY = 480   // trunk base at the summit clearing
+    // Massive root flare
+    wtG.fillStyle(0x1e1206, 0.80)
+    for (let ang = 0; ang < Math.PI * 2; ang += Math.PI / 5) {
+      const rx = WTX + Math.cos(ang) * 90
+      const ry = WTY + Math.sin(ang) * 50
+      wtG.fillEllipse((WTX + rx) / 2, (WTY + ry) / 2, 40, 20)
+    }
+    // Trunk
+    wtG.fillStyle(0x1a1008)
+    wtG.fillRect(WTX - 36, WTY - 440, 72, 450)
+    wtG.fillStyle(0x2a1a0c, 0.7)
+    wtG.fillRect(WTX - 36, WTY - 440, 18, 450)
+    wtG.fillStyle(0x3a2614, 0.35)
+    wtG.fillRect(WTX + 18, WTY - 440, 18, 450)
+    // Bark lines
+    wtG.lineStyle(1, 0x0e0a04, 0.40)
+    for (let ty = WTY - 420; ty < WTY; ty += 55) wtG.lineBetween(WTX - 36, ty, WTX + 36, ty)
+    // Lower canopy layers
+    wtG.fillStyle(0x0a2a14, 0.92)
+    wtG.fillCircle(WTX, WTY - 420, 220)
+    wtG.fillStyle(0x0e3a1c, 0.85)
+    wtG.fillCircle(WTX - 80, WTY - 380, 150)
+    wtG.fillCircle(WTX + 100, WTY - 360, 165)
+    // Upper canopy
+    wtG.fillStyle(0x123e20, 0.88)
+    wtG.fillCircle(WTX, WTY - 520, 180)
+    wtG.fillStyle(0x1a5a2c, 0.75)
+    wtG.fillCircle(WTX - 60, WTY - 500, 120)
+    wtG.fillCircle(WTX + 70, WTY - 490, 130)
+    // Life energy crown (Well of Eternity aura)
+    wtG.fillStyle(0x44ff88, 0.10)
+    wtG.fillCircle(WTX, WTY - 580, 180)
+    wtG.fillStyle(0x88ffcc, 0.06)
+    wtG.fillCircle(WTX, WTY - 620, 220)
+    // Golden leaf tips
+    wtG.fillStyle(0xaaffaa, 0.12)
+    wtG.fillCircle(WTX - 30, WTY - 560, 80)
+    wtG.fillCircle(WTX + 50, WTY - 550, 70)
+
     // ── Corrupted Fields — dark pools and corruption veins ────────────────────
     g.lineStyle(2, 0x440000, 0.6)
     for (let i = 0; i < 22; i++) {
@@ -928,11 +1120,11 @@ export class World {
       fontSize: '14px', fontFamily: 'system-ui', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }
-    this.scene.add.text(cx, 2882, '🔒 Frozen Ruins', lockStyle)
+    this.scene.add.text(cx, 2882, 'Frozen Ruins', lockStyle)
       .setOrigin(0.5, 1).setDepth(3.7)
-    this.scene.add.text(corrGX - 3, cy, '🔒', lockStyle)
+    this.scene.add.text(corrGX - 3, cy, 'Corrupted Fields', { ...lockStyle, color: '#cc4444' })
       .setOrigin(1, 0.5).setDepth(3.7)
-    this.scene.add.text(arcGX + 3, cy, '🔒', lockStyle)
+    this.scene.add.text(arcGX + 3, cy, 'Arcane Caves', { ...lockStyle, color: '#aa44ff' })
       .setOrigin(0, 0.5).setDepth(3.7)
 
     // Volcanic Wastes gate — seal at the y=1800 border (top of Frozen Ruins)
@@ -947,14 +1139,14 @@ export class World {
       gateG.fillTriangle(cx + dx, 1795, cx + dx - 5, 1802, cx + dx + 5, 1802)
       gateG.fillTriangle(cx + dx, 1809, cx + dx - 5, 1802, cx + dx + 5, 1802)
     }
-    this.scene.add.text(cx, 1783, '🔒 Volcanic Wastes', lockStyle).setOrigin(0.5, 1).setDepth(3.7)
+    this.scene.add.text(cx, 1783, 'Volcanic Wastes', lockStyle).setOrigin(0.5, 1).setDepth(3.7)
 
     // ── Zone transition softeners (blend strips at zone edges) ────────────────
     // Volcanic/Frozen border (y ~1780–1820) — only over non-elven zone
     g.fillStyle(0x3a0a00, 0.12)
     g.fillRect(EX, 1750, S, 80)
     // Frozen/central gradient (y ~2880–2920)
-    g.fillStyle(0x88ccff, 0.06)
+    g.fillStyle(0x040d1e, 0.10)
     g.fillRect(EX, 2860, S, 80)
     // Central/Forest gradient (y ~4280–4320)
     g.fillStyle(0x002200, 0.07)
@@ -1052,11 +1244,6 @@ export class World {
     g.lineStyle(8, 0x1a0500, 0.85); g.strokeEllipse(cx, 280, 500, 260)
     g.lineStyle(3, 0xff4400, 0.20); g.strokeEllipse(cx, 280, 490, 255)
 
-    // Sign in Frozen Ruins pointing north
-    this.scene.add.text(cx, 2830, '▲ Volcanic Wastes  ☠ Extreme Danger', {
-      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-      color: '#ff6622', stroke: '#000', strokeThickness: 4,
-    }).setDepth(4).setOrigin(0.5)
 
     // ── Improved Beginner Forest — landmarks and clearings ────────────────────
     // Ancient stone shrine clearing
@@ -1180,6 +1367,36 @@ export class World {
       scorchG.fillRect(EX, volcCliffY - 140 + byOff, size, 30)
     }
 
+    // ── Left-column east wall cliff at x=EX (border of Mount Hyjal / Hillsbrad)
+    g.fillStyle(0x0e0c08, 0.95)
+    g.fillRect(EX - 18, 0, 36, 4300)       // main cliff face strip
+    g.fillStyle(0x1c1a14, 0.80)
+    g.fillRect(EX - 10, 0, 20, 4300)
+    // Jagged cliff teeth (west-facing)
+    g.fillStyle(0x0a0806, 1.0)
+    for (let cy2 = 40; cy2 < 4260; cy2 += 90) {
+      const h = 18 + Math.sin(cy2 * 0.07) * 8 + Math.sin(cy2 * 0.021) * 10
+      const w = 22 + Math.sin(cy2 * 0.033) * 8
+      g.fillTriangle(EX - 10, cy2 - w / 2, EX - 10, cy2 + w / 2, EX - 10 - h, cy2)
+    }
+
+    // ── Hillsbrad / Mount Hyjal horizontal border at y=2900 (x: 0–EX) ─────────
+    const hyalBorderY = 2900
+    g.fillStyle(0x18140e, 0.90)
+    g.fillRect(0, hyalBorderY - 16, EX, 32)
+    g.fillStyle(0x2a2620, 0.80)
+    g.fillRect(0, hyalBorderY -  8, EX, 16)
+    // Jagged upward teeth — mountain cliff edge dropping into shadow forest
+    g.fillStyle(0x101008, 1.0)
+    for (let cx2 = 30; cx2 < EX - 30; cx2 += 70) {
+      const h = 16 + Math.sin(cx2 * 0.08) * 7 + Math.sin(cx2 * 0.022) * 9
+      const w = 26 + Math.sin(cx2 * 0.034) * 10
+      g.fillTriangle(cx2 - w / 2, hyalBorderY - 8, cx2 + w / 2, hyalBorderY - 8, cx2, hyalBorderY - 8 - h)
+    }
+    // Snow gleam on ledge top
+    g.fillStyle(0xd8e8ff, 0.28)
+    g.fillRect(0, hyalBorderY - 14, EX, 3)
+
     // ── Elven forest treeline at y≈4300 (entry into Elven Wilds / Forest)
     const forestY = 4300
     g.fillStyle(0x0a1a10, 0.8)
@@ -1189,28 +1406,16 @@ export class World {
     g.fillStyle(0x88ccaa, 0.22)
     g.fillRect(0, forestY - 12, 1500, 3)   // moonlit canopy glint
 
-    // ── Mountain peaks along north border of volcanic zone (y≈0, x: EX–WW)
-    const peakG = this.scene.add.graphics().setDepth(0.5)
-    peakG.fillStyle(0x1a0800, 0.90)
-    for (let px = EX; px < worldW; px += 120) {
-      const ph = 60 + Math.sin(px * 0.017) * 30 + Math.sin(px * 0.009) * 22
-      const pw = 80 + Math.sin(px * 0.023) * 30
-      peakG.fillTriangle(px - pw / 2, 0, px + pw / 2, 0, px + pw / 4, -ph)
-      peakG.fillStyle(0xff3300, 0.15)
-      peakG.fillTriangle(px - pw / 8, 0, px + pw / 8, 0, px + pw / 16, -ph * 0.35)
-      peakG.fillStyle(0x1a0800, 0.90)
-    }
 
     // ── Path milestone stones
     const msG = this.scene.add.graphics().setDepth(4)
     const milestones: Array<[number, number, string]> = [
       [cx,       cy - 240,  'FROZEN\nRUINS ↑'],
-      [cx - 220, cy,        '← CORRUPTED\n   FIELDS'],
-      [cx + 220, cy,        'ARCANE\nCAVES →'],
-      [cx,       cy + 240,  'FOREST ↓'],
       [cx,       cliffY + 30, '↑ RUINS'],
       [cx,       volcCliffY + 30, '↑ VOLCANIC'],
-      [EX - 200, cy + 240,  '← ELVEN\n  WILDS'],  // points left toward x:0-EX
+      [EX - 200, cy + 240,  '← ELVEN\n  WILDS'],
+      [EX - 200, cy,        '← HILLSBRAD\n  FOOTHILLS'],
+      [EX - 200, cy - 240,  '← MOUNT\n  HYJAL'],
     ]
     for (const [mx, my, label] of milestones) {
       msG.fillStyle(0x3c3028, 0.9); msG.fillRect(mx - 18, my - 14, 36, 28)
@@ -1326,6 +1531,102 @@ export class World {
         repeatDelay: Phaser.Math.Between(400, 1200), ease: 'Sine.InOut',
       })
     }
+  }
+
+  // ── Starter Village — spawning hamlet south of Beginner Forest ────────────
+
+  private buildStarterVillage() {
+    if (this.worldH <= 5400) return   // only present when world is extended
+
+    const svx = this.cx         // 3300 — same x column as main city
+    const svy = this.worldH - 400  // 6100 — village center
+
+    const solid = (x: number, y: number, key: string, bw: number, bh: number, ox: number, oy: number) => {
+      const o = this.obstacles.create(x, y, key) as Phaser.Physics.Arcade.Sprite
+      o.setOrigin(0.5, 1).setDepth(3)
+      const body = o.body as Phaser.Physics.Arcade.StaticBody
+      body.setSize(bw, bh); body.setOffset(ox, oy)
+      o.refreshBody()
+      return o
+    }
+
+    // Ground clearing — lighter dirt patch under the village
+    const clearing = this.scene.add.graphics().setDepth(0.12)
+    clearing.fillStyle(0x2a3a18, 0.5)
+    clearing.fillEllipse(svx, svy, 560, 400)
+    clearing.fillStyle(0x1e3218, 0.35)
+    clearing.fillEllipse(svx, svy + 20, 440, 300)
+
+    // Central campfire with glow
+    this.scene.add.image(svx, svy - 30, 'campfire').setDepth(2).setOrigin(0.5, 1)
+    const svGlow = this.scene.add.graphics().setDepth(1.5)
+    svGlow.fillStyle(0xff4400, 0.07); svGlow.fillCircle(svx, svy - 30, 60)
+
+    // Well to the east
+    solid(svx + 190, svy + 100, 'well', 36, 12, 4, 34)
+
+    // Three forest cabins arranged around the clearing
+    solid(svx - 230, svy - 140, 'forest_cabin', 56, 20, 4, 42)  // NW
+    solid(svx + 210, svy - 120, 'forest_cabin', 56, 20, 4, 42)  // NE
+    solid(svx - 200, svy + 140, 'forest_cabin', 56, 20, 4, 42)  // SW
+
+    // Hay bales + crates scattered around
+    const props: [number, number, string][] = [
+      [svx + 150, svy + 60,  'hay'],
+      [svx + 170, svy + 48,  'hay'],
+      [svx - 150, svy + 60,  'crate'],
+      [svx - 130, svy + 70,  'crate'],
+      [svx + 80,  svy + 100, 'crate'],
+    ]
+    for (const [px, py, key] of props) {
+      this.scene.add.image(px, py, key).setDepth(2.5).setOrigin(0.5, 1)
+    }
+
+    // Fence ring around the village center
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 6) {
+      const fx = svx + Math.cos(angle) * 260
+      const fy = svy + Math.sin(angle) * 200
+      this.scene.add.image(fx, fy, 'fence_post').setDepth(2).setOrigin(0.5, 1)
+    }
+
+    // Torches flanking the campfire
+    const svTorches: [number, number][] = [
+      [svx - 55, svy - 70], [svx + 55, svy - 70],
+      [svx - 55, svy + 50], [svx + 55, svy + 50],
+    ]
+    for (const [tx, ty] of svTorches) {
+      this.scene.add.image(tx, ty, 'torch').setDepth(3).setOrigin(0.5, 1)
+    }
+
+    // Chickens pecking around
+    const svChickens: [number, number][] = [
+      [svx - 80, svy + 60], [svx + 60, svy + 80], [svx - 30, svy + 100],
+    ]
+    for (const [px, py] of svChickens) {
+      this.chickenPositions.push({ x: px, y: py })
+      const chick = this.scene.add.image(px, py, 'chicken').setDepth(3).setOrigin(0.5, 1)
+      if (Math.random() < 0.5) chick.setFlipX(true)
+      this.scene.tweens.add({
+        targets: chick, scaleY: 0.82, duration: 380,
+        yoyo: true, repeat: -1, ease: 'Sine.InOut',
+        delay: Phaser.Math.Between(0, 1200),
+      })
+      this.scene.tweens.add({
+        targets: chick,
+        x: px + Phaser.Math.Between(-28, 28), y: py + Phaser.Math.Between(-18, 18),
+        duration: Phaser.Math.Between(2200, 3400),
+        yoyo: true, repeat: -1, hold: Phaser.Math.Between(500, 1400),
+        repeatDelay: Phaser.Math.Between(400, 1200), ease: 'Sine.InOut',
+      })
+    }
+
+    // Path north toward Beginner Forest — a dirt track
+    const path = this.scene.add.graphics().setDepth(0.11)
+    path.fillStyle(0x2e2818, 0.55)
+    path.fillRect(svx - 22, svy - 280, 44, 880)  // runs from village north through forest
+    path.fillStyle(0x3a3020, 0.35)
+    path.fillRect(svx - 14, svy - 280, 28, 880)
+
   }
 
   // ── River — meandering water band drawn from a parametric centerline ──────
@@ -1608,7 +1909,14 @@ export class World {
     this.scatter('rock_obs',       EX, 0,    S,    1800, 20)
 
     // ── Elven Wilds (x:0-EX, y:4300-5400) — elven trees + moonwells ──────────
-    this.scatter('elven_tree', 0, 4300, EX, 1100, 30)
+    this.scatter('elven_tree',   0,    4300, EX,   1100, 30)
+    // Hillsbrad Foothills — warm deciduous trees + rocks
+    this.scatter('hillsbrad_tree', 0,  2900, EX,   1400, 32)
+    this.scatter('rock_obs',       0,  2900, EX,   1400, 14)
+    // Mount Hyjal — ancient sacred trees + night elf ruins + moonwells
+    this.scatter('hyjal_tree',     0,  0,    EX,   2900, 42)
+    this.scatter('elven_ruin',     0,  0,    EX,   2900, 20)
+    this.scatter('moonwell',       0,  0,    EX,   2900, 12)
     this.scatter('moonwell',   0, 4300, EX, 1100, 10)
     this.scatter('elven_ruin', 0, 4300, EX, 1100,  8)
     this.scatter('rock_obs',   0, 4300, EX, 1100,  8)
@@ -1635,7 +1943,7 @@ export class World {
 
     // Extra campfires in the Beginner Forest (x:EX+, y:4300-5400)
     const forestFires: [number, number][] = [
-      [EX+1700, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
+      [EX+1200, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
     ]
     for (const [fx, fy] of forestFires) {
       this.scene.add.image(fx, fy, 'campfire').setDepth(2).setOrigin(0.5, 1)
@@ -1694,7 +2002,7 @@ export class World {
     // Forest campfires (Beginner Forest)
     const EX = this.worldW - this.size  // 1500
     const forestFires: [number, number][] = [
-      [EX+1700, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
+      [EX+1200, 4650], [EX+2200, 4800], [EX+2700, 4700], [EX+3100, 4500],
     ]
     for (const [fx, fy] of forestFires) {
       this.addFireGlow(g, fx, fy, 0xff4400, 90, 40, 0.035, 0.07)
@@ -1737,7 +2045,7 @@ export class World {
 
     // ── Frozen Ruins (x:EX-WW, y:1800-2900) — cold blue zone ambient glow ───
     const coldG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
-    coldG.fillStyle(0x44aaff, 0.04)
+    coldG.fillStyle(0x071a3a, 0.06)
     coldG.fillRect(EX, 1800, this.size, 1100)
     const lakeGlows: [number, number][] = [
       [EX+380, 1980], [EX+1050, 2220], [EX+2080, 1950], [EX+2750, 2280], [EX+1650, 2580], [EX+3180, 2050],
@@ -1747,6 +2055,39 @@ export class World {
     }
     for (const [lx, ly] of [[EX+600, 2140], [EX+1400, 1980], [EX+2400, 2400], [EX+3000, 2620], [EX+1800, 2750]]) {
       this.addFireGlow(coldG, lx, ly, 0x99ddff, 100, 45, 0.025, 0.04)
+    }
+
+    // ── Hillsbrad Foothills (x:0-1500, y:2900-4300) — warm golden farmland ────
+    const hillsbradG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
+    hillsbradG.fillStyle(0xaacc44, 0.012)
+    hillsbradG.fillRect(0, 2900, 1500, 1400)
+    // Campfire glows from farm settlements
+    for (const [hsx, hsy] of [
+      [220, 3050], [700, 3120], [1180, 3040], [450, 3620],
+      [960, 3720], [180, 3850], [1250, 3780], [600, 4120],
+    ]) {
+      this.addFireGlow(hillsbradG, hsx, hsy, 0xff8800, 100, 42, 0.030, 0.060)
+    }
+    // Sunlit pond shimmer
+    this.addFireGlow(hillsbradG, 260, 3480, 0x66ccff, 90, 40, 0.020, 0.038)
+
+    // ── Mount Hyjal (x:0-1500, y:0-2900) — emerald life-energy + fire ─────────
+    const hyjalG = this.scene.add.graphics().setDepth(0.09).setBlendMode(Phaser.BlendModes.ADD)
+    hyjalG.fillStyle(0x00ff66, 0.018)
+    hyjalG.fillRect(0, 0, 1500, 2900)
+    // Moonwell glows — druidic sacred pools
+    for (const [hx, hy] of [
+      [280, 810], [750, 1460], [1160, 1210],
+      [480, 2110], [1060, 610], [210, 1710], [920, 380],
+    ]) {
+      this.addFireGlow(hyjalG, hx, hy, 0x44ff88, 160, 70, 0.022, 0.042)
+    }
+    // World Tree crown glow (Nordrassil summit)
+    this.addFireGlow(hyjalG, 750, 280, 0x88ffcc, 420, 180, 0.030, 0.060)
+    this.addFireGlow(hyjalG, 750, 340, 0x44ff66, 220, 95,  0.020, 0.040)
+    // Firelands orange-red heat at south Hyjal
+    for (const [hx, hy] of [[300, 2600], [750, 2680], [1200, 2620], [500, 2820], [1050, 2790]]) {
+      this.addFireGlow(hyjalG, hx, hy, 0xff4400, 160, 70, 0.018, 0.035)
     }
 
     // ── Elven Wilds (x:0-1500, y:4300-5400) — teal moonlit ambient glow ─────
@@ -1822,6 +2163,8 @@ export class World {
       elven_tree:     [11, 8,  4],
       moonwell:       [14, 8,  8],
       elven_ruin:     [10, 8,  6],
+      hillsbrad_tree: [12, 7,  4],
+      hyjal_tree:     [12, 8,  4],
     }
     const [radius, ox, oy] = bodyMap[key] ?? [13, 6, 3]
 
@@ -1889,6 +2232,52 @@ export class World {
     const push = (cx: number, cy: number, radius: number, table: EnemyConfig[], maxEnemies: number) =>
       this.spawnZones.push({ cx, cy, radius, table, maxEnemies, zoneBounds: zoneBoundsFor(cx, cy) })
 
+    // ── Hillsbrad Foothills (x: 0–1500, y: 2900–4300) — danger 3 ────────────
+    // Farmers & wolves near the roads — tight packs, great for AoE pulls
+    // South farms (y: 3800–4300) — easiest, Wolf + Bandit clusters
+    for (const [cx, cy] of [
+      [240, 4050], [600, 4120], [980, 4060], [1340, 4090],
+      [420, 3920], [820, 3970], [1180, 3940],
+    ] as [number, number][]) {
+      push(cx, cy, 180, [Wolf, Wolf, Bandit, Bandit], 5)  // loose farm packs — big AoE bait
+    }
+    // Mid Hillsbrad (y: 3200–3800) — denser, Syndicate and bears appear
+    for (const [cx, cy] of [
+      [200, 3580], [560, 3620], [900, 3570], [1280, 3600],
+      [350, 3320], [750, 3380], [1100, 3340],
+    ] as [number, number][]) {
+      push(cx, cy, 200, [Bandit, Bandit, Bear, Wolf, DefiasCaster], 5)
+    }
+    // Ruins of Alterac (north Hillsbrad, y: 2900–3200) — Syndicate stronghold
+    for (const [cx, cy] of [
+      [180, 3060], [560, 3100], [1000, 3080], [1320, 3050],
+    ] as [number, number][]) {
+      push(cx, cy, 220, [Bandit, DefiasCaster, Bear, Brute, Thornback], 6)
+    }
+
+    // ── Mount Hyjal (x: 0–1500, y: 0–2900) — danger 4 ───────────────────────
+    // Firelands invasion front (south, y: 2300–2900) — infernals + flamewakers
+    for (const [cx, cy] of [
+      [220, 2720], [640, 2760], [1060, 2730], [1360, 2700],
+    ] as [number, number][]) {
+      push(cx, cy, 260, [Elite, ArcaneGolem, ArcaneGolem, Wraith], 4)
+    }
+    // Ancient forest midlands (y: 900–2300) — night elf defenders + corrupted
+    for (const [cx, cy] of [
+      [200, 2150], [700, 2020], [1260, 2180],
+      [380, 1480], [950, 1600], [1310, 1340],
+      [160, 1060], [780, 1120], [1200, 980],
+    ] as [number, number][]) {
+      push(cx, cy, 290, [NightbladeWarden, HighElfSentinel, MoonwatcherArcher, ElvenMystic, ArcaneGolem], 5)
+    }
+    // Summit (y: 0–900) — Nordrassil defenders, Starweaver archmage
+    for (const [cx, cy] of [
+      [260, 780], [820, 680], [1300, 740],
+      [110, 340], [600, 240], [1150, 300], [820, 520],
+    ] as [number, number][]) {
+      push(cx, cy, 310, [NightbladeWarden, ElvenMystic, HighElfSentinel, MoonwatcherArcher, Starweaver], 5)
+    }
+
     // ── Elven Wilds (x: 0–1500, y: 4300–5400) — danger 1 ───────────────────
     // Moonlit forest — night elves, high elves, rare Starweaver archmage.
     // Entry camps — east edge (x≈1100–1400), player approaches from Beginner Forest
@@ -1919,10 +2308,10 @@ export class World {
     ] as [number, number][]) {
       push(cx, cy, 160, [Slime, Slime, Spider], 2)
     }
-    // Core camps — spread across mid-forest, avoiding the dungeon column
+    // Core camps — spread across mid-forest, keeping 500px clear of dungeon at (3300,4850)
     for (const [cx, cy] of [
-      [3100, 4720], [4000, 4680], [4800, 4640],
-      [3250, 5020], [4400, 5040],
+      [2700, 4720], [4000, 4680], [4800, 4640],
+      [2650, 5020], [4400, 5040],
     ] as [number, number][]) {
       push(cx, cy, 240, [Slime, Spider, Bandit, Bandit], 3)
     }

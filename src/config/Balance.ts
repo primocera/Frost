@@ -14,7 +14,7 @@ const Balance = {
     // ── Per-level gains ───────────────────────────────────────────────────
     hpPerLevel:           20,   // flat HP per level
     manaPerLevel:         14,   // flat mana per level
-    speedPerLevel:        4,    // px/s per level
+    speedPerLevel:        2,    // px/s per level
     spellDamagePerLevel:  8,    // flat damage per level
 
     // ── Mana regeneration (mana per second) ───────────────────────────────
@@ -25,7 +25,7 @@ const Balance = {
 
     // ── Firebolt cooldown (ms) ────────────────────────────────────────────
     // Reduces each level, floored at min.
-    // Lv1: 800ms  Lv10: 638ms  Lv20: 458ms  Lv24: floor=400ms
+    // Lv1: 800ms  Lv10: 638ms  Lv20: 458ms  Lv25: floor=400ms
     fireboltCdBase:            800,
     fireboltCdReductionPerLevel: 18,
     fireboltCdMin:             400,
@@ -33,11 +33,12 @@ const Balance = {
   },
 
   xp: {
-    baseToNext:    300,
-    levelScaling:  1.8,   // each level needs ×1.8 more XP than the last
+    baseToNext:    500,
+    levelScaling:  1.28,  // gentler curve — 25 levels feels achievable
+    maxLevel:      25,
 
     // Bonus XP per additional aggroed enemy at kill time.
-    // Fighting 4 enemies at once: ×(1 + 3×0.25) = ×1.75 XP on each kill.
+    // AoE-farming 5 enemies: ×(1 + 4×0.25) = ×2.0 XP on each kill.
     multikillBonus: 0.25,
   },
 
@@ -62,11 +63,11 @@ const Balance = {
   },
 
   spells: {
-    // ── Arcane Explosion (Q) ──────────────────────────────────────────────
-    // Instant AoE burst around the player. Good opener before enemies close in.
+    // ── Arcane Blast (Q) — unlocked at lvl 14 ────────────────────────────
+    // Instant AoE burst around the player. THE combo spell with Frost Nova:
+    // Nova → Arcane Blast the frozen pack → Blizzard to finish.
     // Damage = baseDamage + spellDamage × 0.5
-    // Cooldown tracks the active bolt's cooldown (same timing as firebolt/frostbolt).
-    arcaneExplosion: {
+    arcaneBlast: {
       radius:     180,
       baseDamage:  20,
       manaCost:    20,

@@ -65,7 +65,7 @@ export const TALENT_DEFS: TalentDef[] = [
   {
     id: 'frost_kite', tree: 'frost', name: 'Ice Flow', maxRank: 2,
     desc: 'Increases movement speed.',
-    rankDesc: ['+8 speed', '+16 speed'],
+    rankDesc: ['+2 speed', '+4 speed'],
   },
 
   // ── Fire ───────────────────────────────────────────────────────────────────
@@ -77,17 +77,17 @@ export const TALENT_DEFS: TalentDef[] = [
   {
     id: 'fire_crit', tree: 'fire', name: 'Pyromaniac', maxRank: 3,
     desc: 'Increases critical strike chance.',
-    rankDesc: ['+4% crit', '+8% crit', '+12% crit'],
+    rankDesc: ['+3% crit', '+6% crit', '+9% crit'],
   },
   {
     id: 'fire_crit_dmg', tree: 'fire', name: 'Combustion', maxRank: 2,
     desc: 'Increases critical strike damage.',
-    rankDesc: ['Crits deal ×1.75', 'Crits deal ×2.0'],
+    rankDesc: ['Crits deal ×1.65', 'Crits deal ×1.8'],
   },
   {
     id: 'fire_arcex', tree: 'fire', name: 'Inferno', maxRank: 2,
     desc: 'Arcane Explosion hits harder.',
-    rankDesc: ['+15 base damage', '+30 base damage'],
+    rankDesc: ['+10 base damage', '+20 base damage'],
   },
   {
     id: 'fire_flashpoint', tree: 'fire', name: 'Flashpoint', maxRank: 1,
@@ -104,22 +104,22 @@ export const TALENT_DEFS: TalentDef[] = [
   {
     id: 'arc_power', tree: 'arcane', name: 'Arcane Power', maxRank: 2,
     desc: 'Increases spell damage.',
-    rankDesc: ['+10 spell damage', '+20 spell damage'],
+    rankDesc: ['+6 spell damage', '+12 spell damage'],
   },
   {
     id: 'arc_radius', tree: 'arcane', name: 'Resonance', maxRank: 2,
     desc: 'AoE spells cover a larger area.',
-    rankDesc: ['+12% AoE radius', '+24% AoE radius'],
+    rankDesc: ['+8% AoE radius', '+16% AoE radius'],
   },
   {
     id: 'arc_cdr', tree: 'arcane', name: 'Temporal Flux', maxRank: 2,
     desc: 'All spell cooldowns reduced.',
-    rankDesc: ['-8% cooldowns', '-16% cooldowns'],
+    rankDesc: ['-6% cooldowns', '-12% cooldowns'],
   },
   {
     id: 'arc_regen', tree: 'arcane', name: 'Insight', maxRank: 2,
     desc: 'Increases mana regeneration.',
-    rankDesc: ['+1.5 mana/sec', '+3 mana/sec'],
+    rankDesc: ['+1.2 mana/sec', '+2.4 mana/sec'],
   },
 ]
 

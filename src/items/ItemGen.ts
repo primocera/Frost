@@ -6,39 +6,39 @@ const STAT_KEYS: (keyof ItemStats)[] = [
   'spellPower', 'mana', 'manaRegen', 'critChance', 'speed', 'cooldownReduction',
 ]
 
-// Flat ranges before ilvl scaling — ilvl adds 8% per level above 1
+// Flat ranges before ilvl scaling — ilvl adds 5% per level above 1
 const BASE: Record<Rarity, Record<keyof ItemStats, [number, number]>> = {
   common: {
-    spellPower:        [3,   7],
-    mana:              [12,  28],
-    manaRegen:         [0.2, 0.6],
-    critChance:        [0.01, 0.03],
-    speed:             [5,   14],
-    cooldownReduction: [0.02, 0.05],
+    spellPower:        [2,   5],
+    mana:              [10,  22],
+    manaRegen:         [0.2, 0.5],
+    critChance:        [0.01, 0.02],
+    speed:             [1,   3],
+    cooldownReduction: [0.02, 0.04],
   },
   magic: {
-    spellPower:        [7,   16],
-    mana:              [28,  55],
-    manaRegen:         [0.6, 1.4],
-    critChance:        [0.03, 0.08],
-    speed:             [14,  26],
-    cooldownReduction: [0.05, 0.10],
+    spellPower:        [5,   11],
+    mana:              [22,  45],
+    manaRegen:         [0.5, 1.1],
+    critChance:        [0.02, 0.06],
+    speed:             [2,   5],
+    cooldownReduction: [0.03, 0.07],
   },
   rare: {
-    spellPower:        [16,  30],
-    mana:              [55,  100],
-    manaRegen:         [1.4, 3.0],
-    critChance:        [0.08, 0.15],
-    speed:             [26,  42],
-    cooldownReduction: [0.10, 0.18],
+    spellPower:        [10,  20],
+    mana:              [45,  80],
+    manaRegen:         [1.1, 2.2],
+    critChance:        [0.06, 0.11],
+    speed:             [3,   6],
+    cooldownReduction: [0.06, 0.11],
   },
   epic: {
-    spellPower:        [30,  52],
-    mana:              [100, 170],
-    manaRegen:         [3.0, 5.5],
-    critChance:        [0.15, 0.27],
-    speed:             [42,  68],
-    cooldownReduction: [0.18, 0.32],
+    spellPower:        [20,  35],
+    mana:              [80,  130],
+    manaRegen:         [2.2, 4.0],
+    critChance:        [0.11, 0.20],
+    speed:             [5,   10],
+    cooldownReduction: [0.10, 0.18],
   },
 }
 
@@ -115,7 +115,7 @@ export function generateItem(ilvl: number, forceRarity?: Rarity): Item {
   }
 
   const type = pick(['staff', 'robe', 'ring', 'amulet'] as ItemType[])
-  const ilvlScale = 1 + (ilvl - 1) * 0.08
+  const ilvlScale = 1 + (ilvl - 1) * 0.05
 
   const count   = STAT_COUNT[rarity]
   const chosen  = [...STAT_KEYS].sort(() => Math.random() - 0.5).slice(0, count)

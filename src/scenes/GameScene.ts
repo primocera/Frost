@@ -7,7 +7,7 @@ import { BossConfig, ALL_BOSSES } from '../entities/BossTypes'
 import { World, SpawnZone, ZoneDef, DungeonEntrance, getZoneAt, ZONE_DEFS } from '../world/World'
 import { spawnFirebolt, destroyBolt, spawnImpact, spawnCastEffect } from '../spells/Firebolt'
 import { spawnFrostbolt, destroyFrostbolt, spawnFrostImpact, spawnFrostCastEffect } from '../spells/Frostbolt'
-import { castArcaneExplosion } from '../spells/ArcaneExplosion'
+import { castArcaneExplosion as castArcaneBlast } from '../spells/ArcaneExplosion'
 import { castFrostNova } from '../spells/FrostNova'
 import { spawnBlizzard } from '../spells/Blizzard'
 import { HUD } from '../ui/HUD'
@@ -35,7 +35,10 @@ import { Device } from '../config/DeviceConfig'
 
 const WORLD       = 3600   // base square used for town-center offset (WORLD/2 = 1800)
 const WORLD_W     = 5100   // total world width (1500 Elven extension on left + 3600 base)
-const WORLD_H     = 5400   // total world height (1800 Volcanic strip + 3600 existing zones)
+const WORLD_H     = 6500   // total world height (extended 1100px for starter village at bottom)
+const CITY_H      = 5400   // height used to calculate main-city cy (keeps cy = 3600)
+const STARTER_X   = WORLD_W - WORLD / 2   // 3300 — starter village x (same column as main city)
+const STARTER_Y   = WORLD_H - 400         // 6100 — starter village center
 const RESPAWN_MIN = 240_000   // 4 minutes
 const RESPAWN_MAX = 300_000   // 5 minutes
 
@@ -51,9 +54,9 @@ interface HumanoidStyle {
   hand:     string                     // skin
   head:     [string, string]           // head radial gradient
   eye:      string
-  beard:    'long' | 'none'
+  beard:    'long' | 'none' | 'longhair'
   beardCol: [string, string]
-  headwear: 'wizardhat' | 'hood' | 'bandana' | 'strawhat' | 'merchanthat'
+  headwear: 'wizardhat' | 'hood' | 'bandana' | 'strawhat' | 'merchanthat' | 'none'
   hwMain:   string
   hwDark:   string
   item:     'staff' | 'dagger' | 'pitchfork' | 'bow' | 'none'
@@ -94,6 +97,22 @@ const HUMANOID_STYLES: Record<string, HumanoidStyle> = {
     eye: '#3a2a1a', beard: 'none', beardCol: ['#aa9988', '#887766'],
     headwear: 'strawhat', hwMain: '#d9b94a', hwDark: '#b8962e',
     item: 'pitchfork', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Innkeeper Stella — female, warm brown dress, long dark hair, apron
+  npc_innkeeper: {
+    robe: ['#8a5c2e', '#6e4420', '#4a2c10'], robeHi: '#b07840', fold: '#3a1e08',
+    belt: '#e8d8b0', sleeve: '#7a4c22', hand: '#f0c8a0', head: ['#f5d0b0', '#d4a882'],
+    eye: '#5a3a1a', beard: 'longhair', beardCol: ['#2a1a0a', '#1a0e04'],
+    headwear: 'none', hwMain: '#000000', hwDark: '#000000',
+    item: 'none', crystal: '#ffffff', glow: false, glowRgb: '0,0,0',
+  },
+  // Spell Trainer — female, crimson robe and red wizard hat, auburn hair
+  npc_trainer: {
+    robe: ['#8a1a1a', '#6a1212', '#3d0808'], robeHi: '#c43030', fold: '#2a0606',
+    belt: '#ffaa44', sleeve: '#7a1616', hand: '#f0c8a0', head: ['#f5d0b0', '#d4a882'],
+    eye: '#ffcc44', beard: 'longhair', beardCol: ['#cc3300', '#7a1800'],
+    headwear: 'wizardhat', hwMain: '#8a1a1a', hwDark: '#3d0808',
+    item: 'staff', crystal: '#ff8844', glow: true, glowRgb: '255,100,50',
   },
   // Mage Solvara — ice mage, blue hood + frost staff
   npc_icemage: {
@@ -285,12 +304,16 @@ export class GameScene extends Phaser.Scene {
   private moteEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter
   private ashEmitter!:   Phaser.GameObjects.Particles.ParticleEmitter
   // NPCs
-  private npcQuest!:    Phaser.GameObjects.Image
-  private npcMerchant!: Phaser.GameObjects.Image
-  private npcFarmer!:   Phaser.GameObjects.Image
-  private npcTrainer!:  Phaser.GameObjects.Image
-  private npcPrompt!:   Phaser.GameObjects.Text
-  private nearNPC:      'quest' | 'merchant' | 'zone' | 'farmer' | 'trainer' | null = null
+  private npcQuest!:       Phaser.GameObjects.Image
+  private npcMerchant!:    Phaser.GameObjects.Image
+  private npcFarmer!:      Phaser.GameObjects.Image
+  private npcTrainer!:     Phaser.GameObjects.Image
+  private npcStarterGuide!: Phaser.GameObjects.Image
+  private npcPrompt!:      Phaser.GameObjects.Text
+  private nearNPC:         'quest' | 'merchant' | 'zone' | 'farmer' | 'trainer' | 'guide' | null = null
+  // Starter village quest chain (independent of main quest chain)
+  private starterPhase: 'offer1' | 'active1' | 'offer2' | 'active2' | 'done' = 'offer1'
+  private starterKills  = 0
   private nearZoneNPCIdx = -1
   private nearChicken    = false
   private zoneNPCs:     Array<{ sprite: Phaser.GameObjects.Image; travelZone: string; name: string }> = []
@@ -329,8 +352,8 @@ export class GameScene extends Phaser.Scene {
     this.hardcore    = data?.hardcore   ?? false
     this.buildPlayerTexture()
 
-    this.world       = new World(this, WORLD, WORLD_W, WORLD_H)
-    this.player      = new Player(this, WORLD_W - WORLD / 2, WORLD_H - WORLD / 2, playerName)
+    this.world       = new World(this, WORLD, WORLD_W, WORLD_H, CITY_H)
+    this.player      = new Player(this, STARTER_X, STARTER_Y, playerName)
     // Physics body is still active; hide the placeholder circle visual
     this.player.setAlpha(0)
     this.playerSprite = new PlayerSprite(this)
@@ -812,6 +835,7 @@ export class GameScene extends Phaser.Scene {
       this.dead = true
       this.physics.pause()
       if (this.hardcore) {
+        localStorage.removeItem('frost_char_hc_v1')   // wipe hardcore save on death
         this.add.text(this.scale.width / 2, this.scale.height / 2,
           `YOU DIED\n${this.social.profile.name}\n\n☠  Hardcore — your journey ends here\n\nRefresh to restart`, {
           fontSize: '28px', color: '#ff4444',
@@ -836,7 +860,7 @@ export class GameScene extends Phaser.Scene {
       this.player.joystickDir.y = this.mobileControls.dir.y
 
       this.mobileControls.setCooldowns([
-        { cd: this.player.arcaneExplosionCooldown, max: this.player.arcaneExplosionCooldownMax },
+        { cd: this.player.arcaneBlastCooldown,     max: this.player.arcaneBlastCooldownMax },
         { cd: this.player.frostNovaCooldown,       max: this.player.frostNovaCooldownMax },
         { cd: this.player.blizzardCooldown,        max: this.player.blizzardCooldownMax },
         { cd: this.player.fireboltCooldown,        max: this.player.fireboltCooldownMax },
@@ -977,26 +1001,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private castArcaneExplosion() {
-    if (!this.player.hasSpell('arcaneExplosion')) {
-      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Train Arcane Explosion at the Spell Trainer!', '#8866aa', 13)
+    if (!this.player.hasSpell('arcaneBlast')) {
+      this.hud.showFloatingText(this.player.x, this.player.y - 30, 'Train Arcane Blast at the Spell Trainer! (Lv 14)', '#8866aa', 13)
       return
     }
-    if (!this.player.canCastArcaneExplosion()) {
-      if (this.player.arcaneExplosionCooldown > 0) this.hud.notifyCastFailed(0)
+    if (!this.player.canCastArcaneBlast()) {
+      if (this.player.arcaneBlastCooldown > 0) this.hud.notifyCastFailed(0)
       else this.hud.notifyOOM()
       return
     }
-    this.player.spendArcaneExplosionCost()
+    this.player.spendArcaneBlastCost()
     this.playerSprite.playCast()
 
     const t      = this.player.talents
-    const radius = Math.round(Balance.spells.arcaneExplosion.radius * t.bonusAoEMult)
-    castArcaneExplosion(this, this.player.x, this.player.y, radius)
+    const radius = Math.round(Balance.spells.arcaneBlast.radius * t.bonusAoEMult)
+    castArcaneBlast(this, this.player.x, this.player.y, radius)
     this.cameras.main.shake(90, 0.007)
     this.sfx.onArcaneExplosion()
 
     const baseArcDmg = Math.round(
-      Balance.spells.arcaneExplosion.baseDamage + t.bonusArcExDamage
+      Balance.spells.arcaneBlast.baseDamage + t.bonusArcExDamage
       + this.player.effectiveSpellDamage * 0.5
     )
     const playerZoneName = getZoneAt(this.player.x, this.player.y)?.name ?? '__town__'
@@ -1262,7 +1286,7 @@ export class GameScene extends Phaser.Scene {
     // Heal to full and teleport back to the starting town centre
     this.player.stats.hp   = this.player.stats.maxHp
     this.player.stats.mana = this.player.effectiveMaxMana
-    ;(this.player.body as Phaser.Physics.Arcade.Body).reset(WORLD_W - WORLD / 2, WORLD_H - WORLD / 2)
+    ;(this.player.body as Phaser.Physics.Arcade.Body).reset(STARTER_X, STARTER_Y)
 
     // Enemies stay alive — player teleports to town so there's no instant re-kill
 
@@ -1971,6 +1995,39 @@ export class GameScene extends Phaser.Scene {
       ctx.ellipse(cx - 3, by + 19.5, 3, 1.8, 0.3, 0, Math.PI * 2)
       ctx.ellipse(cx + 3, by + 19.5, 3, 1.8, -0.3, 0, Math.PI * 2)
       ctx.fill()
+    }
+
+    // ── Long hair (female) — drawn before headwear so hat sits on top ────
+    if (style.beard === 'longhair') {
+      const hairGr = ctx.createLinearGradient(cx, by + 12, cx, by + 42)
+      hairGr.addColorStop(0, style.beardCol[0])
+      hairGr.addColorStop(1, style.beardCol[1])
+      ctx.fillStyle = hairGr
+      // Left curtain
+      ctx.beginPath()
+      ctx.moveTo(cx - 5, by + 13)
+      ctx.quadraticCurveTo(cx - 12, by + 20, cx - 11, by + 34)
+      ctx.quadraticCurveTo(cx - 10, by + 42, cx - 7, by + 44)
+      ctx.quadraticCurveTo(cx - 4, by + 40, cx - 6, by + 25)
+      ctx.quadraticCurveTo(cx - 7, by + 17, cx - 5, by + 13)
+      ctx.fill()
+      // Right curtain
+      ctx.beginPath()
+      ctx.moveTo(cx + 5, by + 13)
+      ctx.quadraticCurveTo(cx + 12, by + 20, cx + 11, by + 34)
+      ctx.quadraticCurveTo(cx + 10, by + 42, cx + 7, by + 44)
+      ctx.quadraticCurveTo(cx + 4, by + 40, cx + 6, by + 25)
+      ctx.quadraticCurveTo(cx + 7, by + 17, cx + 5, by + 13)
+      ctx.fill()
+      // Shine streaks
+      ctx.strokeStyle = style.beardCol[0]
+      ctx.lineWidth   = 0.7
+      ctx.globalAlpha = 0.55
+      ctx.beginPath()
+      ctx.moveTo(cx - 8, by + 18); ctx.lineTo(cx - 9, by + 36)
+      ctx.moveTo(cx + 8, by + 18); ctx.lineTo(cx + 9, by + 36)
+      ctx.stroke()
+      ctx.globalAlpha = 1
     }
 
     // ── Headwear ─────────────────────────────────────────────────────────
@@ -3051,6 +3108,7 @@ export class GameScene extends Phaser.Scene {
       else if (this.nearNPC === 'zone')      this.openZoneNPCDialog(this.nearZoneNPCIdx)
       else if (this.nearNPC === 'farmer')    this.openFarmerDialog()
       else if (this.nearNPC === 'trainer')   this.openTrainerDialog()
+      else if (this.nearNPC === 'guide')     this.openStarterGuideDialog()
       else                                   this.openMerchantDialog()
     } else if (this.nearChicken) {
       this.feedChicken()
@@ -3071,10 +3129,10 @@ export class GameScene extends Phaser.Scene {
   // ── NPCs ──────────────────────────────────────────────────────────────────
 
   private createNPCs() {
-    const cx = WORLD_W - WORLD / 2    // 3300 — town-center x (1800px from right of base world)
-    const cy = WORLD_H - WORLD / 2    // 3600 — town-center y (1800px from bottom)
+    const cx  = WORLD_W - WORLD / 2    // 3300 — main city x
+    const cy  = CITY_H  - WORLD / 2    // 3600 — main city y (stable regardless of worldH)
 
-    // Quest NPC
+    // Quest NPC — Elder Mirwen in the main city
     this.npcQuest = this.add.image(cx - 180, cy - 20, 'npc_elder').setDepth(4).setOrigin(0.5, 1)
     this.add.text(cx - 180, cy - 68, 'Elder Mirwen', {
       fontSize: '13px', fontStyle: 'bold',
@@ -3086,7 +3144,7 @@ export class GameScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
-    // Merchant NPC
+    // Merchant NPC — Trader Brom in the main city
     this.npcMerchant = this.add.image(cx + 180, cy - 20, 'npc_merchant').setDepth(4).setOrigin(0.5, 1)
     this.add.text(cx + 180, cy - 68, 'Trader Brom', {
       fontSize: '13px', fontStyle: 'bold',
@@ -3098,14 +3156,14 @@ export class GameScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
 
-    // Spell Trainer NPC — center-north of town
-    this.npcTrainer = this.add.image(cx + 60, cy - 90, 'npc_icemage').setDepth(4).setOrigin(0.5, 1)
-    this.add.text(cx + 60, cy - 138, 'Spell Trainer', {
+    // Spell Trainer NPC — beside the mage tower in the main city
+    this.npcTrainer = this.add.image(cx - 168, cy - 90, 'npc_trainer').setDepth(4).setOrigin(0.5, 1)
+    this.add.text(cx - 168, cy - 138, 'Spell Trainer', {
       fontSize: '13px', fontStyle: 'bold',
       fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#88ddff',
       stroke: '#000', strokeThickness: 4,
     }).setDepth(4).setOrigin(0.5)
-    this.add.text(cx + 60, cy - 122, '✦ Train Spells', {
+    this.add.text(cx - 168, cy - 122, '✦ Train Spells', {
       fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#aaffee',
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
@@ -3132,22 +3190,29 @@ export class GameScene extends Phaser.Scene {
       this.zoneNPCs.push({ sprite, travelZone: def.travelZone, name: def.name })
     }
 
-    // Direction signs
-    const sty = (col: string) => ({ fontSize: '12px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: col, stroke: '#000', strokeThickness: 4 })
-    this.add.text(cx, cy + 260, '▼  Beginner Forest',        sty('#44cc44')).setDepth(4).setOrigin(0.5)
-    this.add.text(cx, cy - 260, '▲  Frozen Ruins (Danger)',  sty('#88ccff')).setDepth(4).setOrigin(0.5)
-    this.add.text(cx - 290, cy, '◄  Corrupted Fields',       sty('#cc4444')).setDepth(4).setOrigin(0.5)
-    this.add.text(cx + 290, cy, 'Arcane Caves  ►',           sty('#aa44ff')).setDepth(4).setOrigin(0.5)
-
-    // Farmer Holt — stands at the south border of town near the forest road
-    this.npcFarmer = this.add.image(cx - 110, cy + 215, 'npc_farmer')
+    // Farmer Holt — in the Beginner Forest, north end near the road from town
+    const fhX = cx - 110, fhY = 4915
+    this.npcFarmer = this.add.image(fhX, fhY, 'npc_farmer')
       .setDepth(4).setOrigin(0.5, 1)
-    this.add.text(cx - 110, cy + 215 - 48, 'Farmer Holt', {
+    this.add.text(fhX, fhY - 48, 'Farmer Holt', {
       fontSize: '13px', fontStyle: 'bold',
       fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddcc88',
       stroke: '#000', strokeThickness: 4,
     }).setDepth(4).setOrigin(0.5)
-    this.add.text(cx - 110, cy + 215 - 32, '! Quest', {
+    this.add.text(fhX, fhY - 32, '! Quest', {
+      fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
+      stroke: '#000', strokeThickness: 3,
+    }).setDepth(4).setOrigin(0.5)
+
+    // Innkeeper Stella — starter village quest giver
+    const svx = STARTER_X, svy = STARTER_Y
+    this.npcStarterGuide = this.add.image(svx + 10, svy - 20, 'npc_innkeeper').setDepth(4).setOrigin(0.5, 1)
+    this.add.text(svx + 10, svy - 68, 'Innkeeper Stella', {
+      fontSize: '13px', fontStyle: 'bold',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ddcc88',
+      stroke: '#000', strokeThickness: 4,
+    }).setDepth(4).setOrigin(0.5)
+    this.add.text(svx + 10, svy - 52, '! Quest', {
       fontSize: '11px', fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', color: '#ffdd44',
       stroke: '#000', strokeThickness: 3,
     }).setDepth(4).setOrigin(0.5)
@@ -3175,6 +3240,15 @@ export class GameScene extends Phaser.Scene {
         this.mobileControls?.showInteract('Talk')
         return
       }
+    }
+
+    // Innkeeper Stella (starter village)
+    const dG = Phaser.Math.Distance.Between(px, py, this.npcStarterGuide.x, this.npcStarterGuide.y)
+    if (dG < 90) {
+      this.nearNPC = 'guide'
+      this.npcPrompt.setText('Press E to talk').setPosition(this.npcStarterGuide.x, this.npcStarterGuide.y - 72).setVisible(true)
+      this.mobileControls?.showInteract('Talk')
+      return
     }
 
     // Farmer Holt
@@ -3233,9 +3307,9 @@ export class GameScene extends Phaser.Scene {
       lines = [
         'Elder Mirwen:',
         '',
-        '"A new mage arrives in Millhaven."',
-        '"The Beginner Forest to the south"',
-        '"is teeming with slimes and ghouls."',
+        '"You have made it to the Main City."',
+        '"The wilds beyond are dangerous,"',
+        '"but glory awaits the bold."',
         '"Prove your worth — then return."',
         '',
         '[E] Accept first quest',
@@ -3446,13 +3520,110 @@ export class GameScene extends Phaser.Scene {
     this.dialogOpen = true
   }
 
+  private openStarterGuideDialog() {
+    if (this.dialogOpen) return
+    let lines: string[]
+    let action = false
+
+    if (this.starterPhase === 'offer1') {
+      lines = [
+        'Innkeeper Stella:',
+        '',
+        '"Ah, a fresh face in Millhaven!"',
+        '"The forest to the north is crawling"',
+        '"with slimes and ghouls."',
+        '"Thin the herd — slay 3 of them."',
+        '',
+        '[E] Accept: A Rough Start',
+      ]
+      action = true
+
+    } else if (this.starterPhase === 'active1') {
+      if (this.starterKills >= 3) {
+        lines = [
+          'Innkeeper Stella:',
+          '',
+          '"Well done! You have a warrior\'s spirit."',
+          '"Here — take this for your trouble."',
+          '',
+          'Reward: +40 XP  +5 Silver',
+          '',
+          '[E] Collect reward',
+        ]
+        action = true
+      } else {
+        const left = 3 - this.starterKills
+        lines = [
+          'Innkeeper Stella:',
+          '',
+          'Quest: A Rough Start',
+          `Creatures slain: ${this.starterKills} / 3  (${left} left)`,
+          '',
+          '[E] Close',
+        ]
+      }
+
+    } else if (this.starterPhase === 'offer2') {
+      lines = [
+        'Innkeeper Stella:',
+        '',
+        '"Good work. But the forest is vast."',
+        '"Venture further — slay 8 more."',
+        '"Then seek Elder Mirwen in the Main City."',
+        '',
+        '[E] Accept: Into the Wild',
+      ]
+      action = true
+
+    } else if (this.starterPhase === 'active2') {
+      if (this.starterKills >= 8) {
+        lines = [
+          'Innkeeper Stella:',
+          '',
+          '"Eight more! Impressive."',
+          '"You\'re ready for the wider world."',
+          '',
+          'Reward: +80 XP  +15 Silver',
+          '',
+          '[E] Collect reward',
+        ]
+        action = true
+      } else {
+        const left = 8 - this.starterKills
+        lines = [
+          'Innkeeper Stella:',
+          '',
+          'Quest: Into the Wild',
+          `Creatures slain: ${this.starterKills} / 8  (${left} left)`,
+          '',
+          '[E] Close',
+        ]
+      }
+
+    } else {
+      lines = [
+        'Innkeeper Stella:',
+        '',
+        '"You\'ve done Millhaven proud."',
+        '"Head north to the Main City."',
+        '"Elder Mirwen awaits you there."',
+        '',
+        '[E] Close',
+      ]
+    }
+
+    this.questDialogAction = action
+    this.showDialog(lines)
+    this.dialogOpen = true
+  }
+
   private openTrainerDialog() {
     if (this.dialogOpen) return
     const frostModal = (window as any).__frostModal
     if (!frostModal) return
 
     const TRAINABLE = [
-      { name: 'arcaneExplosion', label: 'Arcane Explosion', key: 'Q', cost: 100  },
+      { name: 'arcaneBlast', label: 'Arcane Blast', key: 'Q', cost: 100  },
       { name: 'frostNova',       label: 'Frost Nova',        key: 'E', cost: 200  },
       { name: 'blizzard',        label: 'Blizzard',           key: 'R', cost: 500  },
     ]
@@ -3593,6 +3764,34 @@ export class GameScene extends Phaser.Scene {
 
     if (!hadAction) return
 
+    // Innkeeper Stella — starter village quests
+    if (this.nearNPC === 'guide') {
+      if (this.starterPhase === 'offer1') {
+        this.starterPhase = 'active1'
+        this.starterKills = 0
+        this.hud.showQuestUpdate('Quest accepted!\nA Rough Start', '#aadd44')
+      } else if (this.starterPhase === 'active1' && this.starterKills >= 3) {
+        this.player.gainXP(40)
+        this.player.inventory.gold += 500
+        this.player.inventory.notifyChange()
+        this.hud.showQuestUpdate('Quest complete!\n+40 XP  +5s', '#ffdd44')
+        this.starterPhase = 'offer2'
+        this.starterKills = 0
+      } else if (this.starterPhase === 'offer2') {
+        this.starterPhase = 'active2'
+        this.starterKills = 0
+        this.hud.showQuestUpdate('Quest accepted!\nInto the Wild', '#aadd44')
+      } else if (this.starterPhase === 'active2' && this.starterKills >= 8) {
+        this.player.gainXP(80)
+        this.player.inventory.gold += 1500
+        this.player.inventory.notifyChange()
+        this.hud.showQuestUpdate('Quest complete!\n+80 XP  +15s', '#ffdd44')
+        this.starterPhase = 'done'
+        this.starterKills = 0
+      }
+      return
+    }
+
     // Farmer Holt chicken quest hand-in
     if (this.nearNPC === 'farmer') {
       if (this.chickenQuestState === 'none') {
@@ -3724,12 +3923,32 @@ export class GameScene extends Phaser.Scene {
 
   private initQuests() {
     this.questDefs = [
-      // ── Phase 1: Elder Mirwen — Town ──────────────────────────────────────
-      { title: 'First Blood',      desc: 'Slay 5 creatures near town.',        target: 5,  xp: 80,  gold: 1500  },
-      { title: 'Pest Control',     desc: 'Defeat 12 enemies across the land.', target: 12, xp: 160, gold: 3500  },
-      { title: 'Growing Stronger', desc: 'Hunt down 25 enemies in the wilds.', target: 25, xp: 300, gold: 7000  },
+      // ── Phase 1: Elder Mirwen — Main City ─────────────────────────────────
+      { title: 'First Blood',      desc: 'Slay 12 creatures in the land.',     target: 12, xp: 120, gold: 2500  },
+      { title: 'Pest Control',     desc: 'Defeat 20 enemies across the land.', target: 20, xp: 200, gold: 5000  },
+      { title: 'Growing Stronger', desc: 'Hunt down 35 enemies in the wilds.', target: 35, xp: 350, gold: 8000  },
 
-      // ── Travel 1: Town → Frozen Ruins ─────────────────────────────────────
+      // ── Travel 1: Town → Elven Wilds ──────────────────────────────────────
+      {
+        type: 'travel', title: 'A Moonlit Calling',
+        desc: 'Seek out Elder Liriel in the Elven Wilds to the west.',
+        target: 0, xp: 50, gold: 1000,
+        travelZone: 'Elven Wilds', markerX: 600, markerY: 4680, markerLabel: '◄ Elven Wilds',
+        giver: 'Elder Liriel',
+        arriveLines: [
+          '"Apprentice. The deeper groves are… restless."',
+          '"Shadows have crept into elf-kind. They no longer heed the ancient pact."',
+          '"Prove your power. Thin the wayward wardens — twelve will show resolve."',
+          '',
+          'Quest: Wayward Wardens',
+          'Slay 12 elves in the Elven Wilds.',
+        ],
+      },
+
+      // ── Phase 1b: Elven Wilds — Elder Liriel ──────────────────────────────
+      { title: 'Wayward Wardens', desc: 'Slay 12 elves in the Elven Wilds.', target: 12, zone: 'Elven Wilds', xp: 220, gold: 5000, autoCollect: true },
+
+      // ── Travel 2: Elven Wilds → Frozen Ruins ──────────────────────────────
       {
         type: 'travel', title: 'A Frozen Lead',
         desc: 'Travel north and find Mage Solvara in the Frozen Ruins.',
@@ -3818,6 +4037,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private trackQuestKill() {
+    // Count toward starter village quests (independent chain)
+    if (this.starterPhase === 'active1' || this.starterPhase === 'active2') {
+      this.starterKills++
+      const target = this.starterPhase === 'active1' ? 3 : 8
+      const title  = this.starterPhase === 'active1' ? 'A Rough Start' : 'Into the Wild'
+      const capped = Math.min(this.starterKills, target)
+      this.hud.showFloatingText(this.player.x, this.player.y - 52, `${title}: ${capped}/${target}`, '#ffe066', 16)
+      if (this.starterKills >= target) {
+        this.hud.showQuestUpdate(`Quest complete!\nReturn to Innkeeper Stella.`, '#ffdd44')
+      }
+    }
+
     const q = this.questDefs[this.activeQuestIdx]
     if (!q || q.type === 'travel') return
     if (q.zone && getZoneAt(this.player.x, this.player.y)?.name !== q.zone) return
@@ -3875,10 +4106,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Minimum quest index needed to enter each zone. */
   private readonly ZONE_UNLOCK: Record<string, number> = {
-    'Frozen Ruins':     3,   // unlocked when "A Frozen Lead" travel quest is active
-    'Corrupted Fields': 6,   // unlocked when "The Tainted West" travel quest is active
-    'Arcane Caves':     9,   // unlocked when "Into the Depths" travel quest is active
-    'Volcanic Wastes':  12,  // unlocked when "Into the Wastes" travel quest is active
+    'Arcane Caves': 11,   // unlocked when "Into the Depths" travel quest is active
   }
 
   private isZoneLocked(zoneName: string): boolean {
@@ -3888,21 +4116,25 @@ export class GameScene extends Phaser.Scene {
 
   private pushOutOfZone(zone: ZoneDef) {
     const body = this.player.body as Phaser.Physics.Arcade.Body
-    // Push back to just outside the zone boundary
-    switch (zone.name) {
-      case 'Frozen Ruins':
-        body.reset(this.player.x, zone.y + zone.h + 12)
-        break
-      case 'Corrupted Fields':
-        body.reset(zone.x + zone.w + 12, this.player.y)
-        break
-      case 'Arcane Caves':
-        body.reset(zone.x - 12, this.player.y)
-        break
-      case 'Volcanic Wastes':
-        body.reset(this.player.x, zone.y + zone.h + 12)  // push south, below the top zone
-        break
-    }
+    const px = this.player.x
+    const py = this.player.y
+    // Find closest zone edge and push just outside it, then kill velocity
+    const distLeft   = px - zone.x
+    const distRight  = (zone.x + zone.w) - px
+    const distTop    = py - zone.y
+    const distBottom = (zone.y + zone.h) - py
+    const MARGIN = 48
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom)
+    let nx = px, ny = py
+    if      (minDist === distLeft)   nx = zone.x - MARGIN
+    else if (minDist === distRight)  nx = zone.x + zone.w + MARGIN
+    else if (minDist === distTop)    ny = zone.y - MARGIN
+    else                             ny = zone.y + zone.h + MARGIN
+    // Clamp to world bounds
+    nx = Phaser.Math.Clamp(nx, 48, this.world.worldW - 48)
+    ny = Phaser.Math.Clamp(ny, 48, this.world.worldH - 48)
+    body.reset(nx, ny)
+    this.player.setVelocity(0, 0)
     // Throttle warning message to once every 3 seconds
     if (this.time.now - this.lastGateWarnAt < 3000) return
     this.lastGateWarnAt = this.time.now
@@ -3912,16 +4144,22 @@ export class GameScene extends Phaser.Scene {
 
   private getZoneGateHint(zoneName: string): string {
     switch (zoneName) {
+      case 'Elven Wilds':
+        return 'Elven Wilds\nComplete Elder Mirwen\'s quests first.'
       case 'Frozen Ruins':
-        return '🔒 Frozen Ruins\nComplete Elder Mirwen\'s quests first.'
+        return 'Frozen Ruins\nClear the Elven Wilds first.'
       case 'Corrupted Fields':
-        return '🔒 Corrupted Fields\nClear the Frozen Ruins first.'
+        return 'Corrupted Fields\nClear the Frozen Ruins first.'
       case 'Arcane Caves':
-        return '🔒 Arcane Caves\nClear the Corrupted Fields first.'
+        return 'Arcane Caves\nClear the Corrupted Fields first.'
+      case 'Hillsbrad Foothills':
+        return 'Hillsbrad Foothills\nClear the Frozen Ruins first.'
+      case 'Mount Hyjal':
+        return 'Mount Hyjal\nClear the Corrupted Fields first.'
       case 'Volcanic Wastes':
-        return '🔒 Volcanic Wastes\nClear the Arcane Caves first.'
+        return 'Volcanic Wastes\nClear the Arcane Caves first.'
       default:
-        return '🔒 Zone locked.'
+        return 'Zone locked.'
     }
   }
 
@@ -4023,13 +4261,15 @@ export class GameScene extends Phaser.Scene {
         activeQuestIdx: this.activeQuestIdx,
         questKills:     this.questKills,
       }
-      localStorage.setItem('frost_char_v1', JSON.stringify(data))
+      const key = this.hardcore ? 'frost_char_hc_v1' : 'frost_char_v1'
+      localStorage.setItem(key, JSON.stringify(data))
     } catch { /* storage unavailable */ }
   }
 
   private loadCharacter() {
     try {
-      const raw = localStorage.getItem('frost_char_v1')
+      const key = this.hardcore ? 'frost_char_hc_v1' : 'frost_char_v1'
+      const raw = localStorage.getItem(key)
       if (!raw) return
       const data = JSON.parse(raw) as CharSave
       if (data.v !== 1) return
