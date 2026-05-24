@@ -17,9 +17,9 @@ export interface Stats {
 
 /** Minimum level required to train each spell at the trainer. */
 export const SPELL_TRAIN_LEVEL: Record<string, number> = {
-  arcaneExplosion: 4,
-  frostNova:       8,
-  blizzard:        14,
+  frostNova:    7,   // Frost Nova: root packs — first real AoE tool
+  arcaneBlast:  14,  // Arcane Blast: burst AoE combo with Nova
+  blizzard:     18,  // Blizzard: sustained AoE — the mage farming dream
 }
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -30,7 +30,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   fireboltCooldown        = 0
   frostboltCooldown       = 0
-  arcaneExplosionCooldown = 0
+  arcaneBlastCooldown = 0
   frostNovaCooldown       = 0
   blizzardCooldown        = 0
 
@@ -83,8 +83,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.applyCDR(base)
   }
   get frostboltCooldownMax(): number { return this.fireboltCooldownMax }
-  /** ArcEx shares cooldown length with whichever bolt is active. */
-  get arcaneExplosionCooldownMax(): number { return this.fireboltCooldownMax }
+  /** Arcane Blast shares cooldown with the active bolt. */
+  get arcaneBlastCooldownMax(): number { return this.fireboltCooldownMax }
   get frostNovaCooldownMax()       { return this.applyCDR(Balance.spells.frostNova.cooldownMs) }
   get blizzardCooldownMax()        { return this.applyCDR(Balance.spells.blizzard.cooldownMs) }
 
@@ -101,19 +101,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   get fireboltCost()        { return this.effectiveCost(Balance.player.fireboltManaCost) }
   get frostboltCost()       { return this.effectiveCost(Balance.spells.frostbolt.manaCost) }
-  get arcaneExplosionCost() { return this.effectiveCost(Balance.spells.arcaneExplosion.manaCost) }
+  get arcaneBlastCost()     { return this.effectiveCost(Balance.spells.arcaneBlast.manaCost) }
   get frostNovaCost()       { return this.effectiveCost(Balance.spells.frostNova.manaCost) }
   get blizzardCost()        { return this.effectiveCost(Balance.spells.blizzard.manaCost) }
 
   canCastFirebolt()        { return this.fireboltCooldown <= 0        && this.stats.mana >= this.fireboltCost }
   canCastFrostbolt()       { return this.frostboltCooldown <= 0       && this.stats.mana >= this.frostboltCost }
-  canCastArcaneExplosion() { return this.arcaneExplosionCooldown <= 0 && this.stats.mana >= this.arcaneExplosionCost }
+  canCastArcaneBlast()     { return this.arcaneBlastCooldown <= 0     && this.stats.mana >= this.arcaneBlastCost }
   canCastFrostNova()       { return this.frostNovaCooldown <= 0       && this.stats.mana >= this.frostNovaCost }
   canCastBlizzard()        { return this.blizzardCooldown <= 0        && this.stats.mana >= this.blizzardCost }
 
   spendFireboltCost()        { this.stats.mana -= this.fireboltCost;        this.fireboltCooldown        = this.fireboltCooldownMax }
   spendFrostboltCost()       { this.stats.mana -= this.frostboltCost;       this.frostboltCooldown       = this.frostboltCooldownMax }
-  spendArcaneExplosionCost() { this.stats.mana -= this.arcaneExplosionCost; this.arcaneExplosionCooldown = this.arcaneExplosionCooldownMax }
+  spendArcaneBlastCost()     { this.stats.mana -= this.arcaneBlastCost;     this.arcaneBlastCooldown     = this.arcaneBlastCooldownMax }
   spendFrostNovaCost()       { this.stats.mana -= this.frostNovaCost;       this.frostNovaCooldown       = this.frostNovaCooldownMax }
   spendBlizzardCost()        { this.stats.mana -= this.blizzardCost;        this.blizzardCooldown        = this.blizzardCooldownMax }
 
@@ -158,7 +158,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.move()
     if (this.fireboltCooldown        > 0) this.fireboltCooldown        -= delta
     if (this.frostboltCooldown       > 0) this.frostboltCooldown       -= delta
-    if (this.arcaneExplosionCooldown > 0) this.arcaneExplosionCooldown -= delta
+    if (this.arcaneBlastCooldown     > 0) this.arcaneBlastCooldown     -= delta
     if (this.frostNovaCooldown       > 0) this.frostNovaCooldown       -= delta
     if (this.blizzardCooldown        > 0) this.blizzardCooldown        -= delta
     this.regenMana(delta)
@@ -216,7 +216,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private levelUp() {
-    if (this.stats.level === 10) this.premiumGateReached = true  // milestone flag, no cap
+    if (this.stats.level >= Balance.xp.maxLevel) {
+      this.stats.xp = this.stats.xpToNext  // pin at cap, don't overflow
+      return
+    }
+    if (this.stats.level === 10) this.premiumGateReached = true  // milestone flag
     const B = Balance.player
     this.stats.xp       -= this.stats.xpToNext
     this.stats.level++

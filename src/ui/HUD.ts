@@ -302,7 +302,7 @@ export class HUD {
     // ── Spell rings — only show learned spells ────────────────────────────
     const isFrost = player.activeBolt === 'frost'
     const ALL_RING_DEFS = [
-      { key: 'Q', name: 'ArcEx',                                    color: 0xcc44ff, spell: 'arcaneExplosion', cdIdx: 0 },
+      { key: 'Q', name: 'ArcBlast',                                  color: 0xcc44ff, spell: 'arcaneBlast',    cdIdx: 0 },
       { key: 'E', name: 'FrNova',                                    color: 0x44aaff, spell: 'frostNova',       cdIdx: 1 },
       { key: 'R', name: 'Blizzard',                                  color: 0x0088dd, spell: 'blizzard',        cdIdx: 2 },
       { key: 'F', name: isFrost ? 'Ice Lance' : 'Firebolt',          color: isFrost ? 0x44ccff : 0xff8800, spell: 'bolt', cdIdx: 3 },
@@ -310,7 +310,7 @@ export class HUD {
     const boltCd    = isFrost ? player.frostboltCooldown  : player.fireboltCooldown
     const boltCdMax = isFrost ? player.frostboltCooldownMax : player.fireboltCooldownMax
     const cooldowns = [
-      { cd: player.arcaneExplosionCooldown, max: player.arcaneExplosionCooldownMax },
+      { cd: player.arcaneBlastCooldown,     max: player.arcaneBlastCooldownMax },
       { cd: player.frostNovaCooldown,       max: player.frostNovaCooldownMax },
       { cd: player.blizzardCooldown,        max: player.blizzardCooldownMax },
       { cd: boltCd,                         max: boltCdMax },

@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 
 const SPELL_COLORS = [0xcc44ff, 0x44aaff, 0x0088dd, 0xff8800] as const
 const SPELL_KEYS   = ['Q', 'E', 'R', 'F'] as const
-const SPELL_IDS    = ['arcaneExplosion', 'frostNova', 'blizzard', 'bolt'] as const
+const SPELL_IDS    = ['arcaneBlast', 'frostNova', 'blizzard', 'bolt'] as const
 const MENU_KEYS    = ['I', 'T', 'P', '?'] as const
 const ICOL         = 0x33bb77
 
