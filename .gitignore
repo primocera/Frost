@@ -1,3 +1,16 @@
 node_modules/
 dist/
 CLAUDE.local.md
+
+# PartyKit local build/state
+.partykit/
+
+# Large/raw audio assets that aren't loaded by the game
+*.zip
+/public/assets/audio/rpg_pack/
+/public/assets/audio/sfx_pack/
+/public/assets/audio/magical_*.ogg
+# Loose raw audio downloads dropped in the repo root
+/*.ogg
+/*.mp3
+/*.wav
