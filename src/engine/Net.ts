@@ -1,4 +1,3 @@
-import { PartySocket } from 'partysocket'
 import Balance from '../sim/balance'
 import { hydrateEnemy, hydratePlayer } from '../sim/snapshot'
 import { WORLD_W, WORLD_H } from '../sim/zones'
@@ -26,7 +25,7 @@ export class Net {
   localId = ''
   readonly world: WorldState
 
-  private socket: PartySocket
+  private socket: WebSocket
   private players = new Map<string, PlayerState>()
   private targets = new Map<string, Vec2>()
   private enemies = new Map<number, EnemyState>()
@@ -43,7 +42,8 @@ export class Net {
       timeMs: 0, rngState: 0, events: [], nextEnemyId: 0, nextProjId: 0, nextLootId: 0,
       killStreak: 0, lastKillMs: 0,
     }
-    this.socket = new PartySocket({ host, room })
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+    this.socket = new WebSocket(`${proto}://${host}/?room=${encodeURIComponent(room)}`)
     this.socket.addEventListener('open', () => {
       this.setStatus('connected')
       this.socket.send(JSON.stringify({ t: 'join', name: this.name }))

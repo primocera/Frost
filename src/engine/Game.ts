@@ -16,7 +16,9 @@ import { Renderer } from './Renderer'
 import { SoundManager } from './Sound'
 
 const LOCAL_ID = 'local'
-const PARTY_HOST = import.meta.env.VITE_PARTYKIT_HOST || `${location.hostname}:1999`
+// Game server host. Local dev uses wrangler's default port (8787); production
+// sets VITE_PARTYKIT_HOST to the deployed Worker host (e.g. frost.<sub>.workers.dev).
+const PARTY_HOST = import.meta.env.VITE_PARTYKIT_HOST || `${location.hostname}:8787`
 const PARTY_ROOM = 'frost'
 
 /**

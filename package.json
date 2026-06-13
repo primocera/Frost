@@ -6,8 +6,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "party": "partykit dev --port 1999",
-    "party:deploy": "partykit deploy"
+    "party": "wrangler dev",
+    "party:deploy": "wrangler deploy",
+    "typecheck:worker": "tsc -p tsconfig.worker.json"
   },
   "dependencies": {
     "partysocket": "^1.2.0",
@@ -17,11 +18,13 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260613.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "partykit": "^0.0.115",
     "typescript": "^5.4.5",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "wrangler": "^4.100.0"
   }
 }

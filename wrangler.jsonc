@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "frost",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-01-01",
+  "durable_objects": {
+    "bindings": [{ "name": "FROST_ROOM", "class_name": "FrostRoom" }]
+  },
+  // SQLite-backed DO class — required for Durable Objects on the Cloudflare free plan.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["FrostRoom"] }
+  ],
+  "observability": { "enabled": true }
+}

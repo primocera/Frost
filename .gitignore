@@ -2,8 +2,9 @@ node_modules/
 dist/
 CLAUDE.local.md
 
-# PartyKit local build/state
+# Local server build/state
 .partykit/
+.wrangler/
 
 # Large/raw audio assets that aren't loaded by the game
 *.zip
