@@ -224,7 +224,7 @@ export interface SelfState {
 
 /** client → server */
 export type ClientMessage =
-  | { t: 'join'; name: string }
+  | { t: 'join'; name: string; pid?: string }   // pid = stable per-browser save id
   | { t: 'input'; cmd: InputCommand }
   | { t: 'equip'; itemId: number }
   | { t: 'unequip'; slot: EquipSlot }

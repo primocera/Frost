@@ -35,7 +35,7 @@ export class Net {
   private predReady = false
   self: SelfState | null = null
 
-  constructor(host: string, room: string, private name: string, private onStatus: (s: NetStatus) => void) {
+  constructor(host: string, room: string, private name: string, private pid: string, private onStatus: (s: NetStatus) => void) {
     this.world = {
       bounds: { x: 0, y: 0, w: WORLD_W, h: WORLD_H },
       players: [], enemies: [], projectiles: [], loot: [], grounds: [], zones: [],
@@ -46,7 +46,7 @@ export class Net {
     this.socket = new WebSocket(`${proto}://${host}/?room=${encodeURIComponent(room)}`)
     this.socket.addEventListener('open', () => {
       this.setStatus('connected')
-      this.socket.send(JSON.stringify({ t: 'join', name: this.name }))
+      this.socket.send(JSON.stringify({ t: 'join', name: this.name, pid: this.pid }))
     })
     this.socket.addEventListener('close', () => this.setStatus('offline'))
     this.socket.addEventListener('error', () => this.setStatus('offline'))

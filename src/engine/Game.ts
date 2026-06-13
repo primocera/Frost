@@ -2,6 +2,7 @@ import { formatCopperShort } from '../utils/currency'
 import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
+  extractSave, applySave, SavedPlayer,
 } from '../sim'
 import { emptyInput, InputCommand } from '../sim/types'
 import type { EquipSlot } from '../items/ItemTypes'
@@ -37,6 +38,8 @@ export class Game {
   private net: Net | null = null
   private mode: 'local' | 'net' = 'local'
   private hudAccum = 0
+  private saveAccum = 0
+  private pid = getPid()
 
   constructor(private canvas: HTMLCanvasElement, name: string, private sound?: SoundManager) {
     const ctx = canvas.getContext('2d')
@@ -46,7 +49,9 @@ export class Game {
     this.input = new Input(canvas)
 
     this.local = createWorld(Date.now() & 0xffffffff)
-    addPlayer(this.local, LOCAL_ID, name)
+    const lp0 = addPlayer(this.local, LOCAL_ID, name)
+    const saved = loadLocalSave()
+    if (saved) applySave(lp0, saved)   // restore solo progress
 
     this.camera.bounds = this.local.bounds
     this.resize()
@@ -54,12 +59,13 @@ export class Game {
     if (lp) this.camera.snap(lp.x, lp.y)
 
     // Attempt multiplayer; falls back to local if it can't connect.
-    this.net = new Net(PARTY_HOST, PARTY_ROOM, name, (status) => {
+    this.net = new Net(PARTY_HOST, PARTY_ROOM, name, this.pid, (status) => {
       useGameStore.getState().setNet(status)
       if (status === 'connected') this.mode = 'net'
       else if (status === 'offline' && this.mode === 'net') this.mode = 'local'
     })
     useGameStore.getState().setNet('connecting')
+    window.addEventListener('beforeunload', this.saveOnExit)
 
     // Let React panels drive equip/talent actions (local sim or networked).
     useGameStore.getState().setActions({
@@ -127,6 +133,16 @@ export class Game {
 
     this.hudAccum += dt
     if (this.hudAccum >= 0.1) { this.hudAccum = 0; this.pushHud() }
+
+    // Solo progress is saved to localStorage (multiplayer is saved server-side).
+    if (this.mode === 'local') {
+      this.saveAccum += dt
+      if (this.saveAccum >= 8) { this.saveAccum = 0; if (lp) saveLocalSave(lp) }
+    }
+  }
+
+  private saveOnExit = () => {
+    if (this.mode === 'local') { const p = this.localPlayer(); if (p) saveLocalSave(p) }
   }
 
   // ── Equip / talent actions ───────────────────────────────────────────────
@@ -243,9 +259,29 @@ export class Game {
   }
 
   destroy() {
+    this.saveOnExit()
     this.loop.stop()
     this.input.destroy()
     this.net?.close()
     window.removeEventListener('resize', this.resize)
+    window.removeEventListener('beforeunload', this.saveOnExit)
   }
+}
+
+// ── Per-browser identity + solo save (localStorage) ─────────────────────────
+function getPid(): string {
+  try {
+    let id = localStorage.getItem('frost_pid')
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('frost_pid', id) }
+    return id
+  } catch { return 'local' }
+}
+
+function loadLocalSave(): SavedPlayer | null {
+  try { const raw = localStorage.getItem('frost_save'); return raw ? JSON.parse(raw) as SavedPlayer : null }
+  catch { return null }
+}
+
+function saveLocalSave(p: PlayerState) {
+  try { localStorage.setItem('frost_save', JSON.stringify(extractSave(p))) } catch { /* storage full/blocked */ }
 }
