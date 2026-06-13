@@ -3,6 +3,7 @@ import { createWorld, addPlayer, removePlayer, tick } from '../sim/world'
 import { serialize, selfOf } from '../sim/snapshot'
 import { equipItem, unequipItem } from '../sim/inventory'
 import { spendTalent } from '../sim/talents'
+import { trainSpell } from '../sim/shop'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
 
@@ -90,6 +91,8 @@ export class FrostRoom {
       if (player) unequipItem(player, msg.slot)
     } else if (msg.t === 'talent') {
       if (player) spendTalent(player, msg.id)
+    } else if (msg.t === 'train') {
+      if (player) trainSpell(player, msg.spell)
     } else if (msg.t === 'input') {
       const cur = this.inputs[id] ?? emptyInput()
       cur.move = msg.cmd.move

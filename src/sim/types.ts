@@ -229,6 +229,7 @@ export type ClientMessage =
   | { t: 'equip'; itemId: number }
   | { t: 'unequip'; slot: EquipSlot }
   | { t: 'talent'; id: TalentId }
+  | { t: 'train'; spell: string }
 
 /** server → client */
 export type ServerMessage =

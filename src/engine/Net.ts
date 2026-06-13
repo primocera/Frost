@@ -66,6 +66,7 @@ export class Net {
   equip(itemId: number) { this.send({ t: 'equip', itemId }) }
   unequip(slot: EquipSlot) { this.send({ t: 'unequip', slot }) }
   buyTalent(id: TalentId) { this.send({ t: 'talent', id }) }
+  train(spell: string) { this.send({ t: 'train', spell }) }
   private send(msg: object) { if (this.socket.readyState === 1) this.socket.send(JSON.stringify(msg)) }
 
   private applySnapshot(msg: Extract<ServerMessage, { t: 'snap' }>) {

@@ -1,9 +1,14 @@
 import {
   EQUIP_SLOTS, EquipSlot, SLOT_LABEL, RARITY_COLOR, ItemStats, Item,
   TALENT_DEFS, talentsForTree, TREE_LABEL, TREE_COLOR, TREE_UNLOCK_LEVEL,
-  TALENT_TREES, TreeId, canBuyTalent,
+  TALENT_TREES, TreeId, canBuyTalent, SHOP_SPELLS,
 } from '../sim'
 import { useGameStore } from './store'
+
+const fmtCopper = (n: number) => {
+  const g = Math.floor(n / 10000), s = Math.floor((n % 10000) / 100), c = n % 100
+  return [g && `${g}g`, s && `${s}s`, (c || (!g && !s)) && `${c}c`].filter(Boolean).join(' ')
+}
 
 const STAT_FMT: Record<keyof ItemStats, (v: number) => string> = {
   spellPower: (v) => `+${v} Spell Power`,
@@ -26,7 +31,7 @@ export function Panels() {
   return (
     <div style={styles.backdrop} onClick={() => useGameStore.getState().setPanel('none')}>
       <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
-        {panel === 'inventory' ? <Inventory /> : <Talents />}
+        {panel === 'inventory' ? <Inventory /> : panel === 'talents' ? <Talents /> : <Shop />}
       </div>
     </div>
   )
@@ -123,6 +128,44 @@ function Talents() {
   )
 }
 
+function Shop() {
+  const hud = useGameStore((s) => s.hud)
+  const actions = useGameStore((s) => s.actions)
+  return (
+    <>
+      <Header title="Spell Trainer" />
+      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto' }}>
+        <div style={{ color: '#ffdd00', fontSize: 13 }}>Your gold: {fmtCopper(hud.gold)}</div>
+        {SHOP_SPELLS.map((sp) => {
+          const owned = hud.learnedSpells.includes(sp.spell)
+          const levelOk = hud.level >= sp.level
+          const goldOk = hud.gold >= sp.cost
+          const canBuy = !owned && levelOk && goldOk
+          return (
+            <div key={sp.spell} style={styles.shopRow}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#c0aaff', fontWeight: 600, fontSize: 13 }}>{sp.label}</div>
+                <div style={{ color: '#889', fontSize: 11 }}>{sp.desc}</div>
+                <div style={{ color: '#778', fontSize: 11 }}>Requires level {sp.level} · {fmtCopper(sp.cost)}</div>
+              </div>
+              {owned
+                ? <span style={{ color: '#5d8', fontSize: 12, fontWeight: 600 }}>✓ Trained</span>
+                : <button
+                    style={{ ...styles.shopBuy, opacity: canBuy ? 1 : 0.4, cursor: canBuy ? 'pointer' : 'default' }}
+                    disabled={!canBuy}
+                    onClick={() => actions?.train(sp.spell)}
+                  >{!levelOk ? `Lv ${sp.level}` : !goldOk ? 'Need gold' : 'Train'}</button>}
+            </div>
+          )
+        })}
+        <div style={{ color: '#556', fontSize: 11, marginTop: 6 }}>
+          Earn gold by slaying monsters, then train your AoE spells here. Press B to close.
+        </div>
+      </div>
+    </>
+  )
+}
+
 function Header({ title }: { title: string }) {
   return (
     <div style={styles.header}>
@@ -164,4 +207,6 @@ const styles: Record<string, React.CSSProperties> = {
   talentRow: { borderBottom: '1px solid rgba(25,30,45,0.9)', padding: '6px 4px' },
   talentDesc: { fontSize: 10, color: '#778', margin: '2px 0' },
   buyBtn: { marginTop: 3, fontSize: 11, padding: '2px 10px', borderRadius: 4, background: 'rgba(10,20,40,0.9)', border: '1px solid', fontFamily: 'inherit' },
+  shopRow: { display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(12,18,30,0.9)', border: '1px solid rgba(45,70,110,0.4)', borderRadius: 8, padding: '10px 12px' },
+  shopBuy: { fontSize: 12, padding: '6px 14px', borderRadius: 6, background: 'linear-gradient(135deg,rgba(20,80,160,0.8),rgba(10,50,100,0.8))', border: '1px solid rgba(60,120,220,0.45)', color: '#88bbff', fontFamily: 'inherit' },
 }

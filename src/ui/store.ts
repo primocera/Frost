@@ -33,15 +33,16 @@ export interface HudState {
   zone: string
   zoneColor: string
   spells: SpellHud[]
+  learnedSpells: string[]
 }
 
 const initialHud: HudState = {
   hp: 80, maxHp: 80, mana: 100, maxMana: 100,
   xp: 0, xpToNext: 500, level: 1, gold: 0, activeBolt: 'fire', dead: false,
-  zone: '', zoneColor: '#cfe3ff', spells: [],
+  zone: '', zoneColor: '#cfe3ff', spells: [], learnedSpells: ['bolt'],
 }
 
-export type Panel = 'none' | 'inventory' | 'talents'
+export type Panel = 'none' | 'inventory' | 'talents' | 'shop'
 
 /** Action hooks the engine registers so React panels can drive the sim
  *  (local) or send messages to the server (networked). */
@@ -49,6 +50,7 @@ export interface GameActions {
   equip: (itemId: number) => void
   unequip: (slot: EquipSlot) => void
   buyTalent: (id: TalentId) => void
+  train: (spell: string) => void
 }
 
 interface GameUIState {

@@ -456,7 +456,7 @@ function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefine
 
   if (killer) {
     const leveled = gainXP(killer, xp)
-    if (leveled) { world.events.push({ type: 'levelUp', pid: killer.id, level: killer.stats.level }); learnSpellsForLevel(world, killer) }
+    if (leveled) world.events.push({ type: 'levelUp', pid: killer.id, level: killer.stats.level })
     // Flashpoint: killing a burning enemy resets the killer's Firebolt cooldown.
     if (e.burning && talentBonus.flashpoint(killer.talentRanks)) killer.cd.firebolt = 0
   }
@@ -472,16 +472,6 @@ function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefine
 
   const zone = world.zones[e.zoneId]
   if (zone) { zone.count--; zone.respawnTimers.push(rng.int(RESPAWN_MIN, RESPAWN_MAX)) }
-}
-
-/** Auto-learn spells whose train level the player has reached (shop replaces this in Phase 6). */
-function learnSpellsForLevel(world: WorldState, p: PlayerState) {
-  for (const [spell, lvl] of Object.entries(SPELL_TRAIN_LEVEL)) {
-    if (p.stats.level >= lvl && !p.learnedSpells.includes(spell)) {
-      p.learnedSpells.push(spell)
-      world.events.push({ type: 'learnedSpell', pid: p.id, spell })
-    }
-  }
 }
 
 function dropLoot(world: WorldState, e: EnemyState, killer: PlayerState | null, rng: RNG) {

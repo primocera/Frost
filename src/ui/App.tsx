@@ -97,7 +97,7 @@ function Game() {
         ))}
       </div>
 
-      <div style={styles.controls}>WASD move · Click/F bolt · Q Arcane · E Nova · R Blizzard · X swap · I bag · T talents</div>
+      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · B shop</div>
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
       <Panels />
     </>

@@ -15,7 +15,10 @@ export const WORLD_SIZE = 3600
 // spawn directly in the Beginner Forest where the starter camps are, so there's
 // something to fight immediately. Reverts to the village once it's built.
 export const STARTER_X = 3300
-export const STARTER_Y = 5400
+// Spawn sits in the mob-free village strip (y 5400–6500), below the deepest
+// Beginner Forest camps (~y 5240), so the whole safe square stays clear of
+// enemies. Players walk a short way north to reach combat.
+export const STARTER_Y = 5900
 
 /** No-PvP square around spawn: half-extent in px (used by sim + renderer). */
 export const PVP_SAFE_R = 460

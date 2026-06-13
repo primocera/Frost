@@ -2,7 +2,7 @@ import { formatCopperShort } from '../utils/currency'
 import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
-  extractSave, applySave, SavedPlayer,
+  extractSave, applySave, SavedPlayer, trainSpell,
 } from '../sim'
 import { emptyInput, InputCommand } from '../sim/types'
 import type { EquipSlot } from '../items/ItemTypes'
@@ -72,6 +72,7 @@ export class Game {
       equip: (id) => this.doEquip(id),
       unequip: (slot) => this.doUnequip(slot),
       buyTalent: (id) => this.doTalent(id),
+      train: (spell) => this.doTrain(spell),
     })
 
     window.addEventListener('resize', this.resize)
@@ -125,6 +126,7 @@ export class Game {
     // Panel toggles (I = inventory, T = talents).
     if (this.input.consumePressed('i')) useGameStore.getState().togglePanel('inventory')
     if (this.input.consumePressed('t')) useGameStore.getState().togglePanel('talents')
+    if (this.input.consumePressed('b')) useGameStore.getState().togglePanel('shop')
 
     this.fx.update(dt)
     const lp = this.localPlayer()
@@ -157,6 +159,10 @@ export class Game {
   private doTalent(id: TalentId) {
     if (this.mode === 'net' && this.net) this.net.buyTalent(id)
     else { const p = this.localPlayer(); if (p) spendTalent(p, id) }
+  }
+  private doTrain(spell: string) {
+    if (this.mode === 'net' && this.net) this.net.train(spell)
+    else { const p = this.localPlayer(); if (p) trainSpell(p, spell) }
   }
 
   private render = () => {
@@ -210,7 +216,7 @@ export class Game {
           this.fx.burst(ev.x, ev.y, 8, [0x88ddff, 0xaaeeff, 0xffffff], { speedMax: 110, life: 0.4 })
           break
         case 'spellGated':
-          if (isLocal(ev.pid) && lp) this.fx.text(lp.x, lp.y - 34, `Reach Lv ${ev.level} to learn ${ev.spell}`, '#8866aa', 13)
+          if (isLocal(ev.pid) && lp) this.fx.text(lp.x, lp.y - 34, `Train ${ev.spell} at the Shop (B) — Lv ${ev.level}+`, '#cc99ff', 13)
           break
         case 'learnedSpell':
           if (isLocal(ev.pid) && lp) this.fx.text(lp.x, lp.y - 60, `Learned ${ev.spell}!`, '#88ffcc', 20)
@@ -248,6 +254,7 @@ export class Game {
       mana: Math.round(p.stats.mana), maxMana: p.stats.maxMana,
       xp: Math.round(p.stats.xp), xpToNext: p.stats.xpToNext, level: p.stats.level,
       gold: p.gold, activeBolt: p.activeBolt, dead: p.dead,
+      learnedSpells: p.learnedSpells,
       zone: zone?.name ?? 'Wilds',
       zoneColor: zone?.labelColor ?? '#cfe3ff',
       spells: [
