@@ -54,6 +54,7 @@ export class Game {
     const saved = loadLocalSave()
     if (saved) applySave(lp0, saved)   // restore solo progress
 
+    touch.active = isTouchDevice()   // must be set before resize() (it picks zoom)
     this.camera.bounds = this.local.bounds
     this.resize()
     const lp = this.localPlayer()
@@ -76,7 +77,6 @@ export class Game {
       train: (spell) => this.doTrain(spell),
       sendChat: (text) => this.doChat(text),
     })
-    touch.active = isTouchDevice()
     useGameStore.getState().setMobile(touch.active)
 
     window.addEventListener('resize', this.resize)
@@ -95,7 +95,7 @@ export class Game {
     this.camera.setViewport(w, h)
     // Zoom out on touch devices so more of the world is visible (phones have a
     // small CSS viewport, which otherwise looks very zoomed-in).
-    this.camera.zoom = touch.active ? Math.max(0.5, Math.min(0.9, w / 700)) : 1
+    this.camera.zoom = touch.active ? Math.max(0.45, Math.min(0.8, w / 760)) : 1
   }
 
   /** The world currently being rendered (local sim or networked snapshot). */
