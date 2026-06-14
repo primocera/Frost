@@ -9,7 +9,7 @@ import { TouchControls } from './TouchControls'
 // Create a Stripe Payment Link (Dashboard → Payment Links — enable "customer
 // chooses amount" for tips, or a $5/mo subscription) and paste its URL here.
 // While empty, the support buttons stay hidden.
-const SUPPORT_URL = ''   // e.g. 'https://buy.stripe.com/xxxxxxxxxxxx'
+const SUPPORT_URL = 'https://buy.stripe.com/7sY9ALfNO4Ir0aTfD3fnO00'
 
 /**
  * Root component. Switches between the landing/name screen and the live game.
