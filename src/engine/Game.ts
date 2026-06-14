@@ -71,6 +71,8 @@ export class Game {
     const lp0 = addPlayer(this.local, LOCAL_ID, name)
     const saved = loadLocalSave()
     if (saved) applySave(lp0, saved)   // restore solo progress
+    // Soft cap in solo: a logged-in member account lifts the level-10 cap.
+    lp0.member = !!useGameStore.getState().account?.member
 
     touch.active = isTouchDevice()   // must be set before resize() (it picks zoom)
     this.camera.bounds = this.local.bounds

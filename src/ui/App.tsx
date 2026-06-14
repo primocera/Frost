@@ -11,6 +11,11 @@ import { TouchControls } from './TouchControls'
 // chooses amount" for tips, or a $5/mo subscription) and paste its URL here.
 // While empty, the support buttons stay hidden.
 const SUPPORT_URL = 'https://buy.stripe.com/7sY9ALfNO4Ir0aTfD3fnO00'
+// $3 one-time membership Stripe Payment Link (lifts the level-10 cap). The
+// player's account pid is appended as client_reference_id so the webhook knows
+// who to unlock. Empty = unlock button hidden (cap still applies).
+const MEMBERSHIP_URL = ''   // e.g. 'https://buy.stripe.com/yyyy'
+const FREE_CAP = 10
 
 /**
  * Root component. Switches between the landing/name screen and the live game.
@@ -144,10 +149,32 @@ function Game() {
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
       <TradePrompt />
       <BessiePrompt />
+      <CapPrompt />
       <Chat />
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function CapPrompt() {
+  const level = useGameStore((s) => s.hud.level)
+  const account = useGameStore((s) => s.account)
+  const panel = useGameStore((s) => s.panel)
+  if (level < FREE_CAP || account?.member || panel !== 'none') return null
+  const url = MEMBERSHIP_URL && account ? `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}` : ''
+  return (
+    <div style={styles.capPrompt}>
+      <div style={{ fontWeight: 700, color: '#ffd23a' }}>🔒 Level {FREE_CAP} — free cap reached</div>
+      {!MEMBERSHIP_URL
+        ? <span style={{ fontSize: 11, opacity: 0.8 }}>Membership coming soon.</span>
+        : account
+          ? <>
+              <a style={styles.capBtn} href={url} target="_blank" rel="noopener noreferrer">⭐ Unlock everything — $3 once</a>
+              <span style={{ fontSize: 10, opacity: 0.7 }}>After paying, restart &amp; Play Online to apply.</span>
+            </>
+          : <span style={{ fontSize: 11, opacity: 0.8 }}>Play Online (make an account) to unlock past {FREE_CAP}.</span>}
+    </div>
   )
 }
 
@@ -341,6 +368,17 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+  },
+  capPrompt: {
+    position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+    background: 'rgba(20,14,30,0.85)', border: '1px solid rgba(200,160,60,0.5)', borderRadius: 10,
+    padding: '8px 16px', color: '#f0e6d0', fontSize: 13, textAlign: 'center',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif', textShadow: '0 1px 2px rgba(0,0,0,0.7)', maxWidth: 320,
+  },
+  capBtn: {
+    padding: '7px 16px', borderRadius: 8, textDecoration: 'none', fontSize: 13, fontWeight: 700,
+    color: '#1a1206', background: 'linear-gradient(135deg,#ffd23a,#f0a020)', border: 'none',
   },
   tradePrompt: {
     position: 'fixed', bottom: 150, left: '50%', transform: 'translateX(-50%)',

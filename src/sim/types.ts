@@ -57,6 +57,7 @@ export interface PlayerState {
   learnedSpells: string[]
   manaRegenAccum: number
   dead: boolean
+  member: boolean        // unlocked past the free level cap (one-time $3)
   // Per-player progression/economy (was world-global in single-player).
   gold: number
   inventory: Item[]

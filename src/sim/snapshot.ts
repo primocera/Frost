@@ -66,7 +66,7 @@ export function hydratePlayer(s: Snapshot['players'][number]): PlayerState {
     },
     cd: { firebolt: 0, frostbolt: 0, arcaneBlast: 0, frostNova: 0, blizzard: 0 },
     activeBolt: s.activeBolt, learnedSpells: s.learned, manaRegenAccum: 0,
-    dead: s.dead, gold: s.gold, inventory: [], inventoryCap: 30,
+    dead: s.dead, member: false, gold: s.gold, inventory: [], inventoryCap: 30,
     equipped: { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
     talentRanks: {}, talentPoints: 0, shopStock: [], quest: null, farmQuest: 0, stash: [],
     frozenMs: s.frozen ? 9999 : 0, slowMs: 0, slowMult: 1, pvpGraceMs: 0,

@@ -10,14 +10,14 @@ import { stashDeposit, stashWithdraw } from '../sim/stash'
 import { requestTrade, acceptTrade, cancelTrade, tradeOffer, tradeConfirm, getTradeOf } from '../sim/trade'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
-import { handleApi } from './auth'
+import { handleApi, isMember } from './auth'
 
 const TICK_HZ = 30
 const IDLE_HZ = 6              // slow tick when nobody's active — saves CPU + duration
 const ACTIVE_GRACE_MS = 2500  // stay at full rate this long after any activity
 const SAVE_EVERY_TICKS = 600   // ~20s at 30Hz
 
-interface Env { FROST_ROOM: DurableObjectNamespace; DB?: D1Database }
+interface Env { FROST_ROOM: DurableObjectNamespace; DB?: D1Database; STRIPE_WEBHOOK_SECRET?: string }
 
 /**
  * One authoritative shared world per room, as a Cloudflare Durable Object.
@@ -35,7 +35,7 @@ export class FrostRoom {
   private activeUntil = 0      // ms timestamp; full rate until then
   private ticks = 0
 
-  constructor(private state: DurableObjectState, _env: Env) {
+  constructor(private state: DurableObjectState, private env: Env) {
     this.world = createWorld(0xC0FFEE)
   }
 
@@ -123,6 +123,7 @@ export class FrostRoom {
       const player = addPlayer(this.world, id, msg.name || 'Mage')
       const saved = await this.state.storage.get<SavedPlayer>('p:' + pid)
       if (saved) { applySave(player, saved); regenShopStock(player) }   // stock for loaded level
+      player.member = await isMember(this.env.DB, pid)   // lifts the free level cap
       safeSend(ws, JSON.stringify({ t: 'welcome', id }))
       this.sysChat(`${player.name} joined the world`)
       return
@@ -240,7 +241,7 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
     // Account endpoints (HTTP, D1-backed) — separate from the WebSocket/DO path.
-    if (url.pathname.startsWith('/api/')) return handleApi(req, env.DB, url.pathname)
+    if (url.pathname.startsWith('/api/')) return handleApi(req, env, url.pathname)
     const room = url.searchParams.get('room') || 'frost'
     const id = env.FROST_ROOM.idFromName(room)
     return env.FROST_ROOM.get(id).fetch(req)

@@ -29,6 +29,7 @@ export function createPlayer(id: string, name: string, x: number, y: number): Pl
     learnedSpells: ['bolt'],
     manaRegenAccum: 0,
     dead: false,
+    member: false,
     gold: 0,
     inventory: [],
     inventoryCap: 30,
@@ -87,15 +88,20 @@ export function regenMana(p: PlayerState, dtMs: number) {
   }
 }
 
+/** Free players cap here; a one-time membership unlock lifts it. */
+export const FREE_LEVEL_CAP = 10
+
 /** Adds XP; returns true if the player leveled up. */
 export function gainXP(p: PlayerState, amount: number): boolean {
+  // Free tier stops at the cap — XP bar sits full until they unlock membership.
+  if (!p.member && p.stats.level >= FREE_LEVEL_CAP) { p.stats.xp = p.stats.xpToNext; return false }
   p.stats.xp += amount
   if (p.stats.xp >= p.stats.xpToNext) { levelUp(p); return true }
   return false
 }
 
 function levelUp(p: PlayerState) {
-  if (p.stats.level >= Balance.xp.maxLevel) {
+  if (p.stats.level >= Balance.xp.maxLevel || (!p.member && p.stats.level >= FREE_LEVEL_CAP)) {
     p.stats.xp = p.stats.xpToNext
     return
   }
