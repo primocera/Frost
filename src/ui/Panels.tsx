@@ -187,8 +187,11 @@ function Merchant() {
   return (
     <>
       <Header title={`Merchant Brom — ${fmtCopper(gold)}`} />
+      {(self.shop ?? []).length === 0 && (
+        <div style={{ padding: 16, color: '#889', fontSize: 13 }}>The merchant's stall is being restocked… (if this persists, the server needs a redeploy).</div>
+      )}
       <div style={{ padding: 12, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>
-        {self.shop.map((s, i) => {
+        {(self.shop ?? []).map((s, i) => {
           const can = !s.sold && gold >= s.price
           return (
             <div key={i} style={{ ...styles.shopCard, borderColor: RARITY_COLOR[s.item.rarity], opacity: s.sold ? 0.4 : 1 }}>
@@ -203,10 +206,10 @@ function Merchant() {
           )
         })}
       </div>
-      {self.inv.length > 0 && (
+      {(self.inv ?? []).length > 0 && (
         <div style={{ borderTop: '1px solid rgba(51,68,85,0.4)', padding: '8px 12px', maxHeight: 160, overflow: 'auto' }}>
           <div style={{ fontSize: 11, color: '#9ab', marginBottom: 6 }}>Sell your loot:</div>
-          {self.inv.map((it) => (
+          {(self.inv ?? []).map((it) => (
             <div key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', fontSize: 12 }}>
               <span style={{ color: RARITY_COLOR[it.rarity] }}>{TYPE_ICON[it.type]} {it.name}</span>
               <button style={styles.shopBuy} onClick={() => actions?.sell(it.id)}>Sell {fmtCopper(sellPrice(it))}</button>
@@ -262,15 +265,15 @@ function Stash() {
       <Header title="Stash" />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <div style={styles.stashHalf}>
-          <div style={{ ...styles.stashLabel, background: 'rgba(26,42,26,0.5)' }}>BAG ({self.inv.length}) — click to deposit</div>
+          <div style={{ ...styles.stashLabel, background: 'rgba(26,42,26,0.5)' }}>BAG ({(self.inv ?? []).length}) — click to deposit</div>
           <div style={styles.stashGrid}>
-            {self.inv.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashDeposit(it.id)} />)}
+            {(self.inv ?? []).map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashDeposit(it.id)} />)}
           </div>
         </div>
         <div style={{ ...styles.stashHalf, borderLeft: '1px solid rgba(51,68,85,0.4)' }}>
-          <div style={{ ...styles.stashLabel, background: 'rgba(26,26,42,0.5)' }}>STASH ({self.stash.length}) — click to withdraw</div>
+          <div style={{ ...styles.stashLabel, background: 'rgba(26,26,42,0.5)' }}>STASH ({(self.stash ?? []).length}) — click to withdraw</div>
           <div style={styles.stashGrid}>
-            {self.stash.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashWithdraw(it.id)} />)}
+            {(self.stash ?? []).map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashWithdraw(it.id)} />)}
           </div>
         </div>
       </div>
