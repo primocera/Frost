@@ -6,6 +6,10 @@
   "durable_objects": {
     "bindings": [{ "name": "FROST_ROOM", "class_name": "FrostRoom" }]
   },
+  // D1 database for accounts + Plus membership (separate free tier from the DO).
+  "d1_databases": [
+    { "binding": "DB", "database_name": "frost-accounts", "database_id": "25665fbb-4258-4975-b7a6-2d576e9868a1" }
+  ],
   // SQLite-backed DO class — required for Durable Objects on the Cloudflare free plan.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["FrostRoom"] }
