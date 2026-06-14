@@ -3,7 +3,7 @@ import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
   extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
-  stashDeposit, stashWithdraw,
+  stashDeposit, stashWithdraw, dropItem, sellItem,
 } from '../sim'
 import { nearestNPC } from './npcs'
 import { emptyInput, InputCommand } from '../sim/types'
@@ -85,6 +85,8 @@ export class Game {
       claimQuest: () => this.doQuest('claim'),
       stashDeposit: (id) => this.doStash('deposit', id),
       stashWithdraw: (id) => this.doStash('withdraw', id),
+      drop: (id) => { if (this.mode === 'net' && this.net) this.net.drop(id); else { const p = this.localPlayer(); if (p) dropItem(p, id) } },
+      sell: (id) => { if (this.mode === 'net' && this.net) this.net.sell(id); else { const p = this.localPlayer(); if (p) sellItem(p, id) } },
       sendChat: (text) => this.doChat(text),
     })
     useGameStore.getState().setMobile(touch.active)

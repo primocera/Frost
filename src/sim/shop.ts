@@ -1,5 +1,5 @@
 import { PlayerState, ShopItem } from './types'
-import { Rarity, generateItem } from './items'
+import { Item, Rarity, generateItem } from './items'
 import { RNG } from './rng'
 
 /**
@@ -62,6 +62,20 @@ export function regenShopStock(p: PlayerState) {
   for (let i = 0; i < p.id.length; i++) { h ^= p.id.charCodeAt(i); h = Math.imul(h, 16777619) }
   const seed = ((Date.now() & 0xffff) ^ Math.imul(p.stats.level, 2654435761) ^ h) >>> 0
   p.shopStock = generateShopStock(new RNG(seed), p.stats.level)
+}
+
+// Sell value (copper) — roughly a quarter of merchant buy prices.
+const SELL: Record<Rarity, number> = { common: 40, magic: 250, rare: 2500, epic: 15000 }
+export function sellPrice(item: Item): number {
+  return Math.round(SELL[item.rarity] * (1 + (item.ilvl - 1) * 0.05))
+}
+export function sellItem(p: PlayerState, itemId: number): number {
+  const idx = p.inventory.findIndex(it => it.id === itemId)
+  if (idx < 0) return 0
+  const price = sellPrice(p.inventory[idx])
+  p.gold += price
+  p.inventory.splice(idx, 1)
+  return price
 }
 
 export type BuyResult = 'ok' | 'sold' | 'gold' | 'full' | 'bad'

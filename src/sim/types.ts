@@ -256,6 +256,8 @@ export type ClientMessage =
   | { t: 'questClaim' }
   | { t: 'stashDeposit'; itemId: number }
   | { t: 'stashWithdraw'; itemId: number }
+  | { t: 'drop'; itemId: number }
+  | { t: 'sell'; itemId: number }
   | { t: 'chat'; text: string }
 
 /** server → client */

@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 import { createWorld, addPlayer, removePlayer, tick } from '../sim/world'
 import { serialize, selfOf } from '../sim/snapshot'
-import { equipItem, unequipItem } from '../sim/inventory'
+import { equipItem, unequipItem, dropItem } from '../sim/inventory'
 import { spendTalent } from '../sim/talents'
-import { trainSpell, buyShopItem, regenShopStock } from '../sim/shop'
+import { trainSpell, buyShopItem, sellItem, regenShopStock } from '../sim/shop'
 import { acceptQuest, claimQuest } from '../sim/quest'
 import { stashDeposit, stashWithdraw } from '../sim/stash'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
@@ -116,6 +116,10 @@ export class FrostRoom {
       if (player) stashDeposit(player, msg.itemId)
     } else if (msg.t === 'stashWithdraw') {
       if (player) stashWithdraw(player, msg.itemId)
+    } else if (msg.t === 'drop') {
+      if (player) dropItem(player, msg.itemId)
+    } else if (msg.t === 'sell') {
+      if (player) sellItem(player, msg.itemId)
     } else if (msg.t === 'chat') {
       const text = String(msg.text).slice(0, 200).trim()
       if (player && text) {

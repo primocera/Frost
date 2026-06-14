@@ -34,6 +34,14 @@ export function equipItem(p: PlayerState, itemId: number): boolean {
   return true
 }
 
+/** Discard an inventory item. */
+export function dropItem(p: PlayerState, itemId: number): boolean {
+  const idx = p.inventory.findIndex(it => it.id === itemId)
+  if (idx < 0) return false
+  p.inventory.splice(idx, 1)
+  return true
+}
+
 /** Unequip a slot back into the bag (fails if the bag is full). */
 export function unequipItem(p: PlayerState, slot: EquipSlot): boolean {
   const item = p.equipped[slot]

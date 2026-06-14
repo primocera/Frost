@@ -56,6 +56,8 @@ export interface GameActions {
   claimQuest: () => void
   stashDeposit: (itemId: number) => void
   stashWithdraw: (itemId: number) => void
+  drop: (itemId: number) => void
+  sell: (itemId: number) => void
   sendChat: (text: string) => void
 }
 

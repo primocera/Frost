@@ -74,6 +74,8 @@ export class Net {
   claimQuest() { this.send({ t: 'questClaim' }) }
   stashDeposit(itemId: number) { this.send({ t: 'stashDeposit', itemId }) }
   stashWithdraw(itemId: number) { this.send({ t: 'stashWithdraw', itemId }) }
+  drop(itemId: number) { this.send({ t: 'drop', itemId }) }
+  sell(itemId: number) { this.send({ t: 'sell', itemId }) }
   sendChat(text: string) { this.send({ t: 'chat', text }) }
   drainChat() { const c = this.pendingChat; this.pendingChat = []; return c }
   private send(msg: object) { if (this.socket.readyState === 1) this.socket.send(JSON.stringify(msg)) }

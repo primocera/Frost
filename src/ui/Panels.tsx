@@ -1,7 +1,7 @@
 import {
   EQUIP_SLOTS, EquipSlot, SLOT_LABEL, RARITY_COLOR, ItemStats, Item,
   TALENT_DEFS, talentsForTree, TREE_LABEL, TREE_COLOR, TREE_UNLOCK_LEVEL,
-  TALENT_TREES, TreeId, canBuyTalent, SHOP_SPELLS,
+  TALENT_TREES, TreeId, canBuyTalent, SHOP_SPELLS, sellPrice,
 } from '../sim'
 import { useGameStore } from './store'
 
@@ -73,22 +73,26 @@ function Inventory() {
         <div style={styles.bagCol}>
           <div style={styles.goldRow}>⛁ {gold} gold · {self.inv.length} items</div>
           <div style={styles.bagGrid}>
-            {self.inv.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.equip(it.id)} />)}
+            {self.inv.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.equip(it.id)} onDrop={() => actions?.drop(it.id)} />)}
             {self.inv.length === 0 && <div style={{ color: '#556', fontSize: 13, padding: 8 }}>Empty — kill monsters to find loot.</div>}
           </div>
+          <div style={{ fontSize: 10, color: '#566' }}>Click to equip · ✕ to drop</div>
         </div>
       </div>
     </>
   )
 }
 
-function ItemCard({ item, onClick }: { item: Item; onClick: () => void }) {
+function ItemCard({ item, onClick, onDrop }: { item: Item; onClick: () => void; onDrop?: () => void }) {
   return (
-    <div style={{ ...styles.itemCard, borderColor: RARITY_COLOR[item.rarity] }} onClick={onClick}>
-      <div style={{ color: RARITY_COLOR[item.rarity], fontWeight: 600 }}>
+    <div style={{ ...styles.itemCard, borderColor: RARITY_COLOR[item.rarity], position: 'relative' }} onClick={onClick}>
+      <div style={{ color: RARITY_COLOR[item.rarity], fontWeight: 600, paddingRight: onDrop ? 16 : 0 }}>
         <span style={{ marginRight: 5 }}>{TYPE_ICON[item.type] ?? '◆'}</span>{item.name}
       </div>
       <div style={styles.statMini}>{statLines(item.stats).join(' · ')}</div>
+      {onDrop && (
+        <button style={styles.dropBtn} title="Drop item" onClick={(e) => { e.stopPropagation(); onDrop() }}>✕</button>
+      )}
     </div>
   )
 }
@@ -199,6 +203,17 @@ function Merchant() {
           )
         })}
       </div>
+      {self.inv.length > 0 && (
+        <div style={{ borderTop: '1px solid rgba(51,68,85,0.4)', padding: '8px 12px', maxHeight: 160, overflow: 'auto' }}>
+          <div style={{ fontSize: 11, color: '#9ab', marginBottom: 6 }}>Sell your loot:</div>
+          {self.inv.map((it) => (
+            <div key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', fontSize: 12 }}>
+              <span style={{ color: RARITY_COLOR[it.rarity] }}>{TYPE_ICON[it.type]} {it.name}</span>
+              <button style={styles.shopBuy} onClick={() => actions?.sell(it.id)}>Sell {fmtCopper(sellPrice(it))}</button>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -300,6 +315,7 @@ const styles: Record<string, React.CSSProperties> = {
   goldRow: { fontSize: 12, color: '#fd0' },
   bagGrid: { display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 },
   itemCard: { background: 'rgba(12,18,30,0.9)', border: '1px solid', borderRadius: 6, padding: '7px 10px', cursor: 'pointer', fontSize: 12 },
+  dropBtn: { position: 'absolute', top: 4, right: 4, width: 18, height: 18, lineHeight: '14px', textAlign: 'center', borderRadius: 4, border: 'none', background: 'rgba(120,30,30,0.6)', color: '#fff', fontSize: 11, cursor: 'pointer', padding: 0 },
   treeHead: { textAlign: 'center', fontWeight: 700, fontSize: 13, padding: '6px 0', borderBottom: '1px solid rgba(51,68,85,0.4)', marginBottom: 6 },
   talentRow: { borderBottom: '1px solid rgba(25,30,45,0.9)', padding: '6px 4px' },
   talentDesc: { fontSize: 10, color: '#778', margin: '2px 0' },
