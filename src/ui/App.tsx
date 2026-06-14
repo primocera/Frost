@@ -162,20 +162,15 @@ function CapPrompt() {
   const account = useGameStore((s) => s.account)
   const panel = useGameStore((s) => s.panel)
   if (level < FREE_CAP || account?.member || panel !== 'none') return null
-  const url = MEMBERSHIP_URL && account ? `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}` : ''
-  return (
-    <div style={styles.capPrompt}>
-      <div style={{ fontWeight: 700, color: '#ffd23a' }}>🔒 Level {FREE_CAP} — free cap reached</div>
-      {!MEMBERSHIP_URL
-        ? <span style={{ fontSize: 11, opacity: 0.8 }}>Membership coming soon.</span>
-        : account
-          ? <>
-              <a style={styles.capBtn} href={url} target="_blank" rel="noopener noreferrer">⭐ Unlock everything — $3 once</a>
-              <span style={{ fontSize: 10, opacity: 0.7 }}>After paying, restart &amp; Play Online to apply.</span>
-            </>
-          : <span style={{ fontSize: 11, opacity: 0.8 }}>Play Online (make an account) to unlock past {FREE_CAP}.</span>}
-    </div>
-  )
+  if (MEMBERSHIP_URL && account) {
+    const url = `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}`
+    return (
+      <a style={styles.capMini} href={url} target="_blank" rel="noopener noreferrer"
+        title="After paying, restart & Play Online to apply">⭐ Get Frost Plus — $3</a>
+    )
+  }
+  const label = !MEMBERSHIP_URL ? `🔒 Lvl ${FREE_CAP} · Plus soon` : `🔒 Lvl ${FREE_CAP} · Play Online for Plus`
+  return <div style={{ ...styles.capMini, background: 'rgba(40,28,16,0.55)', color: '#f0d28a' }}>{label}</div>
 }
 
 function TradePrompt() {
@@ -369,16 +364,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
   },
-  capPrompt: {
-    position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-    background: 'rgba(20,14,30,0.85)', border: '1px solid rgba(200,160,60,0.5)', borderRadius: 10,
-    padding: '8px 16px', color: '#f0e6d0', fontSize: 13, textAlign: 'center',
-    fontFamily: '-apple-system, "Segoe UI", sans-serif', textShadow: '0 1px 2px rgba(0,0,0,0.7)', maxWidth: 320,
-  },
-  capBtn: {
-    padding: '7px 16px', borderRadius: 8, textDecoration: 'none', fontSize: 13, fontWeight: 700,
-    color: '#1a1206', background: 'linear-gradient(135deg,#ffd23a,#f0a020)', border: 'none',
+  capMini: {
+    position: 'fixed', top: 40, left: 12, fontSize: 12, fontWeight: 700,
+    color: '#1a1206', textDecoration: 'none', background: 'linear-gradient(135deg,#ffd23a,#f0a020)',
+    border: '1px solid rgba(200,160,60,0.6)', borderRadius: 8, padding: '3px 9px',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif', cursor: 'pointer',
   },
   tradePrompt: {
     position: 'fixed', bottom: 150, left: '50%', transform: 'translateX(-50%)',
