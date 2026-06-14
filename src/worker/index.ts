@@ -12,8 +12,9 @@ import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
 
 const TICK_HZ = 30
-const DT = 1 / TICK_HZ
-const SAVE_EVERY_TICKS = 600   // ~20s
+const IDLE_HZ = 6              // slow tick when nobody's active — saves CPU + duration
+const ACTIVE_GRACE_MS = 2500  // stay at full rate this long after any activity
+const SAVE_EVERY_TICKS = 600   // ~20s at 30Hz
 
 interface Env { FROST_ROOM: DurableObjectNamespace }
 
@@ -29,6 +30,8 @@ export class FrostRoom {
   private sockets = new Map<string, WebSocket>()
   private pids = new Map<string, string>()   // connection id -> persistent save id
   private timer: ReturnType<typeof setInterval> | null = null
+  private curHz = 0            // current tick rate (0 = stopped)
+  private activeUntil = 0      // ms timestamp; full rate until then
   private ticks = 0
 
   constructor(private state: DurableObjectState, _env: Env) {
@@ -51,12 +54,35 @@ export class FrostRoom {
     server.addEventListener('close', () => this.onClose(id))
     server.addEventListener('error', () => this.onClose(id))
 
-    if (!this.timer) this.timer = setInterval(() => this.step(), 1000 / TICK_HZ)
+    this.markActive()
+    if (!this.timer) this.setRate(TICK_HZ)
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  /** (Re)start the loop at the given rate; no-op if already there. */
+  private setRate(hz: number) {
+    if (this.curHz === hz && this.timer) return
+    this.curHz = hz
+    if (this.timer) clearInterval(this.timer)
+    this.timer = setInterval(() => this.step(), 1000 / hz)
+  }
+
+  /** Bump to full rate for a short grace window (called on any client action). */
+  private markActive() {
+    this.activeUntil = Date.now() + ACTIVE_GRACE_MS
+    if (this.curHz !== TICK_HZ && this.timer) this.setRate(TICK_HZ)
+  }
+
+  /** Live combat must run at full rate even if no input is arriving. */
+  private worldBusy(): boolean {
+    if (this.world.projectiles.length > 0 || this.world.grounds.length > 0) return true
+    for (const e of this.world.enemies) if (e.aiState === 'chase' || e.dying || e.slamMs > 0) return true
+    return false
+  }
+
   private step() {
-    tick(this.world, this.inputs, DT)
+    const dt = 1 / (this.curHz || TICK_HZ)
+    tick(this.world, this.inputs, dt)
     for (const id in this.inputs) {
       const i = this.inputs[id]
       i.swapBolt = i.castArcane = i.castNova = i.castBlizzard = false
@@ -79,11 +105,16 @@ export class FrostRoom {
       for (const id of this.sockets.keys()) this.sendSelf(id)
     }
     if (this.ticks % SAVE_EVERY_TICKS === 0) this.saveAll()
+
+    // Ramp down to the idle rate once nobody's active and combat is quiet;
+    // any input/action (markActive) or live combat bumps straight back to 30Hz.
+    this.setRate(Date.now() < this.activeUntil || this.worldBusy() ? TICK_HZ : IDLE_HZ)
   }
 
   private async onMessage(id: string, ws: WebSocket, raw: string) {
     let msg: ClientMessage
     try { msg = JSON.parse(raw) } catch { return }
+    this.markActive()   // any inbound action keeps the sim at full rate
 
     if (msg.t === 'join') {
       const pid = msg.pid || id
@@ -172,6 +203,7 @@ export class FrostRoom {
     if (this.sockets.size === 0 && this.timer) {
       clearInterval(this.timer)
       this.timer = null
+      this.curHz = 0   // fully stop when empty; next join restarts at full rate
     }
   }
 
