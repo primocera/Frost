@@ -497,6 +497,10 @@ function isTouchDevice(): boolean {
 // ── Per-browser identity + solo save (localStorage) ─────────────────────────
 function getPid(): string {
   try {
+    // A logged-in account pins the save id so the character follows the user
+    // across devices; guests get a random per-browser id.
+    const account = localStorage.getItem('frost_account_pid')
+    if (account) return account
     let id = localStorage.getItem('frost_pid')
     if (!id) { id = crypto.randomUUID(); localStorage.setItem('frost_pid', id) }
     return id

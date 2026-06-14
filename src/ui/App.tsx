@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from './store'
+import { signup, login, saveAccount, logoutAccount } from './auth'
 import { GameCanvas } from './GameCanvas'
 import { Panels } from './Panels'
 import { Chat } from './Chat'
@@ -49,6 +50,8 @@ function Landing() {
         ⚔ Play Online
       </button>
       <p style={styles.modeHint}>Solo is instant &amp; offline. Online shares one world with other mages (PvP + trading).</p>
+
+      <AccountBox />
 
       {SUPPORT_URL && (
         <a style={styles.supportBtn} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
@@ -111,6 +114,45 @@ function Game() {
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function AccountBox() {
+  const account = useGameStore((s) => s.account)
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  if (account) {
+    return (
+      <div style={styles.acctBox}>
+        <span style={{ fontSize: 12, color: '#8fe0b0' }}>✓ Logged in as <b>{account.email}</b></span>
+        <button style={styles.acctLink} onClick={() => { logoutAccount(); useGameStore.getState().setAccount(null) }}>Log out</button>
+      </div>
+    )
+  }
+
+  const submit = async (fn: typeof login) => {
+    setErr(''); setBusy(true)
+    try {
+      const a = await fn(email.trim(), pw)
+      saveAccount(a); useGameStore.getState().setAccount(a)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed.') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div style={styles.acctBox}>
+      <div style={{ fontSize: 11, color: 'rgba(160,200,240,0.55)' }}>Account (optional) — save your mage across devices</div>
+      <input style={styles.acctInput} type="email" placeholder="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} />
+      <input style={styles.acctInput} type="password" placeholder="password (min 6)" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button style={styles.acctBtn} disabled={busy} onClick={() => submit(login)}>Log in</button>
+        <button style={styles.acctBtn} disabled={busy} onClick={() => submit(signup)}>Sign up</button>
+      </div>
+      {err && <div style={{ fontSize: 11, color: '#ff8a8a' }}>{err}</div>}
+    </div>
   )
 }
 
@@ -218,6 +260,24 @@ const styles: Record<string, React.CSSProperties> = {
   modeHint: {
     width: 300, margin: '2px 0 6px', fontSize: 11, lineHeight: 1.4,
     color: 'rgba(160,200,240,0.6)', textAlign: 'center',
+  },
+  acctBox: {
+    width: 300, display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'center',
+    padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(80,140,220,0.2)',
+  },
+  acctInput: {
+    width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 9,
+    border: '1px solid rgba(80,160,255,0.2)', background: 'rgba(255,255,255,0.06)',
+    color: '#fff', fontSize: 13, outline: 'none',
+  },
+  acctBtn: {
+    flex: 1, padding: '8px 0', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+    color: '#cfe8ff', background: 'rgba(20,90,200,0.25)', border: '1px solid rgba(80,160,255,0.4)',
+  },
+  acctLink: {
+    background: 'none', border: 'none', color: 'rgba(150,190,235,0.7)', fontSize: 11,
+    cursor: 'pointer', textDecoration: 'underline', padding: 0,
   },
   supportBtn: {
     marginTop: 4, padding: '9px 18px', borderRadius: 12, cursor: 'pointer',

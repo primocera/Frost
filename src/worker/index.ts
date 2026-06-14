@@ -10,13 +10,14 @@ import { stashDeposit, stashWithdraw } from '../sim/stash'
 import { requestTrade, acceptTrade, cancelTrade, tradeOffer, tradeConfirm, getTradeOf } from '../sim/trade'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
+import { handleApi } from './auth'
 
 const TICK_HZ = 30
 const IDLE_HZ = 6              // slow tick when nobody's active — saves CPU + duration
 const ACTIVE_GRACE_MS = 2500  // stay at full rate this long after any activity
 const SAVE_EVERY_TICKS = 600   // ~20s at 30Hz
 
-interface Env { FROST_ROOM: DurableObjectNamespace }
+interface Env { FROST_ROOM: DurableObjectNamespace; DB?: D1Database }
 
 /**
  * One authoritative shared world per room, as a Cloudflare Durable Object.
@@ -238,6 +239,8 @@ function safeSend(ws: WebSocket, data: string) {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
+    // Account endpoints (HTTP, D1-backed) — separate from the WebSocket/DO path.
+    if (url.pathname.startsWith('/api/')) return handleApi(req, env.DB, url.pathname)
     const room = url.searchParams.get('room') || 'frost'
     const id = env.FROST_ROOM.idFromName(room)
     return env.FROST_ROOM.get(id).fetch(req)
