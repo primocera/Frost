@@ -1,0 +1,29 @@
+name: Deploy Worker
+
+# Auto-deploys the Cloudflare Worker (the game server) whenever server-side code
+# changes on main. Client-only changes are deployed by Vercel and skipped here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/worker/**'
+      - 'src/sim/**'
+      - 'wrangler.jsonc'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

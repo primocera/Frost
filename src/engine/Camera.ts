@@ -11,10 +11,17 @@ export class Camera {
   viewW = 0
   viewH = 0
 
+  /** World-to-screen zoom. <1 shows more world (used to zoom out on mobile). */
+  zoom = 1
+
   /** Optional world bounds to clamp the camera within. null = unbounded. */
   bounds: { x: number; y: number; w: number; h: number } | null = null
 
   setViewport(w: number, h: number) { this.viewW = w; this.viewH = h }
+
+  /** Visible world span (CSS viewport divided by zoom). */
+  get visW() { return this.viewW / this.zoom }
+  get visH() { return this.viewH / this.zoom }
 
   /** Smoothly chase a target. `lerp` of 1 snaps instantly. */
   follow(tx: number, ty: number, lerp = 0.18) {
@@ -29,20 +36,20 @@ export class Camera {
   private clamp() {
     if (!this.bounds) return
     const b = this.bounds
-    const halfW = this.viewW / 2
-    const halfH = this.viewH / 2
+    const halfW = this.visW / 2
+    const halfH = this.visH / 2
     // If the world is smaller than the viewport, just centre it.
-    if (b.w >= this.viewW) this.x = Math.min(b.x + b.w - halfW, Math.max(b.x + halfW, this.x))
+    if (b.w >= this.visW) this.x = Math.min(b.x + b.w - halfW, Math.max(b.x + halfW, this.x))
     else this.x = b.x + b.w / 2
-    if (b.h >= this.viewH) this.y = Math.min(b.y + b.h - halfH, Math.max(b.y + halfH, this.y))
+    if (b.h >= this.visH) this.y = Math.min(b.y + b.h - halfH, Math.max(b.y + halfH, this.y))
     else this.y = b.y + b.h / 2
   }
 
   /** Top-left world coordinate currently visible. */
-  get originX() { return this.x - this.viewW / 2 }
-  get originY() { return this.y - this.viewH / 2 }
+  get originX() { return this.x - this.visW / 2 }
+  get originY() { return this.y - this.visH / 2 }
 
   screenToWorld(sx: number, sy: number) {
-    return { x: sx + this.originX, y: sy + this.originY }
+    return { x: this.originX + sx / this.zoom, y: this.originY + sy / this.zoom }
   }
 }

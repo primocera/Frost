@@ -29,10 +29,11 @@ export class Renderer {
     // View rect (world space) with margin, for culling.
     const m = 80
     const vx0 = cam.originX - m, vy0 = cam.originY - m
-    const vx1 = cam.originX + cam.viewW + m, vy1 = cam.originY + cam.viewH + m
+    const vx1 = cam.originX + cam.visW + m, vy1 = cam.originY + cam.visH + m
     const inView = (x: number, y: number) => x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1
 
     ctx.save()
+    ctx.scale(cam.zoom, cam.zoom)
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds)
@@ -76,8 +77,8 @@ export class Renderer {
     const ctx = this.ctx
     const vx = Math.max(b.x, cam.originX)
     const vy = Math.max(b.y, cam.originY)
-    const vw = Math.min(b.x + b.w, cam.originX + cam.viewW) - vx
-    const vh = Math.min(b.y + b.h, cam.originY + cam.viewH) - vy
+    const vw = Math.min(b.x + b.w, cam.originX + cam.visW) - vx
+    const vh = Math.min(b.y + b.h, cam.originY + cam.visH) - vy
     if (vw <= 0 || vh <= 0) return
     ctx.fillStyle = this.grassPattern ?? '#1d3a24'
     ctx.fillRect(vx, vy, vw, vh)
@@ -102,8 +103,8 @@ export class Renderer {
     ctx.strokeRect(b.x, b.y, b.w, b.h)
 
     // PvP safe zone around spawn (square) — only draw when on screen.
-    if (Math.abs(STARTER_X - cam.x) < cam.viewW / 2 + PVP_SAFE_R &&
-        Math.abs(STARTER_Y - cam.y) < cam.viewH / 2 + PVP_SAFE_R) {
+    if (Math.abs(STARTER_X - cam.x) < cam.visW / 2 + PVP_SAFE_R &&
+        Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
       const sx = STARTER_X - PVP_SAFE_R, sy = STARTER_Y - PVP_SAFE_R, sz = PVP_SAFE_R * 2
       ctx.save()
       ctx.fillStyle = 'rgba(80,180,255,0.06)'
