@@ -166,11 +166,10 @@ function CapPrompt() {
     const url = `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}`
     return (
       <a style={styles.capMini} href={url} target="_blank" rel="noopener noreferrer"
-        title="After paying, restart & Play Online to apply">⭐ Get Frost Plus — $3.50</a>
+        title="After paying, restart & Play Online to apply">⭐ Get Plus</a>
     )
   }
-  const label = !MEMBERSHIP_URL ? `🔒 Lvl ${FREE_CAP} · Plus soon` : `🔒 Lvl ${FREE_CAP} · Play Online for Plus`
-  return <div style={{ ...styles.capMini, background: 'rgba(40,28,16,0.55)', color: '#f0d28a' }}>{label}</div>
+  return <div style={styles.capMini} title={MEMBERSHIP_URL ? 'Play Online to get Plus' : 'Coming soon'}>⭐ Get Plus</div>
 }
 
 function TradePrompt() {
@@ -365,9 +364,9 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
   },
   capMini: {
-    position: 'fixed', top: 40, left: 12, fontSize: 12, fontWeight: 700,
-    color: '#1a1206', textDecoration: 'none', background: 'linear-gradient(135deg,#ffd23a,#f0a020)',
-    border: '1px solid rgba(200,160,60,0.6)', borderRadius: 8, padding: '3px 9px',
+    position: 'fixed', top: 40, left: 12, fontSize: 12, fontWeight: 600,
+    color: '#e6c8ff', textDecoration: 'none', background: 'rgba(40,20,70,0.5)',
+    border: '1px solid rgba(160,110,235,0.4)', borderRadius: 8, padding: '3px 9px',
     fontFamily: '-apple-system, "Segoe UI", sans-serif', cursor: 'pointer',
   },
   tradePrompt: {
