@@ -21,6 +21,9 @@ import { SoundManager } from './Sound'
 import { touch, resetTouchEdges } from './touch'
 
 const LOCAL_ID = 'local'
+// Cap network input sends to ~15 Hz (vs. the 60 Hz sim) to stay within the
+// Durable Objects free-tier request budget. Prediction hides the lower rate.
+const NET_SEND_DT = 1 / 15
 // Game server host. Local dev uses wrangler's default port (8787); production
 // sets VITE_PARTYKIT_HOST to the deployed Worker host (e.g. frost.<sub>.workers.dev).
 const PARTY_HOST = import.meta.env.VITE_PARTYKIT_HOST || `${location.hostname}:8787`
@@ -47,6 +50,12 @@ export class Game {
   private lastNearPlayerId: string | null = null
   private lastNearBessie = false
   private tradeOpen = false
+  // Network input throttling. Each inbound WS message is a Durable Object
+  // "request", so sending 60×/s/player burns the free tier in hours. We coalesce
+  // input and flush at NET_SEND_HZ, skipping sends entirely while idle.
+  private netSendAccum = 0
+  private pendingCmd = emptyInput()
+  private lastSentIdle = false
   private pid = getPid()
   /** name -> active speech bubble (ms remaining). */
   private bubbles = new Map<string, { text: string; ms: number }>()
@@ -232,7 +241,13 @@ export class Game {
     const cmd = this.buildInput()
 
     if (this.mode === 'net' && this.net) {
-      this.net.sendInput(cmd)
+      this.queueNetInput(cmd)
+      this.netSendAccum += dt
+      // Cast/swap presses (edge events) flush immediately so they feel instant;
+      // movement/aim flush at a capped rate; a fully-idle, unchanged input is
+      // dropped (the server keeps the last command we sent).
+      const edge = this.pendingCmd.swapBolt || this.pendingCmd.castArcane || this.pendingCmd.castNova || this.pendingCmd.castBlizzard
+      if (edge || this.netSendAccum >= NET_SEND_DT) { this.flushNetInput(); this.netSendAccum = 0 }
       this.net.update(dt, cmd.move)
       this.handleEvents(this.net.drainEvents())
     } else {
@@ -266,6 +281,29 @@ export class Game {
       this.saveAccum += dt
       if (this.saveAccum >= 8) { this.saveAccum = 0; if (lp) saveLocalSave(lp) }
     }
+  }
+
+  /** Accumulate this frame's intent into the pending network command. */
+  private queueNetInput(cmd: InputCommand) {
+    this.pendingCmd.move = cmd.move
+    this.pendingCmd.aim = cmd.aim
+    this.pendingCmd.castBolt = cmd.castBolt
+    this.pendingCmd.pickup = cmd.pickup
+    this.pendingCmd.swapBolt ||= cmd.swapBolt
+    this.pendingCmd.castArcane ||= cmd.castArcane
+    this.pendingCmd.castNova ||= cmd.castNova
+    this.pendingCmd.castBlizzard ||= cmd.castBlizzard
+  }
+
+  /** Send the coalesced command — unless we're idle and already sent idle. */
+  private flushNetInput() {
+    const c = this.pendingCmd
+    const idle = c.move.x === 0 && c.move.y === 0 && !c.castBolt && !c.pickup &&
+      !c.swapBolt && !c.castArcane && !c.castNova && !c.castBlizzard
+    if (idle && this.lastSentIdle) return    // nothing changed; don't spend a request
+    this.net?.sendInput(c)
+    this.lastSentIdle = idle
+    c.swapBolt = c.castArcane = c.castNova = c.castBlizzard = false   // consume edges
   }
 
   private saveOnExit = () => {
