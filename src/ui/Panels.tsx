@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   EQUIP_SLOTS, EquipSlot, SLOT_LABEL, RARITY_COLOR, ItemStats, Item,
   TALENT_DEFS, talentsForTree, TREE_LABEL, TREE_COLOR, TREE_UNLOCK_LEVEL,
@@ -30,16 +31,137 @@ function statLines(stats: ItemStats): string[] {
 export function Panels() {
   const panel = useGameStore((s) => s.panel)
   if (panel === 'none') return null
+  const isTrade = panel === 'trade'   // don't let a stray backdrop click drop a live trade
   return (
-    <div style={styles.backdrop} onClick={() => useGameStore.getState().setPanel('none')}>
+    <div style={styles.backdrop} onClick={() => { if (!isTrade) useGameStore.getState().setPanel('none') }}>
       <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
         {panel === 'inventory' ? <Inventory />
           : panel === 'talents' ? <Talents />
           : panel === 'shop' ? <Shop />
           : panel === 'merchant' ? <Merchant />
           : panel === 'stash' ? <Stash />
+          : panel === 'trade' ? <Trade />
           : <QuestBoard />}
       </div>
+    </div>
+  )
+}
+
+function Trade() {
+  const self = useGameStore((s) => s.self)
+  const actions = useGameStore((s) => s.actions)
+  const gold = useGameStore((s) => s.hud.gold)
+  const t = self?.trade ?? null
+
+  if (!t) return <Empty title="Trade" />
+
+  // Pending request — accept / decline / waiting.
+  if (t.stage === 'pending') {
+    return (
+      <>
+        <TradeHeader withName={t.withName} />
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+          {t.incoming ? (
+            <>
+              <div style={{ color: '#cdd8ee', fontSize: 15, textAlign: 'center' }}>
+                <b style={{ color: '#ffd23a' }}>{t.withName}</b> wants to trade with you.
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button style={styles.questBtn} onClick={() => actions?.tradeAccept()}>Accept</button>
+                <button style={styles.tradeCancelBtn} onClick={() => actions?.tradeDecline()}>Decline</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ color: '#9ab', fontSize: 14 }}>Waiting for <b style={{ color: '#ffd23a' }}>{t.withName}</b> to accept…</div>
+              <button style={styles.tradeCancelBtn} onClick={() => actions?.tradeCancel()}>Cancel</button>
+            </>
+          )}
+        </div>
+      </>
+    )
+  }
+
+  // Active trade — edit your offer, watch theirs, confirm.
+  const offeredIds = t.yourItems.map((it) => it.id)
+  const available = (self?.inv ?? []).filter((it) => !offeredIds.includes(it.id))
+  const setOffer = (ids: number[], g: number) => actions?.tradeOffer(ids, g)
+
+  return (
+    <>
+      <TradeHeader withName={t.withName} />
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Your side */}
+        <div style={styles.tradeHalf}>
+          <div style={{ ...styles.tradeSideLabel, color: '#7fd' }}>
+            YOUR OFFER {t.yourConfirm && <span style={{ color: '#5d8' }}>✓ locked</span>}
+          </div>
+          <div style={styles.tradeOfferBox}>
+            {t.yourItems.map((it) => (
+              <ItemCard key={it.id} item={it} onClick={() => setOffer(offeredIds.filter((x) => x !== it.id), t.yourGold)} />
+            ))}
+            {t.yourItems.length === 0 && <div style={styles.tradeHint}>Add items from your bag below ↓</div>}
+          </div>
+          <GoldField value={t.yourGold} max={gold} onChange={(g) => setOffer(offeredIds, g)} />
+          <div style={{ ...styles.tradeSideLabel, fontSize: 9 }}>YOUR BAG — click to add</div>
+          <div style={styles.tradeBagBox}>
+            {available.map((it) => (
+              <ItemCard key={it.id} item={it} onClick={() => setOffer([...offeredIds, it.id], t.yourGold)} />
+            ))}
+            {available.length === 0 && <div style={styles.tradeHint}>No items to offer.</div>}
+          </div>
+        </div>
+        {/* Their side */}
+        <div style={{ ...styles.tradeHalf, borderLeft: '1px solid rgba(51,68,85,0.4)' }}>
+          <div style={{ ...styles.tradeSideLabel, color: '#fb7' }}>
+            {t.withName.toUpperCase()}'S OFFER {t.theirConfirm && <span style={{ color: '#5d8' }}>✓ locked</span>}
+          </div>
+          <div style={{ ...styles.tradeOfferBox, flex: 1 }}>
+            {t.theirItems.map((it) => <ItemCard key={it.id} item={it} onClick={() => {}} />)}
+            {t.theirItems.length === 0 && <div style={styles.tradeHint}>Nothing yet.</div>}
+          </div>
+          <div style={{ color: '#ffdd00', fontSize: 13, padding: '6px 2px' }}>⛁ {fmtCopper(t.theirGold)}</div>
+        </div>
+      </div>
+      <div style={styles.tradeFooter}>
+        <button style={styles.tradeCancelBtn} onClick={() => actions?.tradeCancel()}>Cancel</button>
+        <button
+          style={{ ...styles.tradeConfirmBtn, opacity: t.yourConfirm ? 0.55 : 1 }}
+          onClick={() => actions?.tradeConfirm()}
+        >
+          {t.yourConfirm ? 'Confirmed ✓' : 'Confirm Trade'}
+        </button>
+      </div>
+    </>
+  )
+}
+
+function GoldField({ value, max, onChange }: { value: number; max: number; onChange: (g: number) => void }) {
+  const [focused, setFocused] = useState(false)
+  const [text, setText] = useState('')
+  // While not editing, mirror the authoritative offer; while editing, keep typing.
+  const shown = focused ? text : (value ? String(value) : '')
+  return (
+    <div style={styles.goldField}>
+      <span style={{ color: '#ffdd00', fontSize: 13 }}>⛁</span>
+      <input
+        type="number" min={0} max={max} value={shown}
+        onFocus={() => { setFocused(true); setText(value ? String(value) : '') }}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => { setText(e.target.value); onChange(Math.max(0, Math.min(max, Math.floor(Number(e.target.value) || 0)))) }}
+        style={styles.goldInput}
+        placeholder="0"
+      />
+      <span style={{ color: '#778', fontSize: 11 }}>/ {fmtCopper(max)}</span>
+    </div>
+  )
+}
+
+function TradeHeader({ withName }: { withName: string }) {
+  return (
+    <div style={styles.header}>
+      <span style={{ fontWeight: 700, color: '#7fd' }}>🤝 Trading with {withName}</span>
+      <button style={styles.close} onClick={() => useGameStore.getState().actions?.tradeCancel()}>✕</button>
     </div>
   )
 }
@@ -330,4 +452,14 @@ const styles: Record<string, React.CSSProperties> = {
   stashLabel: { fontSize: 10, fontWeight: 700, textAlign: 'center', letterSpacing: 0.6, padding: '5px 8px', borderRadius: 4, color: '#9ab' },
   stashGrid: { display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 },
   questBtn: { alignSelf: 'flex-start', fontSize: 14, padding: '10px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#1460b0,#0a3a78)', border: 'none', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tradeHalf: { flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 },
+  tradeSideLabel: { fontSize: 10, fontWeight: 700, letterSpacing: 0.6, padding: '2px 2px', display: 'flex', justifyContent: 'space-between' },
+  tradeOfferBox: { minHeight: 96, maxHeight: 150, display: 'flex', flexDirection: 'column', gap: 5, overflow: 'auto', background: 'rgba(8,14,26,0.6)', border: '1px dashed rgba(60,90,140,0.4)', borderRadius: 6, padding: 6 },
+  tradeBagBox: { flex: 1, display: 'flex', flexDirection: 'column', gap: 5, overflow: 'auto', minHeight: 40 },
+  tradeHint: { color: '#556', fontSize: 11, padding: 6 },
+  goldField: { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' },
+  goldInput: { width: 90, background: 'rgba(8,14,26,0.9)', border: '1px solid rgba(60,90,140,0.5)', borderRadius: 5, color: '#ffe9a8', fontSize: 12, padding: '4px 6px', fontFamily: 'inherit' },
+  tradeFooter: { display: 'flex', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderTop: '1px solid rgba(51,68,85,0.4)', flexShrink: 0 },
+  tradeCancelBtn: { fontSize: 13, padding: '9px 18px', borderRadius: 8, background: 'rgba(120,40,40,0.6)', border: '1px solid rgba(180,70,70,0.5)', color: '#ffbbbb', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tradeConfirmBtn: { fontSize: 13, padding: '9px 22px', borderRadius: 8, background: 'linear-gradient(135deg,#1e9e5a,#0c6e3a)', border: '1px solid rgba(60,200,120,0.5)', color: '#eafff2', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
 }

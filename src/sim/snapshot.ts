@@ -1,10 +1,16 @@
 import { ALL_ENEMIES, EnemyConfig } from './enemies'
 import { BOSS_CFG_BY_KEY, BOSS_BY_KEY } from './bosses'
 import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './types'
+import { tradeViewFor } from './trade'
 
-/** Personal inventory/talent state for the owning player (sent only to them). */
-export function selfOf(p: PlayerState): SelfState {
-  return { inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints, shop: p.shopStock, quest: p.quest, stash: p.stash }
+/** Personal inventory/talent state for the owning player (sent only to them).
+ *  `world` is optional: when present, the live trade session is included. */
+export function selfOf(p: PlayerState, world?: WorldState): SelfState {
+  return {
+    inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints,
+    shop: p.shopStock, quest: p.quest, stash: p.stash,
+    trade: world ? tradeViewFor(world, p.id) : null,
+  }
 }
 
 /** key → EnemyConfig, so clients can rebuild render data from a compact key. */

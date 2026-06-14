@@ -42,7 +42,10 @@ const initialHud: HudState = {
   zone: '', zoneColor: '#cfe3ff', spells: [], learnedSpells: ['bolt'],
 }
 
-export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest' | 'stash'
+export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest' | 'stash' | 'trade'
+
+/** Nearby tradeable player, surfaced so the HUD can prompt "Press G to trade". */
+export interface NearPlayer { id: string; name: string }
 
 /** Action hooks the engine registers so React panels can drive the sim
  *  (local) or send messages to the server (networked). */
@@ -58,6 +61,12 @@ export interface GameActions {
   stashWithdraw: (itemId: number) => void
   drop: (itemId: number) => void
   sell: (itemId: number) => void
+  tradeRequest: (toId: string) => void
+  tradeAccept: () => void
+  tradeDecline: () => void
+  tradeOffer: (items: number[], gold: number) => void
+  tradeConfirm: () => void
+  tradeCancel: () => void
   sendChat: (text: string) => void
 }
 
@@ -76,6 +85,7 @@ interface GameUIState {
   chatOpen: boolean
   isMobile: boolean
   nearNpc: boolean
+  nearPlayer: NearPlayer | null
   volume: number
 
   startGame: (name: string, hardcore: boolean) => void
@@ -89,6 +99,7 @@ interface GameUIState {
   setChatOpen: (open: boolean) => void
   setMobile: (m: boolean) => void
   setNearNpc: (n: boolean) => void
+  setNearPlayer: (p: NearPlayer | null) => void
   setVolume: (v: number) => void
 }
 
@@ -105,6 +116,7 @@ export const useGameStore = create<GameUIState>((set) => ({
   chatOpen: false,
   isMobile: false,
   nearNpc: false,
+  nearPlayer: null,
   volume: 0.7,
 
   startGame: (name, hardcore) =>
@@ -119,5 +131,6 @@ export const useGameStore = create<GameUIState>((set) => ({
   setChatOpen: (open) => set({ chatOpen: open }),
   setMobile: (m) => set({ isMobile: m }),
   setNearNpc: (n) => set({ nearNpc: n }),
+  setNearPlayer: (p) => set({ nearPlayer: p }),
   setVolume: (v) => set({ volume: v }),
 }))

@@ -6,6 +6,7 @@ import { spendTalent } from '../sim/talents'
 import { trainSpell, buyShopItem, sellItem, regenShopStock } from '../sim/shop'
 import { acceptQuest, claimQuest } from '../sim/quest'
 import { stashDeposit, stashWithdraw } from '../sim/stash'
+import { requestTrade, acceptTrade, cancelTrade, tradeOffer, tradeConfirm, getTradeOf } from '../sim/trade'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
 
@@ -74,10 +75,7 @@ export class FrostRoom {
 
     this.ticks++
     if (this.ticks % 10 === 0) {
-      for (const [id, ws] of this.sockets) {
-        const p = this.world.players.find(pl => pl.id === id)
-        if (p) safeSend(ws, JSON.stringify({ t: 'self', self: selfOf(p) }))
-      }
+      for (const id of this.sockets.keys()) this.sendSelf(id)
     }
     if (this.ticks % SAVE_EVERY_TICKS === 0) this.saveAll()
   }
@@ -120,6 +118,16 @@ export class FrostRoom {
       if (player) dropItem(player, msg.itemId)
     } else if (msg.t === 'sell') {
       if (player) sellItem(player, msg.itemId)
+    } else if (msg.t === 'tradeRequest') {
+      if (player) requestTrade(this.world, id, msg.toId)
+    } else if (msg.t === 'tradeAccept') {
+      if (player) acceptTrade(this.world, id)
+    } else if (msg.t === 'tradeDecline' || msg.t === 'tradeCancel') {
+      if (player) cancelTrade(this.world, id)
+    } else if (msg.t === 'tradeOffer') {
+      if (player) tradeOffer(this.world, id, msg.items, msg.gold)
+    } else if (msg.t === 'tradeConfirm') {
+      if (player) tradeConfirm(this.world, id)
     } else if (msg.t === 'chat') {
       const text = String(msg.text).slice(0, 200).trim()
       if (player && text) {
@@ -138,6 +146,14 @@ export class FrostRoom {
       cur.castBlizzard ||= msg.cmd.castBlizzard
       this.inputs[id] = cur
     }
+
+    // Trade actions change shared session state — push fresh `self` to both
+    // participants immediately so the trade window updates without ~0.3s lag.
+    if (typeof msg.t === 'string' && msg.t.startsWith('trade')) {
+      this.sendSelf(id)
+      const t = getTradeOf(this.world, id)
+      if (t) { this.sendSelf(t.a); this.sendSelf(t.b) }
+    }
   }
 
   private onClose(id: string) {
@@ -150,6 +166,13 @@ export class FrostRoom {
       clearInterval(this.timer)
       this.timer = null
     }
+  }
+
+  /** Push one player's private state (inventory, talents, live trade) to them. */
+  private sendSelf(id: string) {
+    const ws = this.sockets.get(id)
+    const p = this.world.players.find(pl => pl.id === id)
+    if (ws && p) safeSend(ws, JSON.stringify({ t: 'self', self: selfOf(p, this.world) }))
   }
 
   private sysChat(text: string) {

@@ -85,12 +85,27 @@ function Game() {
         ))}
       </div>
 
-      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · E near NPCs · Enter chat</div>
+      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · E near NPCs · G trade · Enter chat</div>
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
+      <TradePrompt />
       <Chat />
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function TradePrompt() {
+  const near = useGameStore((s) => s.nearPlayer)
+  const panel = useGameStore((s) => s.panel)
+  const isMobile = useGameStore((s) => s.isMobile)
+  if (!near || panel !== 'none') return null
+  return (
+    <div style={styles.tradePrompt}>
+      {isMobile
+        ? <>Near <b style={{ color: '#7fd' }}>{near.name}</b> — tap 🤝 to trade</>
+        : <>Press <b style={{ color: '#7fd' }}>G</b> to trade with <b style={{ color: '#7fd' }}>{near.name}</b></>}
+    </div>
   )
 }
 
@@ -224,5 +239,11 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+  },
+  tradePrompt: {
+    position: 'fixed', bottom: 150, left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(8,20,16,0.8)', border: '1px solid rgba(60,180,120,0.5)', borderRadius: 8,
+    padding: '6px 14px', color: '#cfe9dd', fontSize: 13, pointerEvents: 'none',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif', textShadow: '0 1px 2px rgba(0,0,0,0.7)',
   },
 }

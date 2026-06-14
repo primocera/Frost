@@ -43,6 +43,8 @@ export class Game {
   private hudAccum = 0
   private saveAccum = 0
   private lastNearNpc = false
+  private lastNearPlayerId: string | null = null
+  private tradeOpen = false
   private pid = getPid()
   /** name -> active speech bubble (ms remaining). */
   private bubbles = new Map<string, { text: string; ms: number }>()
@@ -87,6 +89,13 @@ export class Game {
       stashWithdraw: (id) => this.doStash('withdraw', id),
       drop: (id) => { if (this.mode === 'net' && this.net) this.net.drop(id); else { const p = this.localPlayer(); if (p) dropItem(p, id) } },
       sell: (id) => { if (this.mode === 'net' && this.net) this.net.sell(id); else { const p = this.localPlayer(); if (p) sellItem(p, id) } },
+      // Trading only exists in multiplayer (no other players in the local sim).
+      tradeRequest: (toId) => this.net?.tradeRequest(toId),
+      tradeAccept: () => this.net?.tradeAccept(),
+      tradeDecline: () => this.net?.tradeDecline(),
+      tradeOffer: (items, gold) => this.net?.tradeOffer(items, gold),
+      tradeConfirm: () => this.net?.tradeConfirm(),
+      tradeCancel: () => this.net?.tradeCancel(),
       sendChat: (text) => this.doChat(text),
     })
     useGameStore.getState().setMobile(touch.active)
@@ -161,6 +170,21 @@ export class Game {
     return cmd
   }
 
+  /** Closest other player within trade range (multiplayer only). */
+  private nearestPlayer(): { id: string; name: string } | null {
+    if (this.mode !== 'net') return null
+    const lp = this.localPlayer()
+    if (!lp) return null
+    let best: { id: string; name: string } | null = null
+    let bd = 170   // TRADE_RANGE
+    for (const p of this.world.players) {
+      if (p.id === this.localId) continue
+      const d = Math.hypot(p.x - lp.x, p.y - lp.y)
+      if (d < bd) { bd = d; best = { id: p.id, name: p.name } }
+    }
+    return best
+  }
+
   private nearestEnemy(): { x: number; y: number } | null {
     const lp = this.localPlayer()
     if (!lp) return null
@@ -181,6 +205,14 @@ export class Game {
     const npc = lpNow ? nearestNPC(lpNow.x, lpNow.y) : null
     if (npc && (this.input.consumePressed('e') || touch.interact)) useGameStore.getState().setPanel(npc.panel)
     if (!!npc !== this.lastNearNpc) { this.lastNearNpc = !!npc; useGameStore.getState().setNearNpc(!!npc) }
+
+    // Nearby player → press G (or the mobile Trade button) to request a trade.
+    const near = this.nearestPlayer()
+    if (near && (this.input.consumePressed('g') || touch.trade)) this.net?.tradeRequest(near.id)
+    if ((near?.id ?? null) !== this.lastNearPlayerId) {
+      this.lastNearPlayerId = near?.id ?? null
+      useGameStore.getState().setNearPlayer(near)
+    }
 
     const cmd = this.buildInput()
 
@@ -351,6 +383,14 @@ export class Game {
     if (!p) return
     // Inventory/talent panel data.
     useGameStore.getState().setSelf(this.mode === 'net' && this.net ? this.net.self : selfOf(p))
+
+    // Auto-open the trade window when a trade starts; close it when it ends.
+    const trade = this.mode === 'net' && this.net ? this.net.self?.trade ?? null : null
+    if (trade && !this.tradeOpen) { this.tradeOpen = true; useGameStore.getState().setPanel('trade') }
+    else if (!trade && this.tradeOpen) {
+      this.tradeOpen = false
+      if (useGameStore.getState().panel === 'trade') useGameStore.getState().setPanel('none')
+    }
     const zone = getZoneAt(p.x, p.y)
     const arcaneMax = fireboltCooldownMax(p)
     const novaMax = Balance.spells.frostNova.cooldownMs

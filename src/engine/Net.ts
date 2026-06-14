@@ -39,7 +39,7 @@ export class Net {
   constructor(host: string, room: string, private name: string, private pid: string, private onStatus: (s: NetStatus) => void) {
     this.world = {
       bounds: { x: 0, y: 0, w: WORLD_W, h: WORLD_H },
-      players: [], enemies: [], projectiles: [], loot: [], grounds: [], zones: [], bossRespawns: [],
+      players: [], enemies: [], projectiles: [], loot: [], grounds: [], zones: [], trades: [], bossRespawns: [],
       timeMs: 0, rngState: 0, events: [], nextEnemyId: 0, nextProjId: 0, nextLootId: 0,
       killStreak: 0, lastKillMs: 0,
     }
@@ -76,6 +76,12 @@ export class Net {
   stashWithdraw(itemId: number) { this.send({ t: 'stashWithdraw', itemId }) }
   drop(itemId: number) { this.send({ t: 'drop', itemId }) }
   sell(itemId: number) { this.send({ t: 'sell', itemId }) }
+  tradeRequest(toId: string) { this.send({ t: 'tradeRequest', toId }) }
+  tradeAccept() { this.send({ t: 'tradeAccept' }) }
+  tradeDecline() { this.send({ t: 'tradeDecline' }) }
+  tradeOffer(items: number[], gold: number) { this.send({ t: 'tradeOffer', items, gold }) }
+  tradeConfirm() { this.send({ t: 'tradeConfirm' }) }
+  tradeCancel() { this.send({ t: 'tradeCancel' }) }
   sendChat(text: string) { this.send({ t: 'chat', text }) }
   drainChat() { const c = this.pendingChat; this.pendingChat = []; return c }
   private send(msg: object) { if (this.socket.readyState === 1) this.socket.send(JSON.stringify(msg)) }

@@ -10,6 +10,7 @@ import { useGameStore } from './store'
 export function TouchControls() {
   const isMobile = useGameStore((s) => s.isMobile)
   const nearNpc = useGameStore((s) => s.nearNpc)
+  const nearPlayer = useGameStore((s) => s.nearPlayer)
   if (!isMobile) return null
   return (
     <>
@@ -17,6 +18,12 @@ export function TouchControls() {
       {nearNpc && (
         <div style={styles.interactBtn} onTouchStart={(e) => { e.preventDefault(); touch.interact = true }}>
           E · Talk
+        </div>
+      )}
+      {!nearNpc && nearPlayer && (
+        <div style={{ ...styles.interactBtn, background: 'rgba(20,120,80,0.85)', borderColor: 'rgba(120,255,200,0.7)' }}
+          onTouchStart={(e) => { e.preventDefault(); touch.trade = true }}>
+          🤝 Trade {nearPlayer.name}
         </div>
       )}
       <div style={styles.rightCluster}>

@@ -17,6 +17,29 @@ export interface PlayerStats {
 export interface ShopItem { item: Item; price: number; sold: boolean }
 export interface Quest { kills: number; target: number; reward: number; done: boolean }
 
+/** Live player-to-player trade session (server-authoritative). a = requester. */
+export interface TradeSession {
+  a: string; b: string
+  aItems: number[]; bItems: number[]   // offered item ids
+  aGold: number; bGold: number
+  aConfirm: boolean; bConfirm: boolean
+  accepted: boolean                     // target accepted the request
+}
+
+/** A trade from one player's perspective, sent inside their SelfState. */
+export interface TradeView {
+  withId: string
+  withName: string
+  stage: 'pending' | 'active'
+  incoming: boolean        // true if THIS player must accept the request
+  yourItems: Item[]
+  theirItems: Item[]
+  yourGold: number
+  theirGold: number
+  yourConfirm: boolean
+  theirConfirm: boolean
+}
+
 export interface PlayerState {
   id: string
   name: string
@@ -168,6 +191,7 @@ export interface WorldState {
   loot: LootState[]
   grounds: GroundEffectState[]
   zones: SpawnZoneState[]
+  trades: TradeSession[]
   bossRespawns: { key: string; x: number; y: number; timer: number }[]
   timeMs: number
   rngState: number
@@ -241,6 +265,7 @@ export interface SelfState {
   shop: ShopItem[]
   quest: Quest | null
   stash: Item[]
+  trade: TradeView | null
 }
 
 /** client → server */
@@ -258,6 +283,12 @@ export type ClientMessage =
   | { t: 'stashWithdraw'; itemId: number }
   | { t: 'drop'; itemId: number }
   | { t: 'sell'; itemId: number }
+  | { t: 'tradeRequest'; toId: string }
+  | { t: 'tradeAccept' }
+  | { t: 'tradeDecline' }
+  | { t: 'tradeOffer'; items: number[]; gold: number }
+  | { t: 'tradeConfirm' }
+  | { t: 'tradeCancel' }
   | { t: 'chat'; text: string }
 
 /** server → client */

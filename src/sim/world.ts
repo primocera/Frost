@@ -8,6 +8,7 @@ import { createPlayer, effMaxMana, effSpeed, effSpellDamage, fireboltCooldownMax
 import { talentBonus } from './talents'
 import { regenShopStock } from './shop'
 import { questOnKill } from './quest'
+import { tickTrades, cancelTrade } from './trade'
 import { BOSS_SPAWNS, BOSS_BY_KEY, bossEnemyConfig, BOSS_RESPAWN_MS } from './bosses'
 import { RNG } from './rng'
 import { buildSpawnZones, getZoneAt, STARTER_X, STARTER_Y, WORLD_W, WORLD_H, PVP_SAFE_R } from './zones'
@@ -59,6 +60,7 @@ export function createWorld(seed: number): WorldState {
       id, cx: z.cx, cy: z.cy, radius: z.radius, configs: z.table,
       zoneBounds: z.zoneBounds, maxEnemies: z.maxEnemies, count: 0, respawnTimers: [],
     })),
+    trades: [],
     bossRespawns: [],
     timeMs: 0,
     rngState: seed >>> 0,
@@ -88,6 +90,7 @@ export function addPlayer(world: WorldState, id: string, name: string): PlayerSt
 }
 
 export function removePlayer(world: WorldState, id: string) {
+  cancelTrade(world, id)
   world.players = world.players.filter(p => p.id !== id)
 }
 
@@ -172,6 +175,7 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
   updateLoot(world, dtMs)
   updateRespawns(world, dtMs, rng)
   updateBossRespawns(world, dtMs)
+  tickTrades(world)
 
   world.enemies = world.enemies.filter(e => !(e.dying && e.deathMs <= 0))
 

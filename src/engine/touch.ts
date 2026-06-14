@@ -12,9 +12,10 @@ export const touch = {
   nova: false,
   blizzard: false,
   interact: false,         // talk to nearby NPC (mobile E)
+  trade: false,            // request trade with nearby player (mobile G)
 }
 
 /** Clear edge-triggered buttons after the engine has read them for a tick. */
 export function resetTouchEdges() {
-  touch.swap = touch.arcane = touch.nova = touch.blizzard = touch.interact = false
+  touch.swap = touch.arcane = touch.nova = touch.blizzard = touch.interact = touch.trade = false
 }

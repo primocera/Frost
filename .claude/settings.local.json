@@ -21,7 +21,31 @@
       "Bash(dir \"C:\\\\\\\\Users\\\\\\\\primo\\\\\\\\Frost\\\\\\\\\")",
       "Bash(dir \"C:\\\\\\\\Users\\\\\\\\primo\\\\\\\\Frost\\\\\\\\*4407*\")",
       "Bash(dir /b \"C:\\\\Users\\\\primo\\\\Frost\")",
-      "Bash(findstr /i \".png .jpg .jpeg .gif .webp\")"
+      "Bash(findstr /i \".png .jpg .jpeg .gif .webp\")",
+      "Bash(git restore *)",
+      "WebSearch",
+      "WebFetch(domain:opengameart.org)",
+      "Bash(curl -L -o \"C:/Users/primo/Frost/public/assets/audio/80-CC0-RPG-SFX.zip\" \"https://opengameart.org/sites/default/files/80-CC0-RPG-SFX_0.zip\" --silent --show-error)",
+      "Bash(curl -L -o \"C:/Users/primo/Frost/public/assets/audio/magical_1.ogg\" \"https://opengameart.org/sites/default/files/magical_1_0.ogg\" --silent --show-error)",
+      "Bash(curl -L -o \"C:/Users/primo/Frost/public/assets/audio/magical_3.ogg\" \"https://opengameart.org/sites/default/files/magical_3.ogg\" --silent --show-error)",
+      "Bash(curl -L -o \"C:/Users/primo/Frost/public/assets/audio/magical_5.ogg\" \"https://opengameart.org/sites/default/files/magical_5.ogg\" --silent --show-error)",
+      "Bash(unzip -o 80-CC0-RPG-SFX.zip -d sfx_pack)",
+      "WebFetch(domain:freesound.org)",
+      "Bash(curl -L -o \"C:/Users/primo/Frost/public/assets/audio/rpg_sound_pack.zip\" \"https://opengameart.org/sites/default/files/rpg_sound_pack.zip\" --silent --show-error)",
+      "Bash(unzip -o rpg_sound_pack.zip -d rpg_pack)",
+      "Bash(ffmpeg -version)",
+      "Bash(where ffmpeg *)",
+      "Bash(where sox *)",
+      "Bash(npm list *)",
+      "Bash(npx --yes audiobuffer-to-wav --version)",
+      "Bash(curl -L -o magical_2.ogg \"https://opengameart.org/sites/default/files/magical_2.ogg\" --silent)",
+      "Bash(curl -L -o magical_4.ogg \"https://opengameart.org/sites/default/files/magical_4.ogg\" --silent)",
+      "Bash(curl -L -o magical_6.ogg \"https://opengameart.org/sites/default/files/magical_6_0.ogg\" --silent)",
+      "Bash(curl -L -o magical_7.ogg \"https://opengameart.org/sites/default/files/magical_7_0.ogg\" --silent)",
+      "Bash(git *)",
+      "Bash(kill %1)",
+      "Bash(xargs wc -l)",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

@@ -6,12 +6,14 @@ import type { Panel } from '../ui/store'
  * client (no sim/network cost): rendered in the world, and walking up + pressing
  * E opens the matching panel. Placed in the mob-free spawn town.
  */
+export type Marker = 'spark' | 'coin' | 'quest' | 'chest'
+
 export interface NPC {
   id: string
   name: string
   title: string
   x: number; y: number
-  icon: string        // floating marker
+  marker: Marker      // floating marker (drawn, not emoji)
   robe: string        // robe colour
   panel: Panel        // panel opened on interact
 }
@@ -20,10 +22,10 @@ export const INTERACT_RANGE = 70
 
 // Spread around the town plaza so you walk between them.
 export const NPCS: NPC[] = [
-  { id: 'trainer',  name: 'Mevra',  title: 'Spell Trainer', x: STARTER_X - 290, y: STARTER_Y - 150, icon: '✦', robe: '#6b4ea8', panel: 'shop' },
-  { id: 'merchant', name: 'Brom',   title: 'Merchant',      x: STARTER_X + 290, y: STARTER_Y - 150, icon: '🪙', robe: '#a8732e', panel: 'merchant' },
-  { id: 'quest',    name: 'Aldra',  title: 'Bounty Board',  x: STARTER_X - 290, y: STARTER_Y + 150, icon: '❗', robe: '#3e7a5a', panel: 'quest' },
-  { id: 'stash',    name: 'Keeper', title: 'Stash',         x: STARTER_X + 290, y: STARTER_Y + 150, icon: '🧰', robe: '#5a5e6a', panel: 'stash' },
+  { id: 'trainer',  name: 'Mevra',  title: 'Spell Trainer', x: STARTER_X - 290, y: STARTER_Y - 150, marker: 'spark', robe: '#6b4ea8', panel: 'shop' },
+  { id: 'merchant', name: 'Brom',   title: 'Merchant',      x: STARTER_X + 290, y: STARTER_Y - 150, marker: 'coin',  robe: '#a8732e', panel: 'merchant' },
+  { id: 'quest',    name: 'Aldra',  title: 'Bounty Board',  x: STARTER_X - 290, y: STARTER_Y + 150, marker: 'quest', robe: '#3e7a5a', panel: 'quest' },
+  { id: 'stash',    name: 'Keeper', title: 'Stash',         x: STARTER_X + 290, y: STARTER_Y + 150, marker: 'chest', robe: '#5a5e6a', panel: 'stash' },
 ]
 
 export function nearestNPC(px: number, py: number): NPC | null {
@@ -54,11 +56,9 @@ export function drawNPC(ctx: CanvasRenderingContext2D, npc: NPC, near: boolean, 
   ctx.fillStyle = h
   ctx.beginPath(); ctx.arc(0, -5, 6.5, 0, Math.PI * 2); ctx.fill()
 
-  // floating marker
+  // floating marker (drawn so colours are consistent across platforms)
   const bob = Math.sin(timeMs * 0.004) * 2
-  ctx.font = '16px -apple-system, "Segoe UI", sans-serif'
-  ctx.textAlign = 'center'
-  ctx.fillText(npc.icon, 0, -22 + bob)
+  drawMarker(ctx, npc.marker, 0, -24 + bob)
 
   // name + interact prompt
   ctx.font = 'bold 11px -apple-system, "Segoe UI", sans-serif'
@@ -72,6 +72,33 @@ export function drawNPC(ctx: CanvasRenderingContext2D, npc: NPC, near: boolean, 
     ctx.fillStyle = '#fff'
     ctx.fillText(`Press E — ${npc.title}`, 0, 42)
   }
+}
+
+/** Drawn floating markers (no emoji → consistent colours; quest is yellow). */
+function drawMarker(ctx: CanvasRenderingContext2D, marker: Marker, x: number, y: number) {
+  ctx.save()
+  ctx.translate(x, y)
+  if (marker === 'quest') {
+    ctx.fillStyle = '#ffd23a'; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3
+    ctx.font = 'bold 22px -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0)
+  } else if (marker === 'coin') {
+    ctx.fillStyle = '#f2c54a'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = '#a87b20'; ctx.lineWidth = 1.5; ctx.stroke()
+    ctx.fillStyle = '#a87b20'; ctx.font = 'bold 11px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', 0, 1)
+  } else if (marker === 'spark') {
+    ctx.fillStyle = '#a98bff'
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(2.5, 0); ctx.lineTo(0, 9); ctx.lineTo(-2.5, 0); ctx.closePath(); ctx.fill()
+      ctx.rotate(Math.PI / 4)
+    }
+  } else { // chest
+    ctx.fillStyle = '#7a4a22'; ctx.fillRect(-8, -3, 16, 9)
+    ctx.fillStyle = '#9a6030'; ctx.beginPath(); ctx.moveTo(-8, -3); ctx.quadraticCurveTo(0, -10, 8, -3); ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#e0c060'; ctx.fillRect(-1.5, -3, 3, 9)   // latch
+    ctx.strokeStyle = '#4a2c12'; ctx.lineWidth = 1; ctx.strokeRect(-8, -3, 16, 9)
+  }
+  ctx.restore()
 }
 
 function shade(hexColor: string, amt: number): string {
