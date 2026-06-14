@@ -32,5 +32,11 @@ export function GameCanvas() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} tabIndex={0} style={{ display: 'block', position: 'fixed', inset: 0 }} />
+  return (
+    <canvas
+      ref={canvasRef}
+      tabIndex={0}
+      style={{ display: 'block', position: 'fixed', inset: 0, width: '100%', height: '100%' }}
+    />
+  )
 }

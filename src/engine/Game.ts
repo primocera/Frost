@@ -80,17 +80,22 @@ export class Game {
     useGameStore.getState().setMobile(touch.active)
 
     window.addEventListener('resize', this.resize)
+    window.addEventListener('orientationchange', this.resize)
+    window.visualViewport?.addEventListener('resize', this.resize)
     this.loop = new Loop(this.update, this.render)
     this.loop.start()
   }
 
   private resize = () => {
     const dpr = window.devicePixelRatio || 1
-    const w = window.innerWidth, h = window.innerHeight
-    this.canvas.width = Math.floor(w * dpr)
-    this.canvas.height = Math.floor(h * dpr)
-    this.canvas.style.width = `${w}px`
-    this.canvas.style.height = `${h}px`
+    // Size from the canvas's actual rendered box (CSS fills the viewport), not
+    // window.innerHeight — the latter mismatches the visible area on mobile and
+    // leaves a gap at the bottom.
+    const rect = this.canvas.getBoundingClientRect()
+    const w = Math.max(1, Math.round(rect.width))
+    const h = Math.max(1, Math.round(rect.height))
+    this.canvas.width = Math.round(w * dpr)
+    this.canvas.height = Math.round(h * dpr)
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     this.camera.setViewport(w, h)
     // Zoom out on touch devices so more of the world is visible (phones have a
@@ -319,6 +324,8 @@ export class Game {
     this.input.destroy()
     this.net?.close()
     window.removeEventListener('resize', this.resize)
+    window.removeEventListener('orientationchange', this.resize)
+    window.visualViewport?.removeEventListener('resize', this.resize)
     window.removeEventListener('beforeunload', this.saveOnExit)
   }
 }
