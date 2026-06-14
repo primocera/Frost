@@ -5,6 +5,12 @@ import { Panels } from './Panels'
 import { Chat } from './Chat'
 import { TouchControls } from './TouchControls'
 
+// Donation link to help cover the multiplayer server ($5/mo Cloudflare plan).
+// Create a Stripe Payment Link (Dashboard → Payment Links — enable "customer
+// chooses amount" for tips, or a $5/mo subscription) and paste its URL here.
+// While empty, the support buttons stay hidden.
+const SUPPORT_URL = ''   // e.g. 'https://buy.stripe.com/xxxxxxxxxxxx'
+
 /**
  * Root component. Switches between the landing/name screen and the live game.
  * The rich landing markup from the old index.html is reduced here to a clean
@@ -40,6 +46,12 @@ function Landing() {
       <button style={styles.startBtn} onClick={() => startGame(name, false)}>
         Begin your journey
       </button>
+
+      {SUPPORT_URL && (
+        <a style={styles.supportBtn} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
+          💜 Support the server — keeps multiplayer online
+        </a>
+      )}
     </div>
   )
 }
@@ -57,6 +69,9 @@ function Game() {
     <>
       <GameCanvas />
       <div style={{ ...styles.netBadge, color: netInfo.color }}>{netInfo.text}</div>
+      {SUPPORT_URL && (
+        <a style={styles.supportMini} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" title="Help cover the multiplayer server">💜 Support</a>
+      )}
       <AudioControl />
       <div style={styles.hud}>
         <div style={styles.hudName}>{name} · Lv {hud.level}</div>
@@ -191,6 +206,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16, fontWeight: 600, color: '#fff',
     background: 'linear-gradient(135deg,#1460b0,#0a3a78)',
     boxShadow: '0 4px 20px rgba(20,90,200,0.4)',
+  },
+  supportBtn: {
+    marginTop: 4, padding: '9px 18px', borderRadius: 12, cursor: 'pointer',
+    fontSize: 13, fontWeight: 600, color: '#e6c8ff', textDecoration: 'none',
+    background: 'rgba(120,60,200,0.18)', border: '1px solid rgba(160,110,235,0.4)',
+  },
+  supportMini: {
+    position: 'fixed', top: 12, left: 12, fontSize: 12, fontWeight: 600,
+    color: '#e6c8ff', textDecoration: 'none', background: 'rgba(40,20,70,0.5)',
+    border: '1px solid rgba(160,110,235,0.4)', borderRadius: 8, padding: '3px 9px',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif',
   },
   hud: {
     position: 'fixed', bottom: 92, left: '50%', transform: 'translateX(-50%)',
