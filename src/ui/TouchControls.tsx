@@ -20,6 +20,7 @@ export function TouchControls() {
         <CastBtn />
       </div>
       <div style={styles.topRow}>
+        <MiniBtn label="💬" onTap={() => useGameStore.getState().setChatOpen(true)} />
         <MiniBtn label="✦" onTap={() => { touch.swap = true }} />
         <MiniBtn label="🎒" onTap={() => useGameStore.getState().togglePanel('inventory')} />
         <MiniBtn label="✪" onTap={() => useGameStore.getState().togglePanel('talents')} />

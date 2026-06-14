@@ -141,6 +141,7 @@ export type SimEvent =
   | { type: 'loot'; x: number; y: number; item?: Item; gold?: number }
   | { type: 'pickup'; pid: string; x: number; y: number; item?: Item; gold?: number }
   | { type: 'rareSlain'; label: string }
+  | { type: 'feat'; name: string; text: string }   // notable deed → announced in chat
   | { type: 'death'; pid: string }
   | { type: 'respawn'; pid: string }
 
@@ -237,4 +238,4 @@ export type ServerMessage =
   | { t: 'welcome'; id: string }
   | { t: 'snap'; s: Snapshot }
   | { t: 'self'; self: SelfState }
-  | { t: 'chat'; from: string; text: string }
+  | { t: 'chat'; from: string; text: string; sys?: boolean }

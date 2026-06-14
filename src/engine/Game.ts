@@ -7,7 +7,7 @@ import {
 import { emptyInput, InputCommand } from '../sim/types'
 import type { EquipSlot } from '../items/ItemTypes'
 import type { TalentId } from '../talents/TalentTypes'
-import { useGameStore } from '../ui/store'
+import { useGameStore, ChatLine } from '../ui/store'
 import { Camera } from './Camera'
 import { Input } from './Input'
 import { Loop } from './Loop'
@@ -41,6 +41,8 @@ export class Game {
   private hudAccum = 0
   private saveAccum = 0
   private pid = getPid()
+  /** name -> active speech bubble (ms remaining). */
+  private bubbles = new Map<string, { text: string; ms: number }>()
 
   constructor(private canvas: HTMLCanvasElement, name: string, private sound?: SoundManager) {
     const ctx = canvas.getContext('2d')
@@ -172,8 +174,10 @@ export class Game {
     if (this.input.consumePressed('enter') && !useGameStore.getState().chatOpen) {
       useGameStore.getState().setChatOpen(true)
     }
-    // Surface inbound chat lines.
-    if (this.net) for (const line of this.net.drainChat()) useGameStore.getState().addChat(line)
+    // Surface inbound chat lines (+ speech bubbles).
+    if (this.net) for (const line of this.net.drainChat()) this.receiveChat(line)
+    // Age out speech bubbles.
+    for (const [name, b] of this.bubbles) { b.ms -= dt * 1000; if (b.ms <= 0) this.bubbles.delete(name) }
 
     this.fx.update(dt)
     const lp = this.localPlayer()
@@ -214,12 +218,17 @@ export class Game {
   private doChat(text: string) {
     const t = text.trim()
     if (!t) return
-    if (this.mode === 'net' && this.net) this.net.sendChat(t)
-    else useGameStore.getState().addChat({ from: 'You', text: t })   // solo echo
+    if (this.mode === 'net' && this.net) this.net.sendChat(t)   // echoes back via drainChat
+    else this.receiveChat({ from: this.localPlayer()?.name ?? 'You', text: t })
+  }
+
+  private receiveChat(line: ChatLine) {
+    useGameStore.getState().addChat(line)
+    if (!line.sys && line.from) this.bubbles.set(line.from, { text: line.text, ms: 5000 })
   }
 
   private render = () => {
-    this.renderer.draw(this.camera, this.world, this.fx, this.localId)
+    this.renderer.draw(this.camera, this.world, this.fx, this.localId, this.bubbles)
   }
 
   private handleEvents(events: SimEvent[]) {

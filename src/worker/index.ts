@@ -57,6 +57,16 @@ export class FrostRoom {
       const i = this.inputs[id]
       i.swapBolt = i.castArcane = i.castNova = i.castBlizzard = false
     }
+    // Announce milestones from this tick's events as system chat.
+    for (const ev of this.world.events) {
+      if (ev.type === 'levelUp') {
+        const p = this.world.players.find(pl => pl.id === ev.pid)
+        if (p) this.sysChat(`${p.name} reached level ${ev.level}`)
+      } else if (ev.type === 'feat') {
+        this.sysChat(`${ev.name} ${ev.text}`)
+      }
+    }
+
     const snap = JSON.stringify({ t: 'snap', s: serialize(this.world) })
     for (const ws of this.sockets.values()) safeSend(ws, snap)
 
@@ -81,6 +91,7 @@ export class FrostRoom {
       const saved = await this.state.storage.get<SavedPlayer>('p:' + pid)
       if (saved) applySave(player, saved)
       safeSend(ws, JSON.stringify({ t: 'welcome', id }))
+      this.sysChat(`${player.name} joined the world`)
       return
     }
 
@@ -123,6 +134,11 @@ export class FrostRoom {
       clearInterval(this.timer)
       this.timer = null
     }
+  }
+
+  private sysChat(text: string) {
+    const out = JSON.stringify({ t: 'chat', from: '', text, sys: true })
+    for (const ws of this.sockets.values()) safeSend(ws, out)
   }
 
   private savePlayer(id: string) {

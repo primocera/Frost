@@ -461,7 +461,10 @@ function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefine
     if (e.burning && talentBonus.flashpoint(killer.talentRanks)) killer.cd.firebolt = 0
   }
   world.events.push({ type: 'enemyDeath', x: e.x, y: e.y, color: e.cfg.color, xp, mult })
-  if (e.cfg.rare) world.events.push({ type: 'rareSlain', label: e.cfg.label ?? e.cfg.key })
+  if (e.cfg.rare) {
+    world.events.push({ type: 'rareSlain', label: e.cfg.label ?? e.cfg.key })
+    if (killer) world.events.push({ type: 'feat', name: killer.name, text: `slew ${e.cfg.label ?? e.cfg.key}` })
+  }
 
   dropLoot(world, e, killer, rng)
   e.dying = true; e.deathMs = 340; e.vx = 0; e.vy = 0

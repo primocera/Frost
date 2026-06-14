@@ -25,9 +25,13 @@ export function Chat() {
     <div style={styles.wrap}>
       <div style={styles.log}>
         {chat.slice(-8).map((l, i) => (
-          <div key={i} style={styles.line}>
-            <span style={styles.from}>{l.from}:</span> {l.text}
-          </div>
+          l.sys ? (
+            <div key={i} style={{ ...styles.line, ...styles.sys }}>✦ {l.text}</div>
+          ) : (
+            <div key={i} style={styles.line}>
+              <span style={styles.from}>{l.from}:</span> {l.text}
+            </div>
+          )
         ))}
       </div>
       {open && (
@@ -36,6 +40,8 @@ export function Chat() {
           style={styles.input}
           value={text}
           maxLength={200}
+          enterKeyHint="send"
+          autoComplete="off"
           placeholder={net === 'connected' ? 'Say something…' : 'Chat is multiplayer-only'}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -62,6 +68,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(0,0,0,0.18)', borderRadius: 4, padding: '1px 6px', width: 'fit-content', maxWidth: '100%',
   },
   from: { color: '#7fd0ff', fontWeight: 700 },
+  sys: { color: '#ffd766', fontStyle: 'italic' },
   input: {
     pointerEvents: 'auto', width: '100%', padding: '8px 12px', borderRadius: 8,
     border: '1.5px solid rgba(90,160,255,0.5)', background: 'rgba(8,14,28,0.92)',

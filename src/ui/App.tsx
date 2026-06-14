@@ -18,8 +18,8 @@ export function App() {
 function Landing() {
   const startGame = useGameStore((s) => s.startGame)
   const [name, setName] = useState('')
-  const [hardcore, setHardcore] = useState(false)
 
+  // Hardcore mode is disabled for now — single (Normal) mode only.
   return (
     <div style={styles.landing}>
       <div style={styles.icon}>❄</div>
@@ -32,27 +32,12 @@ function Landing() {
         maxLength={16}
         placeholder="Enter your mage name"
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && startGame(name, hardcore)}
+        onKeyDown={(e) => e.key === 'Enter' && startGame(name, false)}
         autoComplete="off"
         spellCheck={false}
       />
 
-      <div style={styles.modeRow}>
-        <button
-          style={{ ...styles.modeBtn, ...(hardcore ? {} : styles.modeActive) }}
-          onClick={() => setHardcore(false)}
-        >
-          ⚡ Normal
-        </button>
-        <button
-          style={{ ...styles.modeBtn, ...(hardcore ? styles.modeActiveHc : {}) }}
-          onClick={() => setHardcore(true)}
-        >
-          ☠ Hardcore
-        </button>
-      </div>
-
-      <button style={styles.startBtn} onClick={() => startGame(name, hardcore)}>
+      <button style={styles.startBtn} onClick={() => startGame(name, false)}>
         Begin your journey
       </button>
     </div>

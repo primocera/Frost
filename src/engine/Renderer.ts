@@ -21,7 +21,7 @@ export class Renderer {
     this.grassPattern = this.buildGrassPattern()
   }
 
-  draw(cam: Camera, world: WorldState, fx: Particles, localId = '') {
+  draw(cam: Camera, world: WorldState, fx: Particles, localId = '', bubbles?: Map<string, { text: string; ms: number }>) {
     const ctx = this.ctx
     ctx.fillStyle = '#060a12'
     ctx.fillRect(0, 0, cam.viewW, cam.viewH)
@@ -45,9 +45,10 @@ export class Renderer {
     for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e) })
     for (const p of world.players) {
       if (!inView(p.x, p.y)) continue
+      const bubble = bubbles?.get(p.name)
       ents.push({ y: p.y, draw: () => {
         this.drawPlayer(p.x, p.y, p.facing, p.vx, p.vy, world.timeMs, p.castMs > 0, p.hurtMs > 0, p.dead, p.frozenMs > 0)
-        if (p.id !== localId) this.drawNameTag(p.x, p.y, p.name)
+        this.drawPlayerOverlay(p.x, p.y, p.name, p.stats.hp, p.stats.maxHp, p.id !== localId, bubble?.text)
       } })
     }
     ents.sort((a, b) => a.y - b.y)
@@ -176,15 +177,49 @@ export class Renderer {
     }
   }
 
-  private drawNameTag(x: number, y: number, name: string) {
+  private drawPlayerOverlay(x: number, y: number, name: string, hp: number, maxHp: number, showName: boolean, bubble?: string) {
     const ctx = this.ctx
-    ctx.font = 'bold 11px -apple-system, "Segoe UI", sans-serif'
+    // Health bar above the mage.
+    const w = 36, barY = y - 36
+    const pct = Math.max(0, Math.min(1, maxHp > 0 ? hp / maxHp : 0))
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    ctx.fillRect(x - w / 2 - 1, barY - 1, w + 2, 5)
+    ctx.fillStyle = '#2a1416'
+    ctx.fillRect(x - w / 2, barY, w, 3)
+    ctx.fillStyle = pct > 0.5 ? '#46d06a' : pct > 0.25 ? '#e0b020' : '#e0464a'
+    ctx.fillRect(x - w / 2, barY, w * pct, 3)
+
+    // Name (remote players only).
+    if (showName) {
+      ctx.font = 'bold 11px -apple-system, "Segoe UI", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.lineWidth = 3
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+      ctx.strokeText(name, x, barY - 6)
+      ctx.fillStyle = '#9ed8ff'
+      ctx.fillText(name, x, barY - 6)
+    }
+
+    // Speech bubble.
+    if (bubble) this.drawBubble(x, barY - (showName ? 20 : 8), bubble)
+  }
+
+  private drawBubble(x: number, y: number, text: string) {
+    const ctx = this.ctx
+    ctx.font = '11px -apple-system, "Segoe UI", sans-serif'
     ctx.textAlign = 'center'
-    ctx.lineWidth = 3
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)'
-    ctx.strokeText(name, x, y - 34)
-    ctx.fillStyle = '#9ed8ff'
-    ctx.fillText(name, x, y - 34)
+    const t = text.length > 60 ? text.slice(0, 60) + '…' : text
+    const w = Math.min(220, ctx.measureText(t).width + 16)
+    const h = 18
+    const bx = x - w / 2, by = y - h
+    ctx.fillStyle = 'rgba(245,248,255,0.95)'
+    ctx.beginPath()
+    ctx.roundRect(bx, by, w, h, 6)
+    ctx.fill()
+    // little tail
+    ctx.beginPath(); ctx.moveTo(x - 4, by + h); ctx.lineTo(x + 4, by + h); ctx.lineTo(x, by + h + 5); ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#16203a'
+    ctx.fillText(t, x, by + h / 2 + 4)
   }
 
   private drawProjectile(b: ProjectileState) {

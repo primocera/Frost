@@ -54,7 +54,7 @@ export interface GameActions {
   sendChat: (text: string) => void
 }
 
-export interface ChatLine { from: string; text: string }
+export interface ChatLine { from: string; text: string; sys?: boolean }
 
 interface GameUIState {
   screen: Screen
