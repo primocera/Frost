@@ -21,10 +21,14 @@ export function familyOf(e: EnemyState): Family {
   return 'orb'
 }
 
-export function drawEnemyArt(ctx: CanvasRenderingContext2D, e: EnemyState, fill: string, t: number) {
-  const r = e.cfg.radius
-  const f = e.facing
-  ART[familyOf(e)](ctx, r, fill, f, t)
+export function drawEnemyArt(ctx: CanvasRenderingContext2D, e: EnemyState, fill: string, t: number, r: number) {
+  ART[familyOf(e)](ctx, r, fill, e.facing, t)
+}
+
+/** Visual size: small mobs are floored to ~player size so they don't look tiny;
+ *  the gameplay hitbox (cfg.radius) is unchanged. */
+export function visualRadius(e: EnemyState): number {
+  return Math.max(17, e.cfg.radius)
 }
 
 const dark = 'rgba(0,0,0,0.4)'
@@ -33,10 +37,24 @@ const eye = (c: CanvasRenderingContext2D, x: number, y: number, rr = 1.6, col = 
 }
 
 const ART: Record<Family, (c: CanvasRenderingContext2D, r: number, fill: string, f: number, t: number) => void> = {
-  orb(c, r, fill) {
-    c.fillStyle = fill; c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill()
-    c.strokeStyle = dark; c.lineWidth = 2; c.stroke()
-    eye(c, -r * 0.3, -2); eye(c, r * 0.3, -2)
+  orb(c, r, fill, f, t) {
+    // spiky little creature
+    c.fillStyle = fill
+    const spikes = 9
+    c.beginPath()
+    for (let i = 0; i <= spikes * 2; i++) {
+      const a = (i / (spikes * 2)) * Math.PI * 2
+      const rad = i % 2 === 0 ? r : r * 0.78
+      const px = Math.cos(a) * rad, py = Math.sin(a) * rad
+      i === 0 ? c.moveTo(px, py) : c.lineTo(px, py)
+    }
+    c.closePath(); c.fill()
+    c.fillStyle = 'rgba(255,255,255,0.15)'; c.beginPath(); c.ellipse(-r * 0.25, -r * 0.3, r * 0.4, r * 0.25, 0, 0, Math.PI * 2); c.fill()
+    eye(c, f * 1 - r * 0.32, -2, 1.8, '#ffe0a0'); eye(c, f * 1 + r * 0.32, -2, 1.8, '#ffe0a0')
+    // tiny fanged mouth
+    c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1.4
+    c.beginPath(); c.moveTo(-r * 0.3, r * 0.4); c.lineTo(0, r * 0.55); c.lineTo(r * 0.3, r * 0.4); c.stroke()
+    void t
   },
   blob(c, r, fill, _f, t) {
     const sq = 1 + Math.sin(t * 0.004) * 0.06
@@ -88,15 +106,30 @@ const ART: Record<Family, (c: CanvasRenderingContext2D, r: number, fill: string,
     c.fillStyle = 'rgba(0,0,0,0.25)'; c.beginPath(); c.arc(f * 2, -r * 0.4, r * 0.5, 0, Math.PI * 2); c.fill()
     eye(c, f * 2 - 2.5, -r * 0.4, 1.3, '#88ff66'); eye(c, f * 2 + 2.5, -r * 0.4, 1.3, '#88ff66')
   },
-  construct(c, r, fill) {
+  construct(c, r, fill, f) {
+    // stubby arms
     c.fillStyle = fill
-    c.fillRect(-r * 0.9, -r * 0.9, r * 1.8, r * 1.8)
-    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(-r * 0.9, -r * 0.9, r * 1.8, r * 0.5)
-    c.strokeStyle = dark; c.lineWidth = 2; c.strokeRect(-r * 0.9, -r * 0.9, r * 1.8, r * 1.8)
+    c.beginPath(); c.arc(-r * 1.05, r * 0.1, r * 0.42, 0, Math.PI * 2); c.arc(r * 1.05, r * 0.1, r * 0.42, 0, Math.PI * 2); c.fill()
+    // rounded boulder body
+    c.beginPath()
+    c.moveTo(-r, r * 0.35)
+    c.quadraticCurveTo(-r * 1.05, -r * 0.5, -r * 0.4, -r * 0.95)
+    c.quadraticCurveTo(0, -r * 1.15, r * 0.4, -r * 0.95)
+    c.quadraticCurveTo(r * 1.05, -r * 0.5, r, r * 0.35)
+    c.quadraticCurveTo(r * 0.7, r, 0, r)
+    c.quadraticCurveTo(-r * 0.7, r, -r, r * 0.35)
+    c.closePath(); c.fill()
+    // top-lit highlight + lower shade
+    c.fillStyle = 'rgba(255,255,255,0.14)'; c.beginPath(); c.ellipse(0, -r * 0.55, r * 0.7, r * 0.3, 0, 0, Math.PI * 2); c.fill()
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.beginPath(); c.ellipse(0, r * 0.55, r * 0.75, r * 0.3, 0, 0, Math.PI * 2); c.fill()
+    // molten cracks
+    c.strokeStyle = 'rgba(255,150,50,0.85)'; c.lineWidth = 1.6; c.lineCap = 'round'
+    c.beginPath(); c.moveTo(-r * 0.45, -r * 0.35); c.lineTo(-r * 0.1, r * 0.05); c.lineTo(r * 0.35, -r * 0.15); c.moveTo(-r * 0.1, r * 0.05); c.lineTo(0, r * 0.55); c.stroke()
     // glowing core
-    const g = c.createRadialGradient(0, 0, 0, 0, 0, r * 0.7)
-    g.addColorStop(0, 'rgba(255,180,80,0.9)'); g.addColorStop(1, 'rgba(255,120,30,0)')
-    c.fillStyle = g; c.beginPath(); c.arc(0, 0, r * 0.7, 0, Math.PI * 2); c.fill()
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, r * 0.6)
+    g.addColorStop(0, 'rgba(255,190,90,0.95)'); g.addColorStop(1, 'rgba(255,120,30,0)')
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, r * 0.6, 0, Math.PI * 2); c.fill()
+    eye(c, f * 2 - 4, -r * 0.45, 1.6, '#ffd060'); eye(c, f * 2 + 4, -r * 0.45, 1.6, '#ffd060')
   },
   caster(c, r, fill, f, t) {
     const bob = Math.sin(t * 0.004) * 2

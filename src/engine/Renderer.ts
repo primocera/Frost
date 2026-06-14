@@ -2,7 +2,7 @@ import { Camera } from './Camera'
 import { Particles } from './Particles'
 import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, getZoneAt, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
 import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance } from './Biomes'
-import { drawEnemyArt } from './EnemyArt'
+import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
@@ -123,34 +123,61 @@ export class Renderer {
       ctx.fillRect(zx, zy, zw, zh)
     }
 
-    // PvP safe zone around spawn (square) — only draw when on screen.
+    // Town stone plaza (safe zone) — only draw when on screen.
     if (Math.abs(STARTER_X - cam.x) < cam.visW / 2 + PVP_SAFE_R &&
         Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
-      const sx = STARTER_X - PVP_SAFE_R, sy = STARTER_Y - PVP_SAFE_R, sz = PVP_SAFE_R * 2
-      ctx.save()
-      ctx.fillStyle = 'rgba(80,180,255,0.06)'
-      ctx.fillRect(sx, sy, sz, sz)
-      ctx.setLineDash([14, 10])
-      ctx.strokeStyle = 'rgba(120,200,255,0.45)'
-      ctx.lineWidth = 3
-      ctx.strokeRect(sx, sy, sz, sz)
-      ctx.setLineDash([])
-      ctx.fillStyle = 'rgba(150,210,255,0.6)'
-      ctx.font = 'bold 14px -apple-system, "Segoe UI", sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText('✦ Safe Zone — no PvP ✦', STARTER_X, sy + 22)
-      ctx.restore()
+      this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R)
     }
+  }
+
+  /** A MOBA-style paved stone plaza for the town/safe zone. */
+  private drawPlaza(cx: number, cy: number, R: number) {
+    const ctx = this.ctx
+    const TAU = Math.PI * 2
+    ctx.save()
+    // paved base
+    const g = ctx.createRadialGradient(cx, cy - R * 0.25, R * 0.15, cx, cy, R)
+    g.addColorStop(0, '#7c808a'); g.addColorStop(0.7, '#5b5e67'); g.addColorStop(1, '#42444b')
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill()
+    // concentric paving rings
+    ctx.lineWidth = 2
+    for (let i = 1; i <= 6; i++) {
+      ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.20)' : 'rgba(255,255,255,0.06)'
+      ctx.beginPath(); ctx.arc(cx, cy, R * (i / 6.5), 0, TAU); ctx.stroke()
+    }
+    // radial cobble seams
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1.5
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU
+      ctx.beginPath()
+      ctx.moveTo(cx + Math.cos(a) * R * 0.18, cy + Math.sin(a) * R * 0.18)
+      ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
+      ctx.stroke()
+    }
+    // ornate border
+    ctx.lineWidth = 9; ctx.strokeStyle = '#393b41'; ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.stroke()
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(150,200,255,0.45)'; ctx.beginPath(); ctx.arc(cx, cy, R - 8, 0, TAU); ctx.stroke()
+    // centre medallion
+    ctx.fillStyle = '#494c54'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.fill()
+    ctx.strokeStyle = 'rgba(150,200,255,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.stroke()
+    ctx.fillStyle = 'rgba(160,205,255,0.7)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.font = `${Math.round(R * 0.14)}px serif`; ctx.fillText('❄', cx, cy + 1)
+    ctx.textBaseline = 'alphabetic'
+    // label
+    ctx.fillStyle = 'rgba(190,225,255,0.75)'; ctx.font = 'bold 16px -apple-system, "Segoe UI", sans-serif'
+    ctx.fillText('✦ Millhaven — Safe Zone ✦', cx, cy - R + 30)
+    ctx.restore()
   }
 
   private drawEnemy(e: EnemyState, timeMs: number) {
     const ctx = this.ctx
-    const r = e.cfg.radius
+    const r = visualRadius(e)
     if (e.dying) {
       const k = 1 - e.deathMs / 340
       ctx.globalAlpha = Math.max(0, 1 - k)
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(1 + k, 1 + k)
-      drawEnemyArt(ctx, e, hex(e.cfg.color), timeMs)
+      drawEnemyArt(ctx, e, hex(e.cfg.color), timeMs, r)
       ctx.restore(); ctx.globalAlpha = 1
       return
     }
@@ -165,7 +192,7 @@ export class Renderer {
     else if (e.frozenMs > 0) fill = '#88ddff'
     else if (e.slowMs > 0) fill = '#bbddff'
     ctx.save(); ctx.translate(e.x, e.y)
-    drawEnemyArt(ctx, e, fill, timeMs)
+    drawEnemyArt(ctx, e, fill, timeMs, r)
     ctx.restore()
 
     // Telegraph / charge tell
