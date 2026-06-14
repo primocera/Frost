@@ -32,6 +32,7 @@ export class Input {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    if (isTyping()) return   // don't drive the game while typing in a text field
     const k = e.key.toLowerCase()
     if (!this.keys.has(k)) this.pressed.add(k)
     this.keys.add(k)
@@ -81,4 +82,10 @@ export class Input {
     this.target.removeEventListener('contextmenu', this.onContextMenu)
     window.removeEventListener('blur', this.clearAll)
   }
+}
+
+/** True when the user is typing in a text field (e.g. the chat box). */
+function isTyping(): boolean {
+  const el = document.activeElement
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
 }

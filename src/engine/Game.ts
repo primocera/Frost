@@ -15,6 +15,7 @@ import { Net } from './Net'
 import { Particles } from './Particles'
 import { Renderer } from './Renderer'
 import { SoundManager } from './Sound'
+import { touch, resetTouchEdges } from './touch'
 
 const LOCAL_ID = 'local'
 // Game server host. Local dev uses wrangler's default port (8787); production
@@ -73,7 +74,10 @@ export class Game {
       unequip: (slot) => this.doUnequip(slot),
       buyTalent: (id) => this.doTalent(id),
       train: (spell) => this.doTrain(spell),
+      sendChat: (text) => this.doChat(text),
     })
+    touch.active = isTouchDevice()
+    useGameStore.getState().setMobile(touch.active)
 
     window.addEventListener('resize', this.resize)
     this.loop = new Loop(this.update, this.render)
@@ -100,15 +104,44 @@ export class Game {
 
   private buildInput(): InputCommand {
     const cmd = emptyInput()
+
+    // Movement: keyboard, or the touch joystick when it's being used.
     cmd.move = this.input.getMove()
+    if (touch.active && (Math.abs(touch.move.x) > 0.01 || Math.abs(touch.move.y) > 0.01)) {
+      cmd.move = { x: touch.move.x, y: touch.move.y }
+    }
+
     const ptr = this.input.getPointer()
-    cmd.aim = this.camera.screenToWorld(ptr.x, ptr.y)
-    cmd.castBolt = ptr.down || this.input.isDown('f')
-    cmd.swapBolt = this.input.consumePressed('x')
-    cmd.castArcane = this.input.consumePressed('q')
-    cmd.castNova = this.input.consumePressed('e')
-    cmd.castBlizzard = this.input.consumePressed('r')
+    const touchCasting = touch.active && (touch.castBolt || touch.blizzard)
+    if (touchCasting) {
+      // On touch, spells auto-aim at the nearest enemy.
+      const near = this.nearestEnemy()
+      const lp = this.localPlayer()
+      cmd.aim = near ?? (lp ? { x: lp.x + lp.facing * 120, y: lp.y } : { x: 0, y: 0 })
+    } else {
+      cmd.aim = this.camera.screenToWorld(ptr.x, ptr.y)
+    }
+
+    cmd.castBolt = ptr.down || this.input.isDown('f') || (touch.active && touch.castBolt)
+    cmd.swapBolt = this.input.consumePressed('x') || touch.swap
+    cmd.castArcane = this.input.consumePressed('q') || touch.arcane
+    cmd.castNova = this.input.consumePressed('e') || touch.nova
+    cmd.castBlizzard = this.input.consumePressed('r') || touch.blizzard
+    resetTouchEdges()
     return cmd
+  }
+
+  private nearestEnemy(): { x: number; y: number } | null {
+    const lp = this.localPlayer()
+    if (!lp) return null
+    let best: { x: number; y: number } | null = null
+    let bd = Infinity
+    for (const e of this.world.enemies) {
+      if (e.dying) continue
+      const d = Math.hypot(e.x - lp.x, e.y - lp.y)
+      if (d < bd) { bd = d; best = { x: e.x, y: e.y } }
+    }
+    return best
   }
 
   private update = (dt: number) => {
@@ -127,6 +160,12 @@ export class Game {
     if (this.input.consumePressed('i')) useGameStore.getState().togglePanel('inventory')
     if (this.input.consumePressed('t')) useGameStore.getState().togglePanel('talents')
     if (this.input.consumePressed('b')) useGameStore.getState().togglePanel('shop')
+    // Enter opens chat.
+    if (this.input.consumePressed('enter') && !useGameStore.getState().chatOpen) {
+      useGameStore.getState().setChatOpen(true)
+    }
+    // Surface inbound chat lines.
+    if (this.net) for (const line of this.net.drainChat()) useGameStore.getState().addChat(line)
 
     this.fx.update(dt)
     const lp = this.localPlayer()
@@ -163,6 +202,12 @@ export class Game {
   private doTrain(spell: string) {
     if (this.mode === 'net' && this.net) this.net.train(spell)
     else { const p = this.localPlayer(); if (p) trainSpell(p, spell) }
+  }
+  private doChat(text: string) {
+    const t = text.trim()
+    if (!t) return
+    if (this.mode === 'net' && this.net) this.net.sendChat(t)
+    else useGameStore.getState().addChat({ from: 'You', text: t })   // solo echo
   }
 
   private render = () => {
@@ -273,6 +318,10 @@ export class Game {
     window.removeEventListener('resize', this.resize)
     window.removeEventListener('beforeunload', this.saveOnExit)
   }
+}
+
+function isTouchDevice(): boolean {
+  return 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
 }
 
 // ── Per-browser identity + solo save (localStorage) ─────────────────────────

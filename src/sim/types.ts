@@ -230,9 +230,11 @@ export type ClientMessage =
   | { t: 'unequip'; slot: EquipSlot }
   | { t: 'talent'; id: TalentId }
   | { t: 'train'; spell: string }
+  | { t: 'chat'; text: string }
 
 /** server → client */
 export type ServerMessage =
   | { t: 'welcome'; id: string }
   | { t: 'snap'; s: Snapshot }
   | { t: 'self'; self: SelfState }
+  | { t: 'chat'; from: string; text: string }

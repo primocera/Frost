@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useGameStore } from './store'
 import { GameCanvas } from './GameCanvas'
 import { Panels } from './Panels'
+import { Chat } from './Chat'
+import { TouchControls } from './TouchControls'
 
 /**
  * Root component. Switches between the landing/name screen and the live game.
@@ -97,8 +99,10 @@ function Game() {
         ))}
       </div>
 
-      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · B shop</div>
+      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · B shop · Enter chat</div>
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
+      <Chat />
+      <TouchControls />
       <Panels />
     </>
   )

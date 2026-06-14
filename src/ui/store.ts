@@ -51,7 +51,10 @@ export interface GameActions {
   unequip: (slot: EquipSlot) => void
   buyTalent: (id: TalentId) => void
   train: (spell: string) => void
+  sendChat: (text: string) => void
 }
+
+export interface ChatLine { from: string; text: string }
 
 interface GameUIState {
   screen: Screen
@@ -62,6 +65,9 @@ interface GameUIState {
   panel: Panel
   self: SelfState | null
   actions: GameActions | null
+  chat: ChatLine[]
+  chatOpen: boolean
+  isMobile: boolean
 
   startGame: (name: string, hardcore: boolean) => void
   setNet: (net: NetStatus) => void
@@ -70,6 +76,9 @@ interface GameUIState {
   togglePanel: (panel: Panel) => void
   setSelf: (self: SelfState | null) => void
   setActions: (actions: GameActions) => void
+  addChat: (line: ChatLine) => void
+  setChatOpen: (open: boolean) => void
+  setMobile: (m: boolean) => void
 }
 
 export const useGameStore = create<GameUIState>((set) => ({
@@ -81,6 +90,9 @@ export const useGameStore = create<GameUIState>((set) => ({
   panel: 'none',
   self: null,
   actions: null,
+  chat: [],
+  chatOpen: false,
+  isMobile: false,
 
   startGame: (name, hardcore) =>
     set({ screen: 'playing', playerName: name || 'Apprentice', hardcore }),
@@ -90,4 +102,7 @@ export const useGameStore = create<GameUIState>((set) => ({
   togglePanel: (panel) => set((s) => ({ panel: s.panel === panel ? 'none' : panel })),
   setSelf: (self) => set({ self }),
   setActions: (actions) => set({ actions }),
+  addChat: (line) => set((s) => ({ chat: [...s.chat.slice(-49), line] })),
+  setChatOpen: (open) => set({ chatOpen: open }),
+  setMobile: (m) => set({ isMobile: m }),
 }))

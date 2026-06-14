@@ -31,6 +31,7 @@ export class Net {
   private enemies = new Map<number, EnemyState>()
   private enemyTargets = new Map<number, Vec2>()
   private pending: SimEvent[] = []
+  private pendingChat: { from: string; text: string }[] = []
   private pred: Vec2 = { x: 0, y: 0 }
   private predReady = false
   self: SelfState | null = null
@@ -60,6 +61,7 @@ export class Net {
     try { msg = JSON.parse(raw) } catch { return }
     if (msg.t === 'welcome') { this.localId = msg.id; return }
     if (msg.t === 'self') { this.self = msg.self; return }
+    if (msg.t === 'chat') { this.pendingChat.push({ from: msg.from, text: msg.text }); return }
     if (msg.t === 'snap') this.applySnapshot(msg)
   }
 
@@ -67,6 +69,8 @@ export class Net {
   unequip(slot: EquipSlot) { this.send({ t: 'unequip', slot }) }
   buyTalent(id: TalentId) { this.send({ t: 'talent', id }) }
   train(spell: string) { this.send({ t: 'train', spell }) }
+  sendChat(text: string) { this.send({ t: 'chat', text }) }
+  drainChat() { const c = this.pendingChat; this.pendingChat = []; return c }
   private send(msg: object) { if (this.socket.readyState === 1) this.socket.send(JSON.stringify(msg)) }
 
   private applySnapshot(msg: Extract<ServerMessage, { t: 'snap' }>) {

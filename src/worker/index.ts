@@ -93,6 +93,12 @@ export class FrostRoom {
       if (player) spendTalent(player, msg.id)
     } else if (msg.t === 'train') {
       if (player) trainSpell(player, msg.spell)
+    } else if (msg.t === 'chat') {
+      const text = String(msg.text).slice(0, 200).trim()
+      if (player && text) {
+        const out = JSON.stringify({ t: 'chat', from: player.name, text })
+        for (const sock of this.sockets.values()) safeSend(sock, out)
+      }
     } else if (msg.t === 'input') {
       const cur = this.inputs[id] ?? emptyInput()
       cur.move = msg.cmd.move
