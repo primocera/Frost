@@ -1,6 +1,8 @@
 import { Camera } from './Camera'
 import { Particles } from './Particles'
-import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
+import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, getZoneAt, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
+import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance } from './Biomes'
+import { drawEnemyArt } from './EnemyArt'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -15,10 +17,13 @@ const RARITY_HEX: Record<string, string> = {
  * entities, projectiles and FX in plain world coordinates.
  */
 export class Renderer {
-  private grassPattern: CanvasPattern | null = null
+  private patterns = new Map<string, CanvasPattern | null>()
+  private defaultPattern: CanvasPattern | null = null
+  private decor: DecorInstance[] = generateDecor()
 
   constructor(private ctx: CanvasRenderingContext2D) {
-    this.grassPattern = this.buildGrassPattern()
+    this.defaultPattern = buildPattern(ctx, DEFAULT_BIOME)
+    for (const [name, biome] of Object.entries(BIOMES)) this.patterns.set(name, buildPattern(ctx, biome))
   }
 
   draw(cam: Camera, world: WorldState, fx: Particles, localId = '', bubbles?: Map<string, { text: string; ms: number }>) {
@@ -40,9 +45,10 @@ export class Renderer {
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
-    // Depth-sort visible entities (enemies + players) by y.
+    // Depth-sort visible entities (decor + enemies + players) by y.
     const ents: Array<{ y: number; draw: () => void }> = []
-    for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e) })
+    for (const d of this.decor) if (inView(d.x, d.y)) ents.push({ y: d.y, draw: () => drawDecor(ctx, d) })
+    for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e, world.timeMs) })
     for (const p of world.players) {
       if (!inView(p.x, p.y)) continue
       const bubble = bubbles?.get(p.name)
@@ -58,6 +64,24 @@ export class Renderer {
 
     fx.draw(ctx)
     ctx.restore()
+
+    this.drawAmbient(cam)
+  }
+
+  /** Screen-space biome ambient tint + vignette for mood. */
+  private drawAmbient(cam: Camera) {
+    const ctx = this.ctx
+    const w = cam.viewW, h = cam.viewH
+    const zone = getZoneAt(cam.x, cam.y)
+    const ambient = (zone ? biomeAt(zone.name) : DEFAULT_BIOME).ambient
+    ctx.fillStyle = ambient
+    ctx.fillRect(0, 0, w, h)
+    // Vignette
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75)
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, 'rgba(0,0,0,0.38)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, w, h)
   }
 
   private drawBlizzard(g: GroundEffectState, timeMs: number) {
@@ -81,27 +105,19 @@ export class Renderer {
     const vw = Math.min(b.x + b.w, cam.originX + cam.visW) - vx
     const vh = Math.min(b.y + b.h, cam.originY + cam.visH) - vy
     if (vw <= 0 || vh <= 0) return
-    ctx.fillStyle = this.grassPattern ?? '#1d3a24'
+    // Central/un-zoned area: default grass.
+    ctx.fillStyle = this.defaultPattern ?? '#1d3a24'
     ctx.fillRect(vx, vy, vw, vh)
 
-    // Per-zone atmosphere tint so the regions read as distinct biomes.
+    // Each zone painted with its own biome texture.
     for (const z of ZONE_DEFS) {
       const zx = Math.max(z.x, vx), zy = Math.max(z.y, vy)
       const zw = Math.min(z.x + z.w, vx + vw) - zx
       const zh = Math.min(z.y + z.h, vy + vh) - zy
       if (zw <= 0 || zh <= 0) continue
-      const r = (z.atmosphere >> 16) & 0xff, g = (z.atmosphere >> 8) & 0xff, bl = z.atmosphere & 0xff
-      ctx.fillStyle = `rgba(${r},${g},${bl},${Math.min(0.6, z.atmoAlpha)})`
+      ctx.fillStyle = this.patterns.get(z.name) ?? this.defaultPattern ?? '#1d3a24'
       ctx.fillRect(zx, zy, zw, zh)
-      // Zone border line
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)'
-      ctx.lineWidth = 2
-      ctx.strokeRect(z.x, z.y, z.w, z.h)
     }
-
-    ctx.strokeStyle = 'rgba(90,140,90,0.5)'
-    ctx.lineWidth = 4
-    ctx.strokeRect(b.x, b.y, b.w, b.h)
 
     // PvP safe zone around spawn (square) — only draw when on screen.
     if (Math.abs(STARTER_X - cam.x) < cam.visW / 2 + PVP_SAFE_R &&
@@ -123,38 +139,30 @@ export class Renderer {
     }
   }
 
-  private drawEnemy(e: EnemyState) {
+  private drawEnemy(e: EnemyState, timeMs: number) {
     const ctx = this.ctx
     const r = e.cfg.radius
     if (e.dying) {
       const k = 1 - e.deathMs / 340
       ctx.globalAlpha = Math.max(0, 1 - k)
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(1 + k, 1 + k)
-      ctx.fillStyle = hex(e.cfg.color)
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill()
+      drawEnemyArt(ctx, e, hex(e.cfg.color), timeMs)
       ctx.restore(); ctx.globalAlpha = 1
       return
     }
 
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.25)'
-    ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.7, r * 0.9, r * 0.4, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.85, r * 0.9, r * 0.4, 0, 0, Math.PI * 2); ctx.fill()
 
-    // Body
+    // Body sprite (status-tinted)
     let fill = hex(e.cfg.color)
     if (e.hitFlashMs > 0) fill = '#ffffff'
     else if (e.frozenMs > 0) fill = '#88ddff'
     else if (e.slowMs > 0) fill = '#bbddff'
-    ctx.fillStyle = fill
-    ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill()
-    // Darker rim
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2
-    ctx.stroke()
-    // Eyes (face direction)
-    ctx.fillStyle = '#101018'
-    const ex = e.facing * r * 0.35
-    ctx.beginPath(); ctx.arc(e.x + ex - 2, e.y - 2, 1.6, 0, Math.PI * 2)
-    ctx.arc(e.x + ex + 2, e.y - 2, 1.6, 0, Math.PI * 2); ctx.fill()
+    ctx.save(); ctx.translate(e.x, e.y)
+    drawEnemyArt(ctx, e, fill, timeMs)
+    ctx.restore()
 
     // Telegraph / charge tell
     if (e.telegraphing || e.chargePhase === 'windup') {
@@ -327,20 +335,4 @@ export class Renderer {
     ctx.globalAlpha = 1
   }
 
-  private buildGrassPattern(): CanvasPattern | null {
-    const size = 64
-    const c = document.createElement('canvas')
-    c.width = c.height = size
-    const g = c.getContext('2d')
-    if (!g) return null
-    g.fillStyle = '#21422a'; g.fillRect(0, 0, size, size)
-    const speckles = [['rgba(45,80,48,0.8)', 90], ['rgba(30,58,36,0.8)', 70], ['rgba(60,100,62,0.5)', 40]] as const
-    let seed = 1337
-    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
-    for (const [color, count] of speckles) {
-      g.fillStyle = color
-      for (let i = 0; i < count; i++) g.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 1.5, 1 + rnd() * 2)
-    }
-    return this.ctx.createPattern(c, 'repeat')
-  }
 }
