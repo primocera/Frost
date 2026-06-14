@@ -23,6 +23,18 @@ export const STARTER_Y = 5900
 /** No-PvP square around spawn: half-extent in px (used by sim + renderer). */
 export const PVP_SAFE_R = 460
 
+// ── Holt's Farm ──────────────────────────────────────────────────────────────
+// A little homestead in the Beginner Forest, just south of the Arcane Caves —
+// cottage, coop, crop rows and pecking chickens. Home of the "Feed Bessie"
+// starter quest. Positions are shared so the server can validate the feed.
+export const FARM_X = 4250
+export const FARM_Y = 4520
+export const HOLT_X = FARM_X - 70      // Farmer Holt stands by his cottage
+export const HOLT_Y = FARM_Y - 26
+export const BESSIE_X = FARM_X + 64     // Bessie the hen pecks in the yard
+export const BESSIE_Y = FARM_Y + 48
+export const FEED_RANGE = 64
+
 export interface ZoneDef {
   name: string
   labelColor: string

@@ -42,7 +42,7 @@ const initialHud: HudState = {
   zone: '', zoneColor: '#cfe3ff', spells: [], learnedSpells: ['bolt'],
 }
 
-export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest' | 'stash' | 'trade'
+export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest' | 'stash' | 'trade' | 'farm'
 
 /** Nearby tradeable player, surfaced so the HUD can prompt "Press G to trade". */
 export interface NearPlayer { id: string; name: string }
@@ -57,6 +57,9 @@ export interface GameActions {
   buy: (idx: number) => void
   acceptQuest: () => void
   claimQuest: () => void
+  farmAccept: () => void
+  farmFeed: () => void
+  farmClaim: () => void
   stashDeposit: (itemId: number) => void
   stashWithdraw: (itemId: number) => void
   drop: (itemId: number) => void
@@ -86,6 +89,7 @@ interface GameUIState {
   isMobile: boolean
   nearNpc: boolean
   nearPlayer: NearPlayer | null
+  nearBessie: boolean
   volume: number
 
   startGame: (name: string, hardcore: boolean) => void
@@ -100,6 +104,7 @@ interface GameUIState {
   setMobile: (m: boolean) => void
   setNearNpc: (n: boolean) => void
   setNearPlayer: (p: NearPlayer | null) => void
+  setNearBessie: (n: boolean) => void
   setVolume: (v: number) => void
 }
 
@@ -117,6 +122,7 @@ export const useGameStore = create<GameUIState>((set) => ({
   isMobile: false,
   nearNpc: false,
   nearPlayer: null,
+  nearBessie: false,
   volume: 0.7,
 
   startGame: (name, hardcore) =>
@@ -132,5 +138,6 @@ export const useGameStore = create<GameUIState>((set) => ({
   setMobile: (m) => set({ isMobile: m }),
   setNearNpc: (n) => set({ nearNpc: n }),
   setNearPlayer: (p) => set({ nearPlayer: p }),
+  setNearBessie: (n) => set({ nearBessie: n }),
   setVolume: (v) => set({ volume: v }),
 }))

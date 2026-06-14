@@ -5,6 +5,7 @@ import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor,
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
+import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter } from './Props'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -52,6 +53,11 @@ export class Renderer {
     const activeNpc = local ? nearestNPC(local.x, local.y) : null
     const ents: Array<{ y: number; draw: () => void }> = []
     for (const d of this.decor) if (inView(d.x, d.y)) ents.push({ y: d.y, draw: () => drawDecor(ctx, d) })
+    for (const p of PROPS) if (inView(p.x, p.y)) ents.push({ y: propFootY(p), draw: () => drawProp(ctx, p, world.timeMs) })
+    for (const ch of CHICKENS) {
+      const cp = chickenPos(ch, world.timeMs)
+      if (inView(cp.x, cp.y)) ents.push({ y: cp.y, draw: () => drawChicken(ctx, cp.x, cp.y, cp.peck, !!ch.bessie, cp.flip) })
+    }
     for (const n of NPCS) if (inView(n.x, n.y)) ents.push({ y: n.y, draw: () => { ctx.save(); ctx.translate(n.x, n.y); drawNPC(ctx, n, n === activeNpc, world.timeMs); ctx.restore() } })
     for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e, world.timeMs) })
     for (const p of world.players) {
@@ -66,6 +72,12 @@ export class Renderer {
     for (const ent of ents) ent.draw()
 
     for (const proj of world.projectiles) if (inView(proj.x, proj.y)) this.drawProjectile(proj)
+
+    // Airborne ambiance: butterflies (normal blend) + glowing fireflies (additive).
+    for (const f of FLUTTERS) if (f.kind === 'butterfly') drawFlutter(ctx, f, world.timeMs, inView)
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'
+    for (const f of FLUTTERS) if (f.kind === 'firefly') drawFlutter(ctx, f, world.timeMs, inView)
+    ctx.restore()
 
     fx.draw(ctx)
     ctx.restore()
@@ -155,6 +167,8 @@ export class Renderer {
         Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
       this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R, timeMs)
     }
+    // Holt's farm yard (dirt + crops), drawn under the props/critters above it.
+    if (Math.abs(4250 - cam.x) < cam.visW / 2 + 260 && Math.abs(4520 - cam.y) < cam.visH / 2 + 200) drawFarmGround(ctx)
   }
 
   /** A Twisted-Treeline-style paved stone altar with glowing blue runes. */

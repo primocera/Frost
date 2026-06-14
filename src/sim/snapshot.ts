@@ -8,7 +8,7 @@ import { tradeViewFor } from './trade'
 export function selfOf(p: PlayerState, world?: WorldState): SelfState {
   return {
     inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints,
-    shop: p.shopStock, quest: p.quest, stash: p.stash,
+    shop: p.shopStock, quest: p.quest, farmQuest: p.farmQuest, stash: p.stash,
     trade: world ? tradeViewFor(world, p.id) : null,
   }
 }
@@ -68,7 +68,7 @@ export function hydratePlayer(s: Snapshot['players'][number]): PlayerState {
     activeBolt: s.activeBolt, learnedSpells: s.learned, manaRegenAccum: 0,
     dead: s.dead, gold: s.gold, inventory: [], inventoryCap: 30,
     equipped: { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
-    talentRanks: {}, talentPoints: 0, shopStock: [], quest: null, stash: [],
+    talentRanks: {}, talentPoints: 0, shopStock: [], quest: null, farmQuest: 0, stash: [],
     frozenMs: s.frozen ? 9999 : 0, slowMs: 0, slowMult: 1, pvpGraceMs: 0,
     castMs: s.castMs, hurtMs: s.hurtMs,
   }

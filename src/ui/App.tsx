@@ -88,6 +88,7 @@ function Game() {
       <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · E near NPCs · G trade · Enter chat</div>
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
       <TradePrompt />
+      <BessiePrompt />
       <Chat />
       <TouchControls />
       <Panels />
@@ -107,6 +108,14 @@ function TradePrompt() {
         : <>Press <b style={{ color: '#7fd' }}>G</b> to trade with <b style={{ color: '#7fd' }}>{near.name}</b></>}
     </div>
   )
+}
+
+function BessiePrompt() {
+  const near = useGameStore((s) => s.nearBessie)
+  const panel = useGameStore((s) => s.panel)
+  const isMobile = useGameStore((s) => s.isMobile)
+  if (!near || panel !== 'none' || isMobile) return null
+  return <div style={styles.tradePrompt}>Press <b style={{ color: '#ffe066' }}>E</b> to feed 🐔 Bessie</div>
 }
 
 function AudioControl() {

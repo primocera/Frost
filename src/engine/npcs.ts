@@ -1,4 +1,4 @@
-import { STARTER_X, STARTER_Y } from '../sim'
+import { STARTER_X, STARTER_Y, HOLT_X, HOLT_Y } from '../sim'
 import type { Panel } from '../ui/store'
 
 /**
@@ -26,6 +26,8 @@ export const NPCS: NPC[] = [
   { id: 'merchant', name: 'Brom',   title: 'Merchant',      x: STARTER_X + 290, y: STARTER_Y - 150, marker: 'coin',  robe: '#a8732e', panel: 'merchant' },
   { id: 'quest',    name: 'Aldra',  title: 'Bounty Board',  x: STARTER_X - 290, y: STARTER_Y + 150, marker: 'quest', robe: '#3e7a5a', panel: 'quest' },
   { id: 'stash',    name: 'Keeper', title: 'Stash',         x: STARTER_X + 290, y: STARTER_Y + 150, marker: 'chest', robe: '#5a5e6a', panel: 'stash' },
+  // Out at his farm by the caves — gives the "Feed Bessie" starter quest.
+  { id: 'farmer',   name: 'Farmer Holt', title: 'Farmer',   x: HOLT_X,          y: HOLT_Y,          marker: 'quest', robe: '#7a5a2e', panel: 'farm' },
 ]
 
 export function nearestNPC(px: number, py: number): NPC | null {

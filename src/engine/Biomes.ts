@@ -8,6 +8,7 @@ import { ZONE_DEFS } from '../sim'
 export type DecorType =
   | 'tree' | 'pine' | 'deadTree' | 'rock' | 'bush' | 'crystal'
   | 'lavaRock' | 'mushroom' | 'snowMound' | 'flower' | 'bone'
+  | 'oak' | 'fern' | 'glowTree' | 'glowFlower'
 
 export interface Biome {
   ground: string
@@ -23,12 +24,25 @@ const GRASS: Biome = {
   decor: ['tree', 'bush', 'flower', 'rock'], density: 22, ambient: 'rgba(20,40,16,0.10)',
 }
 
+// Bright, sunny Elwynn-style starter woods: vivid grass, fat oaks, lots of
+// flowers and ferns. Reads as friendly and alive vs. the moodier outer zones.
+const ELWYNN: Biome = {
+  ground: '#2f5a32',
+  speckles: [['#3f7240cc', 100], ['#27532bcc', 70], ['#5a8c4eaa', 52], ['#86c46a55', 22]],
+  decor: ['oak', 'oak', 'tree', 'bush', 'fern', 'flower', 'flower'], density: 30,
+  ambient: 'rgba(120,150,40,0.05)',
+}
+
 /** Biome per zone name; the central town/unzoned area uses GRASS. */
 export const BIOMES: Record<string, Biome> = {
-  'Beginner Forest': GRASS,
+  'Beginner Forest': ELWYNN,
+  // Darnassus-style night-elf wilds: violet-teal turf, towering glowing
+  // canopies, luminous blossoms — a hushed, magical grove.
   'Elven Wilds': {
-    ground: '#1c3a32', speckles: [['#27504acc', 80], ['#16302accc', 70], ['#3a6a64aa', 36]],
-    decor: ['pine', 'mushroom', 'crystal', 'bush'], density: 24, ambient: 'rgba(0,30,28,0.16)',
+    ground: '#16323a',
+    speckles: [['#1f4a52cc', 90], ['#122a30cc', 70], ['#2f6e72aa', 40], ['#7a5cff33', 20]],
+    decor: ['glowTree', 'glowTree', 'glowFlower', 'glowFlower', 'mushroom', 'bush'], density: 28,
+    ambient: 'rgba(40,20,90,0.16)',
   },
   'Mount Hyjal': {
     ground: '#1a3a24', speckles: [['#244e30cc', 80], ['#13301ccc', 70], ['#356040aa', 36]],
@@ -56,7 +70,9 @@ export const BIOMES: Record<string, Biome> = {
   },
 }
 
-export const DEFAULT_BIOME = GRASS
+// The spawn town strip sits just below the Beginner Forest in un-zoned space —
+// use the lush Elwynn turf there too so the hub looks green and alive.
+export const DEFAULT_BIOME = ELWYNN
 
 export function biomeAt(name: string): Biome { return BIOMES[name] ?? GRASS }
 
@@ -167,5 +183,47 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
     c.strokeStyle = '#cfc8b8'; c.lineWidth = 2.4; c.lineCap = 'round'
     c.beginPath(); c.moveTo(-7, -2); c.lineTo(6, -7); c.stroke()
     c.fillStyle = '#cfc8b8'; c.beginPath(); c.arc(-7, -3, 1.8, 0, Math.PI * 2); c.arc(-7, -1, 1.8, 0, Math.PI * 2); c.arc(6, -8, 1.8, 0, Math.PI * 2); c.arc(6, -6, 1.8, 0, Math.PI * 2); c.fill()
+  },
+  // Big, lush sun-dappled oak — the signature Elwynn tree.
+  oak(c) {
+    c.fillStyle = '#5a3d22'; c.fillRect(-4, -20, 8, 20)
+    c.strokeStyle = '#3f2a16'; c.lineWidth = 1; c.beginPath(); c.moveTo(-1, -4); c.lineTo(-1, -18); c.stroke()
+    for (const [ox, oy, r, col] of [
+      [-12, -28, 15, '#356f30'], [12, -30, 14, '#2f6a2c'], [0, -40, 17, '#3f8038'],
+      [-6, -34, 13, '#46893f'], [8, -36, 12, '#3a7634'],
+    ] as const) { c.fillStyle = col; c.beginPath(); c.arc(ox, oy, r, 0, Math.PI * 2); c.fill() }
+    // sunlit highlights
+    c.fillStyle = '#62a84f'
+    for (const [ox, oy, r] of [[-4, -44, 6], [10, -34, 5], [-12, -30, 4]] as const) { c.beginPath(); c.arc(ox, oy, r, 0, Math.PI * 2); c.fill() }
+  },
+  fern(c) {
+    c.strokeStyle = '#356f33'; c.lineWidth = 2; c.lineCap = 'round'
+    for (const a of [-0.9, -0.45, 0, 0.45, 0.9]) {
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.sin(a) * 11, -13 - Math.cos(a) * 3); c.stroke()
+    }
+    c.fillStyle = '#4a8c44'; c.beginPath(); c.arc(0, -2, 2.5, 0, Math.PI * 2); c.fill()
+  },
+  // Towering night-elf canopy with a soft violet glow.
+  glowTree(c) {
+    const glow = c.createRadialGradient(0, -40, 0, 0, -40, 38)
+    glow.addColorStop(0, 'rgba(150,110,255,0.28)'); glow.addColorStop(1, 'rgba(120,90,255,0)')
+    c.fillStyle = glow; c.beginPath(); c.arc(0, -40, 38, 0, Math.PI * 2); c.fill()
+    c.fillStyle = '#d8d2ea'; c.fillRect(-3.5, -34, 7, 34)   // pale silver trunk
+    c.strokeStyle = '#b0a8d0'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -6); c.lineTo(0, -30); c.stroke()
+    for (const [ox, oy, r, col] of [
+      [-13, -44, 15, '#3a6b86'], [13, -46, 14, '#356084'], [0, -56, 17, '#2f7d92'],
+      [-5, -50, 13, '#46a0b0'],
+    ] as const) { c.fillStyle = col; c.beginPath(); c.arc(ox, oy, r, 0, Math.PI * 2); c.fill() }
+    c.fillStyle = 'rgba(180,150,255,0.5)'
+    for (const [ox, oy] of [[-6, -58], [8, -50], [-12, -46]] as const) { c.beginPath(); c.arc(ox, oy, 3, 0, Math.PI * 2); c.fill() }
+  },
+  glowFlower(c) {
+    const g = c.createRadialGradient(0, -8, 0, 0, -8, 9)
+    g.addColorStop(0, 'rgba(120,200,255,0.5)'); g.addColorStop(1, 'rgba(120,200,255,0)')
+    c.fillStyle = g; c.beginPath(); c.arc(0, -8, 9, 0, Math.PI * 2); c.fill()
+    c.strokeStyle = '#2f6e72'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -7); c.stroke()
+    c.fillStyle = '#bfe8ff'
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; c.beginPath(); c.ellipse(Math.cos(a) * 3, -8 + Math.sin(a) * 3, 2.2, 1.4, a, 0, Math.PI * 2); c.fill() }
+    c.fillStyle = '#fff6c0'; c.beginPath(); c.arc(0, -8, 1.6, 0, Math.PI * 2); c.fill()
   },
 }

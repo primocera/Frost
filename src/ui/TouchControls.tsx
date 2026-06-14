@@ -11,6 +11,7 @@ export function TouchControls() {
   const isMobile = useGameStore((s) => s.isMobile)
   const nearNpc = useGameStore((s) => s.nearNpc)
   const nearPlayer = useGameStore((s) => s.nearPlayer)
+  const nearBessie = useGameStore((s) => s.nearBessie)
   if (!isMobile) return null
   return (
     <>
@@ -18,6 +19,12 @@ export function TouchControls() {
       {nearNpc && (
         <div style={styles.interactBtn} onTouchStart={(e) => { e.preventDefault(); touch.interact = true }}>
           E · Talk
+        </div>
+      )}
+      {!nearNpc && nearBessie && (
+        <div style={{ ...styles.interactBtn, background: 'rgba(150,110,20,0.85)', borderColor: 'rgba(255,220,120,0.7)' }}
+          onTouchStart={(e) => { e.preventDefault(); touch.interact = true }}>
+          🌾 Feed Bessie
         </div>
       )}
       {!nearNpc && nearPlayer && (

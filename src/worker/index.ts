@@ -5,6 +5,7 @@ import { equipItem, unequipItem, dropItem } from '../sim/inventory'
 import { spendTalent } from '../sim/talents'
 import { trainSpell, buyShopItem, sellItem, regenShopStock } from '../sim/shop'
 import { acceptQuest, claimQuest } from '../sim/quest'
+import { acceptFarmQuest, feedBessie, claimFarmQuest } from '../sim/farmquest'
 import { stashDeposit, stashWithdraw } from '../sim/stash'
 import { requestTrade, acceptTrade, cancelTrade, tradeOffer, tradeConfirm, getTradeOf } from '../sim/trade'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
@@ -110,6 +111,12 @@ export class FrostRoom {
       if (player) acceptQuest(player)
     } else if (msg.t === 'questClaim') {
       if (player) claimQuest(player)
+    } else if (msg.t === 'farmAccept') {
+      if (player) acceptFarmQuest(player)
+    } else if (msg.t === 'farmFeed') {
+      if (player) feedBessie(player)
+    } else if (msg.t === 'farmClaim') {
+      if (player) claimFarmQuest(player)
     } else if (msg.t === 'stashDeposit') {
       if (player) stashDeposit(player, msg.itemId)
     } else if (msg.t === 'stashWithdraw') {

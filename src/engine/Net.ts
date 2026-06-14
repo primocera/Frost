@@ -72,6 +72,9 @@ export class Net {
   buy(idx: number) { this.send({ t: 'buy', idx }) }
   acceptQuest() { this.send({ t: 'questAccept' }) }
   claimQuest() { this.send({ t: 'questClaim' }) }
+  farmAccept() { this.send({ t: 'farmAccept' }) }
+  farmFeed() { this.send({ t: 'farmFeed' }) }
+  farmClaim() { this.send({ t: 'farmClaim' }) }
   stashDeposit(itemId: number) { this.send({ t: 'stashDeposit', itemId }) }
   stashWithdraw(itemId: number) { this.send({ t: 'stashWithdraw', itemId }) }
   drop(itemId: number) { this.send({ t: 'drop', itemId }) }

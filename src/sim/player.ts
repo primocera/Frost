@@ -37,6 +37,7 @@ export function createPlayer(id: string, name: string, x: number, y: number): Pl
     talentPoints: 0,
     shopStock: [],
     quest: null,
+    farmQuest: 0,
     stash: [],
     frozenMs: 0,
     slowMs: 0,

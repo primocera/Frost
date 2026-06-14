@@ -4,6 +4,7 @@ import {
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
   extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
   stashDeposit, stashWithdraw, dropItem, sellItem,
+  acceptFarmQuest, feedBessie, claimFarmQuest, BESSIE_X, BESSIE_Y, FEED_RANGE,
 } from '../sim'
 import { nearestNPC } from './npcs'
 import { emptyInput, InputCommand } from '../sim/types'
@@ -44,6 +45,7 @@ export class Game {
   private saveAccum = 0
   private lastNearNpc = false
   private lastNearPlayerId: string | null = null
+  private lastNearBessie = false
   private tradeOpen = false
   private pid = getPid()
   /** name -> active speech bubble (ms remaining). */
@@ -85,6 +87,9 @@ export class Game {
       buy: (idx) => this.doBuy(idx),
       acceptQuest: () => this.doQuest('accept'),
       claimQuest: () => this.doQuest('claim'),
+      farmAccept: () => this.doFarm('accept'),
+      farmFeed: () => this.doFarm('feed'),
+      farmClaim: () => this.doFarm('claim'),
       stashDeposit: (id) => this.doStash('deposit', id),
       stashWithdraw: (id) => this.doStash('withdraw', id),
       drop: (id) => { if (this.mode === 'net' && this.net) this.net.drop(id); else { const p = this.localPlayer(); if (p) dropItem(p, id) } },
@@ -206,6 +211,16 @@ export class Game {
     if (npc && (this.input.consumePressed('e') || touch.interact)) useGameStore.getState().setPanel(npc.panel)
     if (!!npc !== this.lastNearNpc) { this.lastNearNpc = !!npc; useGameStore.getState().setNearNpc(!!npc) }
 
+    // Feed Bessie: when the farm quest is active and you stand by the hen, E feeds her.
+    const farmQuest = (this.mode === 'net' && this.net ? this.net.self?.farmQuest : (lpNow ? selfOf(lpNow).farmQuest : 0)) ?? 0
+    const nearBessie = !npc && !!lpNow && farmQuest === 1 &&
+      Math.hypot(lpNow.x - BESSIE_X, lpNow.y - BESSIE_Y) < FEED_RANGE
+    if (nearBessie && (this.input.consumePressed('e') || touch.interact)) {
+      this.doFarm('feed')
+      if (lpNow) this.fx.text(BESSIE_X, BESSIE_Y - 20, '🌾 *cluck!*', '#ffe066', 16)
+    }
+    if (nearBessie !== this.lastNearBessie) { this.lastNearBessie = nearBessie; useGameStore.getState().setNearBessie(nearBessie) }
+
     // Nearby player → press G (or the mobile Trade button) to request a trade.
     const near = this.nearestPlayer()
     if (near && (this.input.consumePressed('g') || touch.trade)) this.net?.tradeRequest(near.id)
@@ -281,6 +296,14 @@ export class Game {
   private doQuest(which: 'accept' | 'claim') {
     if (this.mode === 'net' && this.net) { which === 'accept' ? this.net.acceptQuest() : this.net.claimQuest() }
     else { const p = this.localPlayer(); if (p) (which === 'accept' ? acceptQuest : claimQuest)(p) }
+  }
+  private doFarm(which: 'accept' | 'feed' | 'claim') {
+    if (this.mode === 'net' && this.net) {
+      which === 'accept' ? this.net.farmAccept() : which === 'feed' ? this.net.farmFeed() : this.net.farmClaim()
+    } else {
+      const p = this.localPlayer()
+      if (p) (which === 'accept' ? acceptFarmQuest : which === 'feed' ? feedBessie : claimFarmQuest)(p)
+    }
   }
   private doStash(which: 'deposit' | 'withdraw', itemId: number) {
     if (this.mode === 'net' && this.net) { which === 'deposit' ? this.net.stashDeposit(itemId) : this.net.stashWithdraw(itemId) }

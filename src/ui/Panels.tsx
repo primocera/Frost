@@ -41,6 +41,7 @@ export function Panels() {
           : panel === 'merchant' ? <Merchant />
           : panel === 'stash' ? <Stash />
           : panel === 'trade' ? <Trade />
+          : panel === 'farm' ? <Farm />
           : <QuestBoard />}
       </div>
     </div>
@@ -378,6 +379,49 @@ function QuestBoard() {
   )
 }
 
+function Farm() {
+  const self = useGameStore((s) => s.self)
+  const actions = useGameStore((s) => s.actions)
+  const close = () => useGameStore.getState().setPanel('none')
+  const fq = self?.farmQuest ?? 0
+  return (
+    <>
+      <Header title="Farmer Holt" />
+      <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14, fontSize: 14, color: '#d8e0c8', lineHeight: 1.5 }}>
+        {fq === 0 && (
+          <>
+            <p style={styles.holtSay}>"Ah — a wandering mage, heading into the wilds?"</p>
+            <p style={styles.holtSay}>"Before you go — my old hen Bessie hasn't been fed today. She's just pecking around the yard."</p>
+            <p style={styles.holtSay}>"Would you toss her some grain? Just walk up and press <b>E</b> near her."</p>
+            <button style={styles.questBtn} onClick={() => { actions?.farmAccept() }}>Sure, I'll feed her</button>
+          </>
+        )}
+        {fq === 1 && (
+          <>
+            <p style={styles.holtSay}>"Bessie's right there in the yard, pecking around!"</p>
+            <p style={styles.holtSay}>"Walk up to her and press <b>E</b> to give her some grain."</p>
+            <button style={{ ...styles.questBtn, background: 'rgba(40,60,30,0.8)' }} onClick={close}>Close</button>
+          </>
+        )}
+        {fq === 2 && (
+          <>
+            <p style={styles.holtSay}>"She's full and happy — bless you, mage!"</p>
+            <p style={styles.holtSay}>"Take this for your trouble. Safe travels out there."</p>
+            <div style={{ color: '#aadd44', fontWeight: 600 }}>Reward: +60 XP · +5 silver</div>
+            <button style={styles.questBtn} onClick={() => { actions?.farmClaim(); close() }}>Collect reward</button>
+          </>
+        )}
+        {fq === 3 && (
+          <>
+            <p style={styles.holtSay}>"Thanks again for helping with Bessie. The farm's always open to you."</p>
+            <button style={{ ...styles.questBtn, background: 'rgba(40,60,30,0.8)' }} onClick={close}>Farewell</button>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
 function Stash() {
   const self = useGameStore((s) => s.self)
   const actions = useGameStore((s) => s.actions)
@@ -452,6 +496,7 @@ const styles: Record<string, React.CSSProperties> = {
   stashLabel: { fontSize: 10, fontWeight: 700, textAlign: 'center', letterSpacing: 0.6, padding: '5px 8px', borderRadius: 4, color: '#9ab' },
   stashGrid: { display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 },
   questBtn: { alignSelf: 'flex-start', fontSize: 14, padding: '10px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#1460b0,#0a3a78)', border: 'none', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  holtSay: { margin: 0, fontStyle: 'italic', color: '#cdd6bb' },
   tradeHalf: { flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 },
   tradeSideLabel: { fontSize: 10, fontWeight: 700, letterSpacing: 0.6, padding: '2px 2px', display: 'flex', justifyContent: 'space-between' },
   tradeOfferBox: { minHeight: 96, maxHeight: 150, display: 'flex', flexDirection: 'column', gap: 5, overflow: 'auto', background: 'rgba(8,14,26,0.6)', border: '1px dashed rgba(60,90,140,0.4)', borderRadius: 6, padding: 6 },

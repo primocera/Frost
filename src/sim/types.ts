@@ -17,6 +17,10 @@ export interface PlayerStats {
 export interface ShopItem { item: Item; price: number; sold: boolean }
 export interface Quest { kills: number; target: number; reward: number; done: boolean }
 
+/** Farmer Holt's "Feed Bessie" starter quest: 0 not started → 1 accepted →
+ *  2 fed (return to Holt) → 3 rewarded/complete. */
+export type FarmQuest = 0 | 1 | 2 | 3
+
 /** Live player-to-player trade session (server-authoritative). a = requester. */
 export interface TradeSession {
   a: string; b: string
@@ -62,6 +66,7 @@ export interface PlayerState {
   talentPoints: number
   shopStock: ShopItem[]
   quest: Quest | null
+  farmQuest: FarmQuest
   stash: Item[]
   // PvP status effects (other players' frost spells).
   frozenMs: number
@@ -264,6 +269,7 @@ export interface SelfState {
   pts: number
   shop: ShopItem[]
   quest: Quest | null
+  farmQuest: FarmQuest
   stash: Item[]
   trade: TradeView | null
 }
@@ -279,6 +285,9 @@ export type ClientMessage =
   | { t: 'buy'; idx: number }
   | { t: 'questAccept' }
   | { t: 'questClaim' }
+  | { t: 'farmAccept' }
+  | { t: 'farmFeed' }
+  | { t: 'farmClaim' }
   | { t: 'stashDeposit'; itemId: number }
   | { t: 'stashWithdraw'; itemId: number }
   | { t: 'drop'; itemId: number }

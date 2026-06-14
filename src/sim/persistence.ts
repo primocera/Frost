@@ -1,6 +1,6 @@
 import { EquipSlot, Item } from '../items/ItemTypes'
 import { TalentId } from '../talents/TalentTypes'
-import { BoltKind, PlayerState } from './types'
+import { BoltKind, FarmQuest, PlayerState } from './types'
 
 /**
  * Serializable character save. Position, HP/mana and connection state are NOT
@@ -19,6 +19,7 @@ export interface SavedPlayer {
   learnedSpells: string[]
   activeBolt: BoltKind
   stash: Item[]
+  farmQuest?: FarmQuest
 }
 
 export function extractSave(p: PlayerState): SavedPlayer {
@@ -36,6 +37,7 @@ export function extractSave(p: PlayerState): SavedPlayer {
     learnedSpells: p.learnedSpells,
     activeBolt: p.activeBolt,
     stash: p.stash,
+    farmQuest: p.farmQuest,
   }
 }
 
@@ -59,4 +61,5 @@ export function applySave(p: PlayerState, s: SavedPlayer) {
   p.learnedSpells = s.learnedSpells ?? ['bolt']
   p.activeBolt = s.activeBolt ?? 'fire'
   p.stash = s.stash ?? []
+  p.farmQuest = s.farmQuest ?? 0
 }
