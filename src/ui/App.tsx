@@ -166,10 +166,10 @@ function CapPrompt() {
     const url = `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}`
     return (
       <a style={styles.capMini} href={url} target="_blank" rel="noopener noreferrer"
-        title="After paying, restart & Play Online to apply">⭐ Get Plus</a>
+        title="After paying, restart & Play Online to apply">◆ Get Plus</a>
     )
   }
-  return <div style={styles.capMini} title={MEMBERSHIP_URL ? 'Play Online to get Plus' : 'Coming soon'}>⭐ Get Plus</div>
+  return <div style={styles.capMini} title={MEMBERSHIP_URL ? 'Play Online to get Plus' : 'Coming soon'}>◆ Get Plus</div>
 }
 
 function TradePrompt() {
