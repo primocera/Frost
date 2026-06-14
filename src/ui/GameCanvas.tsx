@@ -19,8 +19,8 @@ export function GameCanvas() {
     void sound.loadAll(import.meta.env.BASE_URL).then(() => sound.setZoneMusic('mus_westfall'))
     const unsubVol = useGameStore.subscribe((s) => sound.setVolume(s.volume))
 
-    const name = useGameStore.getState().playerName
-    const game = new Game(canvas, name, sound)
+    const { playerName, online } = useGameStore.getState()
+    const game = new Game(canvas, playerName, online, sound)
 
     // Browsers block audio until a user gesture — resume on first interaction.
     const resume = () => sound.resume()

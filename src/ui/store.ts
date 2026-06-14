@@ -90,9 +90,10 @@ interface GameUIState {
   nearNpc: boolean
   nearPlayer: NearPlayer | null
   nearBessie: boolean
+  online: boolean        // true = connect to multiplayer; false = solo (no server cost)
   volume: number
 
-  startGame: (name: string, hardcore: boolean) => void
+  startGame: (name: string, online: boolean) => void
   setNet: (net: NetStatus) => void
   setHud: (hud: HudState) => void
   setPanel: (panel: Panel) => void
@@ -123,10 +124,11 @@ export const useGameStore = create<GameUIState>((set) => ({
   nearNpc: false,
   nearPlayer: null,
   nearBessie: false,
+  online: false,
   volume: 0.7,
 
-  startGame: (name, hardcore) =>
-    set({ screen: 'playing', playerName: name || 'Apprentice', hardcore }),
+  startGame: (name, online) =>
+    set({ screen: 'playing', playerName: name || 'Apprentice', online }),
   setNet: (net) => set({ net }),
   setHud: (hud) => set({ hud }),
   setPanel: (panel) => set({ panel }),

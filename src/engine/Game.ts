@@ -60,7 +60,7 @@ export class Game {
   /** name -> active speech bubble (ms remaining). */
   private bubbles = new Map<string, { text: string; ms: number }>()
 
-  constructor(private canvas: HTMLCanvasElement, name: string, private sound?: SoundManager) {
+  constructor(private canvas: HTMLCanvasElement, name: string, private online: boolean, private sound?: SoundManager) {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('2D canvas context unavailable')
     this.ctx = ctx
@@ -78,13 +78,18 @@ export class Game {
     const lp = this.localPlayer()
     if (lp) this.camera.snap(lp.x, lp.y)
 
-    // Attempt multiplayer; falls back to local if it can't connect.
-    this.net = new Net(PARTY_HOST, PARTY_ROOM, name, this.pid, (status) => {
-      useGameStore.getState().setNet(status)
-      if (status === 'connected') this.mode = 'net'
-      else if (status === 'offline' && this.mode === 'net') this.mode = 'local'
-    })
-    useGameStore.getState().setNet('connecting')
+    // Multiplayer only connects when the player chose "Play Online" — solo stays
+    // a pure local sim (zero server cost). Falls back to local if it can't connect.
+    if (this.online) {
+      this.net = new Net(PARTY_HOST, PARTY_ROOM, name, this.pid, (status) => {
+        useGameStore.getState().setNet(status)
+        if (status === 'connected') this.mode = 'net'
+        else if (status === 'offline' && this.mode === 'net') this.mode = 'local'
+      })
+      useGameStore.getState().setNet('connecting')
+    } else {
+      useGameStore.getState().setNet('offline')
+    }
     window.addEventListener('beforeunload', this.saveOnExit)
 
     // Let React panels drive equip/talent actions (local sim or networked).

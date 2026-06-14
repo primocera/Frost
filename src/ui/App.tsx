@@ -25,12 +25,11 @@ function Landing() {
   const startGame = useGameStore((s) => s.startGame)
   const [name, setName] = useState('')
 
-  // Hardcore mode is disabled for now — single (Normal) mode only.
   return (
     <div style={styles.landing}>
       <div style={styles.icon}>❄</div>
       <h1 style={styles.title}>FROST</h1>
-      <p style={styles.sub}>A Mage's Journey · Co-op</p>
+      <p style={styles.sub}>A Mage's Journey</p>
 
       <input
         style={styles.input}
@@ -44,8 +43,12 @@ function Landing() {
       />
 
       <button style={styles.startBtn} onClick={() => startGame(name, false)}>
-        Begin your journey
+        ▶ Play Solo
       </button>
+      <button style={styles.onlineBtn} onClick={() => startGame(name, true)}>
+        ⚔ Play Online
+      </button>
+      <p style={styles.modeHint}>Solo is instant &amp; offline. Online shares one world with other mages (PvP + trading).</p>
 
       {SUPPORT_URL && (
         <a style={styles.supportBtn} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
@@ -206,6 +209,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16, fontWeight: 600, color: '#fff',
     background: 'linear-gradient(135deg,#1460b0,#0a3a78)',
     boxShadow: '0 4px 20px rgba(20,90,200,0.4)',
+  },
+  onlineBtn: {
+    width: 300, padding: 14, borderRadius: 14, cursor: 'pointer',
+    fontSize: 15, fontWeight: 600, color: '#cfe8ff',
+    background: 'rgba(20,90,200,0.18)', border: '1.5px solid rgba(80,160,255,0.45)',
+  },
+  modeHint: {
+    width: 300, margin: '2px 0 6px', fontSize: 11, lineHeight: 1.4,
+    color: 'rgba(160,200,240,0.6)', textAlign: 'center',
   },
   supportBtn: {
     marginTop: 4, padding: '9px 18px', borderRadius: 12, cursor: 'pointer',
