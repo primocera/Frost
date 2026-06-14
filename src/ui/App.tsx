@@ -43,8 +43,12 @@ function Landing() {
     try {
       const a = await playOnline(n, pw)
       saveAccount(a); useGameStore.getState().setAccount(a); startGame(a.name, true)
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not connect.') }
-    finally { setBusy(false) }
+    } catch (e) {
+      // A real rejection (wrong password / taken name) → show it. If accounts
+      // just aren't set up / reachable, play online as a guest instead.
+      if ((e as { rejected?: boolean })?.rejected) setErr(e instanceof Error ? e.message : 'Could not connect.')
+      else startGame(n, true)
+    } finally { setBusy(false) }
   }
 
   return (

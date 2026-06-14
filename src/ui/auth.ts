@@ -17,10 +17,17 @@ export async function playOnline(name: string, password: string): Promise<Accoun
       body: JSON.stringify({ name, password }),
     })
   } catch { throw new Error('Could not reach the server. Try again.') }
-  const data = await res.json().catch(() => ({})) as { pid?: string; name?: string; member?: boolean; error?: string }
-  if (!res.ok || !data.pid) throw new Error(data.error || 'Something went wrong.')
-  return { name: data.name ?? name, pid: data.pid, member: !!data.member }
+  const data = await res.json().catch(() => null) as { pid?: string; name?: string; member?: boolean; error?: string } | null
+  if (res.ok && data?.pid) return { name: data.name ?? name, pid: data.pid, member: !!data.member }
+  // Distinguish a working backend *rejecting* us (wrong password / bad input)
+  // from the backend being unreachable / not enabled yet — callers can fall
+  // back to guest online play only in the latter case.
+  const err = new Error(data?.error || 'Could not reach the server.')
+  ;(err as AuthError).rejected = res.status === 400 || res.status === 401 || res.status === 409
+  throw err
 }
+
+interface AuthError extends Error { rejected?: boolean }
 
 export function saveAccount(a: Account) {
   try {
