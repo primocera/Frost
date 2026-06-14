@@ -49,8 +49,16 @@ export class SoundManager {
     }))
   }
 
+  private lastPlayed = new Map<string, number>()
+
   /** Resume the context after a user gesture (browsers block autoplay). */
   resume() { if (this.ctx.state === 'suspended') void this.ctx.resume() }
+
+  /** Suspend while the tab is hidden so queued SFX don't burst on return. */
+  suspend() { if (this.ctx.state === 'running') void this.ctx.suspend() }
+
+  /** Master volume 0..1 (also affects music via master gain). */
+  setVolume(v: number) { this.master.gain.value = Math.max(0, Math.min(1, v)) }
 
   onFireboltCast()    { this.play('snd_cast',            0.55) }
   onFrostboltCast()   { this.play('snd_icelance_cast',   0.70) }
@@ -100,6 +108,11 @@ export class SoundManager {
   private play(key: string, volume: number) {
     const buf = this.buffers.get(key)
     if (!buf || this.ctx.state !== 'running') return
+    // Throttle the same SFX so rapid repeats don't stack into a loud wall.
+    const now = this.ctx.currentTime
+    const last = this.lastPlayed.get(key) ?? -1
+    if (now - last < 0.04) return
+    this.lastPlayed.set(key, now)
     const src = this.ctx.createBufferSource()
     src.buffer = buf
     const g = this.ctx.createGain()

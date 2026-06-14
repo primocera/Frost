@@ -37,6 +37,13 @@ export class Loop {
     cancelAnimationFrame(this.raf)
   }
 
+  /** Drop accumulated time (e.g. after the tab was backgrounded) so the sim
+   *  doesn't fast-forward a burst of catch-up ticks on return. */
+  resetTiming() {
+    this.last = performance.now()
+    this.acc = 0
+  }
+
   private tick = (now: number) => {
     if (!this.running) return
     let frame = (now - this.last) / 1000

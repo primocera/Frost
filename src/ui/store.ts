@@ -42,7 +42,7 @@ const initialHud: HudState = {
   zone: '', zoneColor: '#cfe3ff', spells: [], learnedSpells: ['bolt'],
 }
 
-export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest'
+export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest' | 'stash'
 
 /** Action hooks the engine registers so React panels can drive the sim
  *  (local) or send messages to the server (networked). */
@@ -54,6 +54,8 @@ export interface GameActions {
   buy: (idx: number) => void
   acceptQuest: () => void
   claimQuest: () => void
+  stashDeposit: (itemId: number) => void
+  stashWithdraw: (itemId: number) => void
   sendChat: (text: string) => void
 }
 
@@ -71,6 +73,8 @@ interface GameUIState {
   chat: ChatLine[]
   chatOpen: boolean
   isMobile: boolean
+  nearNpc: boolean
+  volume: number
 
   startGame: (name: string, hardcore: boolean) => void
   setNet: (net: NetStatus) => void
@@ -82,6 +86,8 @@ interface GameUIState {
   addChat: (line: ChatLine) => void
   setChatOpen: (open: boolean) => void
   setMobile: (m: boolean) => void
+  setNearNpc: (n: boolean) => void
+  setVolume: (v: number) => void
 }
 
 export const useGameStore = create<GameUIState>((set) => ({
@@ -96,6 +102,8 @@ export const useGameStore = create<GameUIState>((set) => ({
   chat: [],
   chatOpen: false,
   isMobile: false,
+  nearNpc: false,
+  volume: 0.7,
 
   startGame: (name, hardcore) =>
     set({ screen: 'playing', playerName: name || 'Apprentice', hardcore }),
@@ -108,4 +116,6 @@ export const useGameStore = create<GameUIState>((set) => ({
   addChat: (line) => set((s) => ({ chat: [...s.chat.slice(-49), line] })),
   setChatOpen: (open) => set({ chatOpen: open }),
   setMobile: (m) => set({ isMobile: m }),
+  setNearNpc: (n) => set({ nearNpc: n }),
+  setVolume: (v) => set({ volume: v }),
 }))

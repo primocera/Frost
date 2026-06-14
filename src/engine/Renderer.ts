@@ -70,6 +70,32 @@ export class Renderer {
     ctx.restore()
 
     this.drawAmbient(cam)
+
+    // Boss health bar (screen-space) when a boss is engaged near the local player.
+    if (local) {
+      let boss: EnemyState | null = null, bd = 700
+      for (const e of world.enemies) {
+        if (!e.isBoss || e.dying) continue
+        const d = Math.hypot(e.x - local.x, e.y - local.y)
+        if (d < bd) { bd = d; boss = e }
+      }
+      if (boss) this.drawBossBar(cam, boss)
+    }
+  }
+
+  private drawBossBar(cam: Camera, e: EnemyState) {
+    const ctx = this.ctx
+    const w = Math.min(440, cam.viewW - 40)
+    const x = (cam.viewW - w) / 2, y = 16, h = 18
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 3, y - 3, w + 6, h + 22)
+    ctx.fillStyle = '#ffcf66'; ctx.font = 'bold 14px -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center'
+    ctx.fillText(`☠ ${e.cfg.label ?? 'Boss'}`, cam.viewW / 2, y - 6)
+    ctx.fillStyle = '#2a0a0a'; ctx.fillRect(x, y, w, h)
+    const pct = Math.max(0, Math.min(1, e.hp / e.maxHp))
+    const g = ctx.createLinearGradient(x, 0, x + w, 0)
+    g.addColorStop(0, '#cc2222'); g.addColorStop(1, '#ff5544')
+    ctx.fillStyle = g; ctx.fillRect(x, y, w * pct, h)
+    ctx.strokeStyle = 'rgba(255,180,120,0.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h)
   }
 
   /** Screen-space biome ambient tint + vignette for mood. */
@@ -180,6 +206,16 @@ export class Renderer {
       drawEnemyArt(ctx, e, hex(e.cfg.color), timeMs, r)
       ctx.restore(); ctx.globalAlpha = 1
       return
+    }
+
+    // Boss slam telegraph (ground warning circle)
+    if (e.isBoss && e.slamMs > 0 && e.slamRadius > 0) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(255,60,0,0.12)'
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.slamRadius, 0, Math.PI * 2); ctx.fill()
+      ctx.setLineDash([12, 8]); ctx.strokeStyle = 'rgba(255,80,20,0.85)'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.slamRadius, 0, Math.PI * 2); ctx.stroke()
+      ctx.restore()
     }
 
     // Shadow

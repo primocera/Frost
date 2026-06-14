@@ -8,6 +8,7 @@ import { createPlayer, effMaxMana, effSpeed, effSpellDamage, fireboltCooldownMax
 import { talentBonus } from './talents'
 import { regenShopStock } from './shop'
 import { questOnKill } from './quest'
+import { BOSS_SPAWNS, BOSS_BY_KEY, bossEnemyConfig, BOSS_RESPAWN_MS } from './bosses'
 import { RNG } from './rng'
 import { buildSpawnZones, getZoneAt, STARTER_X, STARTER_Y, WORLD_W, WORLD_H, PVP_SAFE_R } from './zones'
 import { EnemyState, GroundEffectState, InputCommand, PlayerState, ProjectileState,
@@ -28,7 +29,7 @@ const inSafeZone = (x: number, y: number) =>
 
 /** FFA PvP: apply a player's spell damage to another player (never self/safe-zone). */
 function damagePlayer(world: WorldState, attackerId: string | undefined, victim: PlayerState, dmg: number, frost: boolean) {
-  if (victim.dead || victim.id === attackerId || inSafeZone(victim.x, victim.y)) return
+  if (victim.dead || victim.id === attackerId || inSafeZone(victim.x, victim.y) || victim.pvpGraceMs > 0) return
   victim.stats.hp = Math.max(0, victim.stats.hp - dmg)
   victim.hurtMs = 160
   if (frost) {
@@ -58,6 +59,7 @@ export function createWorld(seed: number): WorldState {
       id, cx: z.cx, cy: z.cy, radius: z.radius, configs: z.table,
       zoneBounds: z.zoneBounds, maxEnemies: z.maxEnemies, count: 0, respawnTimers: [],
     })),
+    bossRespawns: [],
     timeMs: 0,
     rngState: seed >>> 0,
     events: [],
@@ -71,6 +73,7 @@ export function createWorld(seed: number): WorldState {
   for (const zone of world.zones) {
     for (let i = 0; i < zone.maxEnemies; i++) spawnFromZone(world, zone, rng)
   }
+  for (const b of BOSS_SPAWNS) spawnBoss(world, b.cfg.key, b.x, b.y)
   world.rngState = rng.state
   return world
 }
@@ -114,8 +117,22 @@ function makeEnemy(
     chargePhase: 'none', chargeTimer: 0, chargeDir: { x: 0, y: 0 },
     telegraphTimer: 0, telegraphing: false,
     burning: false, burnTicksLeft: 0, burnTickTimer: 0, burnDmg: 0, burnOwnerId: '',
+    isBoss: false, bossKey: '', slamCd: 4000, slamMs: 0, slamRadius: 0, spreadCd: 5000,
     dying: false, deathMs: 0, hitFlashMs: 0,
   }
+}
+
+function spawnBoss(world: WorldState, key: string, x: number, y: number) {
+  const boss = BOSS_BY_KEY[key]
+  if (!boss) return
+  const dummyZone: SpawnZoneState = { id: -1, cx: x, cy: y, radius: 0, configs: [], zoneBounds: null, maxEnemies: 0, count: 0, respawnTimers: [] }
+  const rng = new RNG((world.timeMs | 0) ^ 0xB055)
+  const e = makeEnemy(world, bossEnemyConfig(boss), x, y, dummyZone, rng)
+  e.zoneId = -1
+  e.isBoss = true
+  e.bossKey = key
+  e.slamRadius = boss.slamRadius
+  world.enemies.push(e)
 }
 
 const playerById = (world: WorldState, id?: string) =>
@@ -144,6 +161,7 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
     tickBurn(world, e, dtMs, rng)
     if (e.dying) continue
     updateEnemy(e, world.players, world.enemies, world, dtMs, rng)
+    if (e.isBoss) tickBoss(world, e, dtMs)
     e.x += e.vx * dt
     e.y += e.vy * dt
   }
@@ -153,6 +171,7 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
   updateGrounds(world, dtMs, rng)
   updateLoot(world, dtMs)
   updateRespawns(world, dtMs, rng)
+  updateBossRespawns(world, dtMs)
 
   world.enemies = world.enemies.filter(e => !(e.dying && e.deathMs <= 0))
 
@@ -182,6 +201,8 @@ function updatePlayer(world: WorldState, p: PlayerState, input: InputCommand | u
   if (p.dead) { p.vx = 0; p.vy = 0; return }
 
   regenMana(p, dtMs)
+  // Passive out-of-combat-ish HP regen (1.2%/s) so you can recover without potions.
+  if (p.stats.hp < p.stats.maxHp) p.stats.hp = Math.min(p.stats.maxHp, p.stats.hp + p.stats.maxHp * 0.012 * dt)
 
   let dx = input ? input.move.x : 0
   let dy = input ? input.move.y : 0
@@ -195,6 +216,10 @@ function updatePlayer(world: WorldState, p: PlayerState, input: InputCommand | u
   const b = world.bounds
   p.x = Math.max(b.x + PLAYER_RADIUS, Math.min(b.x + b.w - PLAYER_RADIUS, p.x))
   p.y = Math.max(b.y + PLAYER_RADIUS, Math.min(b.y + b.h - PLAYER_RADIUS, p.y))
+
+  // PvP protection: refreshed in the safe zone, ticks down for a few seconds after leaving.
+  if (inSafeZone(p.x, p.y)) p.pvpGraceMs = 5000
+  else if (p.pvpGraceMs > 0) p.pvpGraceMs -= dtMs
   if (dx > 0.01) p.facing = 1
   else if (dx < -0.01) p.facing = -1
 }
@@ -449,9 +474,76 @@ function tickBurn(world: WorldState, e: EnemyState, dtMs: number, rng: RNG) {
 
 // ── Kills + loot ──────────────────────────────────────────────────────────────
 
+// ── Boss attacks ───────────────────────────────────────────────────────────
+
+function tickBoss(world: WorldState, e: EnemyState, dtMs: number) {
+  const boss = BOSS_BY_KEY[e.bossKey]
+  if (!boss) return
+  const enrage = e.hp / e.maxHp < 0.30 ? 0.55 : 1   // attacks faster when low
+
+  // Resolve a slam in progress (telegraph → impact).
+  if (e.slamMs > 0) {
+    e.vx = 0; e.vy = 0
+    e.slamMs -= dtMs
+    if (e.slamMs <= 0) {
+      e.slamMs = 0
+      world.events.push({ type: 'bossSlam', x: e.x, y: e.y, radius: boss.slamRadius })
+      for (const p of world.players) {
+        if (p.dead) continue
+        if (dist(e.x, e.y, p.x, p.y) <= boss.slamRadius) damagePlayerPvE(world, p, boss.slamDamage)
+      }
+    }
+    return
+  }
+
+  if (e.slamCd > 0) e.slamCd -= dtMs
+  if (e.spreadCd > 0) e.spreadCd -= dtMs
+
+  let target: PlayerState | null = null, td = Infinity
+  for (const p of world.players) { if (p.dead) continue; const d = dist(e.x, e.y, p.x, p.y); if (d < td) { td = d; target = p } }
+  if (!target) return
+
+  if (e.slamCd <= 0 && td <= boss.slamRadius * 1.2) {
+    e.slamMs = 850; e.slamCd = boss.slamCooldownMs * enrage; e.vx = 0; e.vy = 0
+    return
+  }
+  if (e.spreadCd <= 0 && td <= boss.aggroRange) {
+    e.spreadCd = boss.spreadCooldownMs * enrage
+    const baseA = Math.atan2(target.y - e.y, target.x - e.x)
+    const arc = 0.5, n = boss.spreadCount
+    for (let i = 0; i < n; i++) {
+      const a = baseA + (i - (n - 1) / 2) * (arc / Math.max(1, n - 1))
+      world.projectiles.push({
+        id: world.nextProjId++, owner: 'enemy', kind: 'wraith_bolt',
+        x: e.x, y: e.y, vx: Math.cos(a) * boss.spreadSpeed, vy: Math.sin(a) * boss.spreadSpeed,
+        damage: boss.spreadDamage, lifeMs: 3000, radius: 6,
+      })
+    }
+  }
+}
+
+function damagePlayerPvE(world: WorldState, p: PlayerState, raw: number) {
+  const dmg = Math.round(raw * (1 - talentBonus.damageReduction(p.talentRanks)))
+  p.stats.hp = Math.max(0, p.stats.hp - dmg)
+  p.hurtMs = 160
+  world.events.push({ type: 'playerHit', pid: p.id, x: p.x, y: p.y, damage: dmg })
+}
+
+function updateBossRespawns(world: WorldState, dtMs: number) {
+  if (world.bossRespawns.length === 0) return
+  const still: typeof world.bossRespawns = []
+  for (const b of world.bossRespawns) {
+    b.timer -= dtMs
+    if (b.timer <= 0) spawnBoss(world, b.key, b.x, b.y)
+    else still.push(b)
+  }
+  world.bossRespawns = still
+}
+
 function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefined, rng: RNG) {
   if (e.dying) return
   const killer = playerById(world, killerId)
+  if (e.isBoss) world.bossRespawns.push({ key: e.bossKey, x: e.homeX, y: e.homeY, timer: BOSS_RESPAWN_MS })
 
   const aggroed = world.enemies.filter(o => o !== e && !o.dying && o.aiState === 'chase').length
   const mult = 1 + aggroed * Balance.xp.multikillBonus

@@ -3,6 +3,7 @@ import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
   extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
+  stashDeposit, stashWithdraw,
 } from '../sim'
 import { nearestNPC } from './npcs'
 import { emptyInput, InputCommand } from '../sim/types'
@@ -41,6 +42,7 @@ export class Game {
   private mode: 'local' | 'net' = 'local'
   private hudAccum = 0
   private saveAccum = 0
+  private lastNearNpc = false
   private pid = getPid()
   /** name -> active speech bubble (ms remaining). */
   private bubbles = new Map<string, { text: string; ms: number }>()
@@ -81,6 +83,8 @@ export class Game {
       buy: (idx) => this.doBuy(idx),
       acceptQuest: () => this.doQuest('accept'),
       claimQuest: () => this.doQuest('claim'),
+      stashDeposit: (id) => this.doStash('deposit', id),
+      stashWithdraw: (id) => this.doStash('withdraw', id),
       sendChat: (text) => this.doChat(text),
     })
     useGameStore.getState().setMobile(touch.active)
@@ -88,8 +92,18 @@ export class Game {
     window.addEventListener('resize', this.resize)
     window.addEventListener('orientationchange', this.resize)
     window.visualViewport?.addEventListener('resize', this.resize)
+    document.addEventListener('visibilitychange', this.onVisibility)
     this.loop = new Loop(this.update, this.render)
     this.loop.start()
+  }
+
+  private onVisibility = () => {
+    if (document.hidden) {
+      this.sound?.suspend()
+    } else {
+      this.loop.resetTiming()   // no catch-up burst
+      this.sound?.resume()
+    }
   }
 
   private resize = () => {
@@ -159,11 +173,12 @@ export class Game {
   }
 
   private update = (dt: number) => {
-    // E interacts with a nearby NPC; checked before buildInput so it takes
-    // priority over Frost Nova (also E). NPCs are in the mob-free town.
+    // E (or the mobile Talk button) interacts with a nearby NPC; checked before
+    // buildInput so it takes priority over Frost Nova (also E).
     const lpNow = this.localPlayer()
     const npc = lpNow ? nearestNPC(lpNow.x, lpNow.y) : null
-    if (npc && this.input.consumePressed('e')) useGameStore.getState().setPanel(npc.panel)
+    if (npc && (this.input.consumePressed('e') || touch.interact)) useGameStore.getState().setPanel(npc.panel)
+    if (!!npc !== this.lastNearNpc) { this.lastNearNpc = !!npc; useGameStore.getState().setNearNpc(!!npc) }
 
     const cmd = this.buildInput()
 
@@ -233,6 +248,10 @@ export class Game {
     if (this.mode === 'net' && this.net) { which === 'accept' ? this.net.acceptQuest() : this.net.claimQuest() }
     else { const p = this.localPlayer(); if (p) (which === 'accept' ? acceptQuest : claimQuest)(p) }
   }
+  private doStash(which: 'deposit' | 'withdraw', itemId: number) {
+    if (this.mode === 'net' && this.net) { which === 'deposit' ? this.net.stashDeposit(itemId) : this.net.stashWithdraw(itemId) }
+    else { const p = this.localPlayer(); if (p) (which === 'deposit' ? stashDeposit : stashWithdraw)(p, itemId) }
+  }
   private doChat(text: string) {
     const t = text.trim()
     if (!t) return
@@ -295,6 +314,11 @@ export class Game {
         case 'freeze':
           this.fx.burst(ev.x, ev.y, 8, [0x88ddff, 0xaaeeff, 0xffffff], { speedMax: 110, life: 0.4 })
           break
+        case 'bossSlam':
+          this.fx.ring(ev.x, ev.y, 0xff5522, ev.radius, 0.4, 6)
+          this.fx.burst(ev.x, ev.y, 28, [0xff8844, 0xffcc44, 0xffffff], { speedMax: ev.radius * 2, life: 0.5 })
+          s?.onArcaneExplosion()
+          break
         case 'spellGated':
           if (isLocal(ev.pid) && lp) this.fx.text(lp.x, lp.y - 34, `Train ${ev.spell} at the Shop (B) — Lv ${ev.level}+`, '#cc99ff', 13)
           break
@@ -353,6 +377,7 @@ export class Game {
     window.removeEventListener('resize', this.resize)
     window.removeEventListener('orientationchange', this.resize)
     window.visualViewport?.removeEventListener('resize', this.resize)
+    document.removeEventListener('visibilitychange', this.onVisibility)
     window.removeEventListener('beforeunload', this.saveOnExit)
   }
 }

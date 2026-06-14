@@ -22,6 +22,7 @@ export const NPCS: NPC[] = [
   { id: 'trainer',  name: 'Mevra',  title: 'Spell Trainer', x: STARTER_X - 90, y: STARTER_Y - 70, icon: '✦', robe: '#6b4ea8', panel: 'shop' },
   { id: 'merchant', name: 'Brom',   title: 'Merchant',      x: STARTER_X + 90, y: STARTER_Y - 70, icon: '🪙', robe: '#a8732e', panel: 'merchant' },
   { id: 'quest',    name: 'Aldra',  title: 'Bounty Board',  x: STARTER_X,      y: STARTER_Y - 120, icon: '❗', robe: '#3e7a5a', panel: 'quest' },
+  { id: 'stash',    name: 'Keeper', title: 'Stash',         x: STARTER_X + 170, y: STARTER_Y - 40, icon: '🧰', robe: '#5a5e6a', panel: 'stash' },
 ]
 
 export function nearestNPC(px: number, py: number): NPC | null {

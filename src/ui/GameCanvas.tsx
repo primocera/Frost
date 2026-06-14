@@ -15,7 +15,9 @@ export function GameCanvas() {
     if (!canvas) return
 
     const sound = new SoundManager()
+    sound.setVolume(useGameStore.getState().volume)
     void sound.loadAll(import.meta.env.BASE_URL).then(() => sound.setZoneMusic('mus_westfall'))
+    const unsubVol = useGameStore.subscribe((s) => sound.setVolume(s.volume))
 
     const name = useGameStore.getState().playerName
     const game = new Game(canvas, name, sound)
@@ -27,6 +29,7 @@ export function GameCanvas() {
 
     return () => {
       game.destroy()
+      unsubVol()
       window.removeEventListener('pointerdown', resume)
       window.removeEventListener('keydown', resume)
     }

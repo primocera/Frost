@@ -57,6 +57,7 @@ function Game() {
     <>
       <GameCanvas />
       <div style={{ ...styles.netBadge, color: netInfo.color }}>{netInfo.text}</div>
+      <AudioControl />
       <div style={styles.hud}>
         <div style={styles.hudName}>{name} · Lv {hud.level}</div>
         <div style={{ ...styles.hudZone, color: hud.zoneColor }}>📍 {hud.zone}</div>
@@ -90,6 +91,21 @@ function Game() {
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function AudioControl() {
+  const volume = useGameStore((s) => s.volume)
+  const setVolume = useGameStore((s) => s.setVolume)
+  return (
+    <div style={styles.audio}>
+      <span style={{ cursor: 'pointer' }} onClick={() => setVolume(volume > 0 ? 0 : 0.7)}>{volume > 0 ? '🔊' : '🔇'}</span>
+      <input
+        type="range" min={0} max={1} step={0.05} value={volume}
+        onChange={(e) => setVolume(parseFloat(e.target.value))}
+        style={{ width: 80 }}
+      />
+    </div>
   )
 }
 
@@ -153,14 +169,20 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 4px 20px rgba(20,90,200,0.4)',
   },
   hud: {
-    position: 'fixed', top: 12, left: 12, width: 240, display: 'flex', flexDirection: 'column', gap: 4,
+    position: 'fixed', bottom: 92, left: '50%', transform: 'translateX(-50%)',
+    width: 320, maxWidth: 'calc(100vw - 24px)', display: 'flex', flexDirection: 'column', gap: 4,
     color: '#cfe3ff', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 12,
     pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+    background: 'rgba(6,10,20,0.35)', padding: '8px 12px', borderRadius: 10,
   },
   netBadge: {
     position: 'fixed', top: 12, right: 12, fontSize: 12, fontWeight: 600,
     fontFamily: '-apple-system, "Segoe UI", sans-serif', pointerEvents: 'none',
     textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+  },
+  audio: {
+    position: 'fixed', top: 34, right: 12, display: 'flex', alignItems: 'center', gap: 6,
+    fontSize: 14, color: '#cfe3ff', background: 'rgba(6,10,20,0.4)', padding: '3px 8px', borderRadius: 8,
   },
   hudName: { fontSize: 14, fontWeight: 700, marginBottom: 1 },
   hudZone: { fontSize: 11, fontWeight: 600, marginBottom: 3 },

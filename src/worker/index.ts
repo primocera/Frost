@@ -5,6 +5,7 @@ import { equipItem, unequipItem } from '../sim/inventory'
 import { spendTalent } from '../sim/talents'
 import { trainSpell, buyShopItem, regenShopStock } from '../sim/shop'
 import { acceptQuest, claimQuest } from '../sim/quest'
+import { stashDeposit, stashWithdraw } from '../sim/stash'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
 
@@ -111,6 +112,10 @@ export class FrostRoom {
       if (player) acceptQuest(player)
     } else if (msg.t === 'questClaim') {
       if (player) claimQuest(player)
+    } else if (msg.t === 'stashDeposit') {
+      if (player) stashDeposit(player, msg.itemId)
+    } else if (msg.t === 'stashWithdraw') {
+      if (player) stashWithdraw(player, msg.itemId)
     } else if (msg.t === 'chat') {
       const text = String(msg.text).slice(0, 200).trim()
       if (player && text) {

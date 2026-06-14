@@ -1,14 +1,17 @@
 import { ALL_ENEMIES, EnemyConfig } from './enemies'
+import { BOSS_CFG_BY_KEY, BOSS_BY_KEY } from './bosses'
 import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './types'
 
 /** Personal inventory/talent state for the owning player (sent only to them). */
 export function selfOf(p: PlayerState): SelfState {
-  return { inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints, shop: p.shopStock, quest: p.quest }
+  return { inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints, shop: p.shopStock, quest: p.quest, stash: p.stash }
 }
 
 /** key → EnemyConfig, so clients can rebuild render data from a compact key. */
-export const ENEMY_BY_KEY: Record<string, EnemyConfig> =
-  Object.fromEntries(ALL_ENEMIES.map(c => [c.key, c]))
+export const ENEMY_BY_KEY: Record<string, EnemyConfig> = {
+  ...Object.fromEntries(ALL_ENEMIES.map(c => [c.key, c])),
+  ...BOSS_CFG_BY_KEY,
+}
 
 /**
  * Server: pack the authoritative world into a compact wire snapshot.
@@ -35,6 +38,8 @@ export function serialize(world: WorldState, cullRadius = 1500): Snapshot {
       frozen: e.frozenMs > 0, slow: e.slowMs > 0, flash: e.hitFlashMs > 0,
       tell: e.telegraphing || e.chargePhase === 'windup',
       dying: e.dying, deathMs: e.deathMs,
+      boss: e.isBoss || undefined,
+      slamR: e.slamMs > 0 && BOSS_BY_KEY[e.bossKey] ? BOSS_BY_KEY[e.bossKey].slamRadius : undefined,
     })),
     projectiles: world.projectiles.filter(p => near(p.x, p.y)).map(p => ({
       id: p.id, owner: p.owner, kind: p.kind, x: p.x, y: p.y, vx: p.vx, vy: p.vy, radius: p.radius,
@@ -57,8 +62,8 @@ export function hydratePlayer(s: Snapshot['players'][number]): PlayerState {
     activeBolt: s.activeBolt, learnedSpells: s.learned, manaRegenAccum: 0,
     dead: s.dead, gold: s.gold, inventory: [], inventoryCap: 30,
     equipped: { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
-    talentRanks: {}, talentPoints: 0, shopStock: [], quest: null,
-    frozenMs: s.frozen ? 9999 : 0, slowMs: 0, slowMult: 1,
+    talentRanks: {}, talentPoints: 0, shopStock: [], quest: null, stash: [],
+    frozenMs: s.frozen ? 9999 : 0, slowMs: 0, slowMult: 1, pvpGraceMs: 0,
     castMs: s.castMs, hurtMs: s.hurtMs,
   }
 }
@@ -75,6 +80,7 @@ export function hydrateEnemy(s: Snapshot['enemies'][number]): EnemyState {
     chargeCd: 0, chargePhase: s.tell ? 'windup' : 'none', chargeTimer: 0, chargeDir: { x: 0, y: 0 },
     telegraphTimer: 0, telegraphing: s.tell,
     burning: false, burnTicksLeft: 0, burnTickTimer: 0, burnDmg: 0, burnOwnerId: '',
+    isBoss: !!s.boss, bossKey: '', slamCd: 0, slamMs: s.slamR ? 1 : 0, slamRadius: s.slamR ?? 0, spreadCd: 0,
     dying: s.dying, deathMs: s.deathMs, hitFlashMs: s.flash ? 160 : 0,
   }
 }

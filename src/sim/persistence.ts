@@ -18,6 +18,7 @@ export interface SavedPlayer {
   talentPoints: number
   learnedSpells: string[]
   activeBolt: BoltKind
+  stash: Item[]
 }
 
 export function extractSave(p: PlayerState): SavedPlayer {
@@ -34,6 +35,7 @@ export function extractSave(p: PlayerState): SavedPlayer {
     talentPoints: p.talentPoints,
     learnedSpells: p.learnedSpells,
     activeBolt: p.activeBolt,
+    stash: p.stash,
   }
 }
 
@@ -56,4 +58,5 @@ export function applySave(p: PlayerState, s: SavedPlayer) {
   p.talentPoints = s.talentPoints ?? 0
   p.learnedSpells = s.learnedSpells ?? ['bolt']
   p.activeBolt = s.activeBolt ?? 'fire'
+  p.stash = s.stash ?? []
 }

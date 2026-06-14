@@ -39,10 +39,12 @@ export interface PlayerState {
   talentPoints: number
   shopStock: ShopItem[]
   quest: Quest | null
+  stash: Item[]
   // PvP status effects (other players' frost spells).
   frozenMs: number
   slowMs: number
   slowMult: number
+  pvpGraceMs: number   // protection time after leaving the safe zone
   // Visual hints the renderer reads (ms remaining).
   castMs: number
   hurtMs: number
@@ -82,6 +84,13 @@ export interface EnemyState {
   burnTickTimer: number
   burnDmg: number
   burnOwnerId: string
+  // Boss-only
+  isBoss: boolean
+  bossKey: string
+  slamCd: number
+  slamMs: number      // telegraph remaining (>0 = winding up a slam)
+  slamRadius: number  // slam AoE radius (for the telegraph circle)
+  spreadCd: number
   dying: boolean
   deathMs: number        // death animation time remaining (kept briefly for FX)
   hitFlashMs: number
@@ -136,6 +145,7 @@ export type SimEvent =
   | { type: 'cast'; kind: BoltKind; x: number; y: number }
   | { type: 'impact'; kind: BoltKind; x: number; y: number }
   | { type: 'aoe'; kind: 'arcane' | 'nova' | 'blizzard'; x: number; y: number; radius: number }
+  | { type: 'bossSlam'; x: number; y: number; radius: number }
   | { type: 'spellGated'; pid: string; spell: string; level: number }
   | { type: 'learnedSpell'; pid: string; spell: string }
   | { type: 'enemyHit'; x: number; y: number; damage: number; crit: boolean; frost: boolean }
@@ -158,6 +168,7 @@ export interface WorldState {
   loot: LootState[]
   grounds: GroundEffectState[]
   zones: SpawnZoneState[]
+  bossRespawns: { key: string; x: number; y: number; timer: number }[]
   timeMs: number
   rngState: number
   events: SimEvent[]
@@ -205,6 +216,7 @@ export interface EnemySnap {
   hp: number; maxHp: number
   frozen: boolean; slow: boolean; flash: boolean; tell: boolean
   dying: boolean; deathMs: number
+  boss?: boolean; slamR?: number   // slamR>0 = telegraph circle of that radius
 }
 export interface ProjSnap { id: number; owner: 'player' | 'enemy'; kind: string; x: number; y: number; vx: number; vy: number; radius: number }
 export interface LootSnap { id: number; x: number; y: number; gold?: number; rarity?: string }
@@ -228,6 +240,7 @@ export interface SelfState {
   pts: number
   shop: ShopItem[]
   quest: Quest | null
+  stash: Item[]
 }
 
 /** client → server */
@@ -241,6 +254,8 @@ export type ClientMessage =
   | { t: 'buy'; idx: number }
   | { t: 'questAccept' }
   | { t: 'questClaim' }
+  | { t: 'stashDeposit'; itemId: number }
+  | { t: 'stashWithdraw'; itemId: number }
   | { t: 'chat'; text: string }
 
 /** server → client */

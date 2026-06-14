@@ -5,6 +5,8 @@ import {
 } from '../sim'
 import { useGameStore } from './store'
 
+const TYPE_ICON: Record<string, string> = { staff: '🪄', robe: '🧥', ring: '💍', amulet: '📿' }
+
 const fmtCopper = (n: number) => {
   const g = Math.floor(n / 10000), s = Math.floor((n % 10000) / 100), c = n % 100
   return [g && `${g}g`, s && `${s}s`, (c || (!g && !s)) && `${c}c`].filter(Boolean).join(' ')
@@ -35,6 +37,7 @@ export function Panels() {
           : panel === 'talents' ? <Talents />
           : panel === 'shop' ? <Shop />
           : panel === 'merchant' ? <Merchant />
+          : panel === 'stash' ? <Stash />
           : <QuestBoard />}
       </div>
     </div>
@@ -81,8 +84,10 @@ function Inventory() {
 
 function ItemCard({ item, onClick }: { item: Item; onClick: () => void }) {
   return (
-    <div style={{ ...styles.itemCard, borderColor: RARITY_COLOR[item.rarity] }} onClick={onClick} title="Click to equip">
-      <div style={{ color: RARITY_COLOR[item.rarity], fontWeight: 600 }}>{item.name}</div>
+    <div style={{ ...styles.itemCard, borderColor: RARITY_COLOR[item.rarity] }} onClick={onClick}>
+      <div style={{ color: RARITY_COLOR[item.rarity], fontWeight: 600 }}>
+        <span style={{ marginRight: 5 }}>{TYPE_ICON[item.type] ?? '◆'}</span>{item.name}
+      </div>
       <div style={styles.statMini}>{statLines(item.stats).join(' · ')}</div>
     </div>
   )
@@ -233,6 +238,31 @@ function QuestBoard() {
   )
 }
 
+function Stash() {
+  const self = useGameStore((s) => s.self)
+  const actions = useGameStore((s) => s.actions)
+  if (!self) return <Empty title="Stash" />
+  return (
+    <>
+      <Header title="Stash" />
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <div style={styles.stashHalf}>
+          <div style={{ ...styles.stashLabel, background: 'rgba(26,42,26,0.5)' }}>BAG ({self.inv.length}) — click to deposit</div>
+          <div style={styles.stashGrid}>
+            {self.inv.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashDeposit(it.id)} />)}
+          </div>
+        </div>
+        <div style={{ ...styles.stashHalf, borderLeft: '1px solid rgba(51,68,85,0.4)' }}>
+          <div style={{ ...styles.stashLabel, background: 'rgba(26,26,42,0.5)' }}>STASH ({self.stash.length}) — click to withdraw</div>
+          <div style={styles.stashGrid}>
+            {self.stash.map((it) => <ItemCard key={it.id} item={it} onClick={() => actions?.stashWithdraw(it.id)} />)}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function Header({ title }: { title: string }) {
   return (
     <div style={styles.header}>
@@ -277,5 +307,8 @@ const styles: Record<string, React.CSSProperties> = {
   shopRow: { display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(12,18,30,0.9)', border: '1px solid rgba(45,70,110,0.4)', borderRadius: 8, padding: '10px 12px' },
   shopBuy: { fontSize: 12, padding: '6px 14px', borderRadius: 6, background: 'linear-gradient(135deg,rgba(20,80,160,0.8),rgba(10,50,100,0.8))', border: '1px solid rgba(60,120,220,0.45)', color: '#88bbff', fontFamily: 'inherit' },
   shopCard: { background: 'rgba(12,18,30,0.9)', border: '1px solid', borderRadius: 8, padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: 3 },
+  stashHalf: { flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 },
+  stashLabel: { fontSize: 10, fontWeight: 700, textAlign: 'center', letterSpacing: 0.6, padding: '5px 8px', borderRadius: 4, color: '#9ab' },
+  stashGrid: { display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 },
   questBtn: { alignSelf: 'flex-start', fontSize: 14, padding: '10px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#1460b0,#0a3a78)', border: 'none', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 }

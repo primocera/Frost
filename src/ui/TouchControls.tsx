@@ -9,10 +9,16 @@ import { useGameStore } from './store'
  */
 export function TouchControls() {
   const isMobile = useGameStore((s) => s.isMobile)
+  const nearNpc = useGameStore((s) => s.nearNpc)
   if (!isMobile) return null
   return (
     <>
       <Joystick />
+      {nearNpc && (
+        <div style={styles.interactBtn} onTouchStart={(e) => { e.preventDefault(); touch.interact = true }}>
+          E · Talk
+        </div>
+      )}
       <div style={styles.rightCluster}>
         <SpellBtn label="Q" color="#cc44ff" onDown={() => { touch.arcane = true }} />
         <SpellBtn label="E" color="#44aaff" onDown={() => { touch.nova = true }} />
@@ -123,5 +129,10 @@ const styles: Record<string, React.CSSProperties> = {
   miniBtn: {
     ...btnBase, width: 42, height: 42, borderRadius: 10, fontSize: 18,
     background: 'rgba(15,25,45,0.6)', border: '1.5px solid rgba(120,170,255,0.4)', color: '#cfe3ff',
+  },
+  interactBtn: {
+    ...btnBase, position: 'fixed', bottom: 160, left: '50%', transform: 'translateX(-50%)',
+    padding: '12px 26px', borderRadius: 12, fontSize: 16,
+    background: 'rgba(20,80,160,0.85)', border: '2px solid rgba(120,200,255,0.7)', color: '#fff',
   },
 }
