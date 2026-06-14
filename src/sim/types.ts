@@ -14,6 +14,9 @@ export interface PlayerStats {
   speed: number; spellDamage: number
 }
 
+export interface ShopItem { item: Item; price: number; sold: boolean }
+export interface Quest { kills: number; target: number; reward: number; done: boolean }
+
 export interface PlayerState {
   id: string
   name: string
@@ -34,6 +37,8 @@ export interface PlayerState {
   equipped: Record<EquipSlot, Item | null>
   talentRanks: Partial<Record<TalentId, number>>
   talentPoints: number
+  shopStock: ShopItem[]
+  quest: Quest | null
   // PvP status effects (other players' frost spells).
   frozenMs: number
   slowMs: number
@@ -221,6 +226,8 @@ export interface SelfState {
   eq: Record<EquipSlot, Item | null>
   ranks: Partial<Record<TalentId, number>>
   pts: number
+  shop: ShopItem[]
+  quest: Quest | null
 }
 
 /** client → server */
@@ -231,6 +238,9 @@ export type ClientMessage =
   | { t: 'unequip'; slot: EquipSlot }
   | { t: 'talent'; id: TalentId }
   | { t: 'train'; spell: string }
+  | { t: 'buy'; idx: number }
+  | { t: 'questAccept' }
+  | { t: 'questClaim' }
   | { t: 'chat'; text: string }
 
 /** server → client */

@@ -3,6 +3,7 @@ import { Particles } from './Particles'
 import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, getZoneAt, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
 import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance } from './Biomes'
 import { drawEnemyArt } from './EnemyArt'
+import { NPCS, nearestNPC, drawNPC } from './npcs'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -45,9 +46,12 @@ export class Renderer {
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
-    // Depth-sort visible entities (decor + enemies + players) by y.
+    // Depth-sort visible entities (decor + NPCs + enemies + players) by y.
+    const local = world.players.find(p => p.id === localId)
+    const activeNpc = local ? nearestNPC(local.x, local.y) : null
     const ents: Array<{ y: number; draw: () => void }> = []
     for (const d of this.decor) if (inView(d.x, d.y)) ents.push({ y: d.y, draw: () => drawDecor(ctx, d) })
+    for (const n of NPCS) if (inView(n.x, n.y)) ents.push({ y: n.y, draw: () => { ctx.save(); ctx.translate(n.x, n.y); drawNPC(ctx, n, n === activeNpc, world.timeMs); ctx.restore() } })
     for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e, world.timeMs) })
     for (const p of world.players) {
       if (!inView(p.x, p.y)) continue

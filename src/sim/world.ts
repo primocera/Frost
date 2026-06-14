@@ -6,6 +6,8 @@ import { createPlayer, effMaxMana, effSpeed, effSpellDamage, fireboltCooldownMax
   fireboltCost, frostboltCost, gainXP, regenMana, critChance, critMult, applyCDR, spellCost,
   SPELL_TRAIN_LEVEL } from './player'
 import { talentBonus } from './talents'
+import { regenShopStock } from './shop'
+import { questOnKill } from './quest'
 import { RNG } from './rng'
 import { buildSpawnZones, getZoneAt, STARTER_X, STARTER_Y, WORLD_W, WORLD_H, PVP_SAFE_R } from './zones'
 import { EnemyState, GroundEffectState, InputCommand, PlayerState, ProjectileState,
@@ -77,6 +79,7 @@ export function addPlayer(world: WorldState, id: string, name: string): PlayerSt
   const existing = world.players.find(p => p.id === id)
   if (existing) return existing
   const p = createPlayer(id, name, STARTER_X, STARTER_Y)
+  regenShopStock(p)
   world.players.push(p)
   return p
 }
@@ -456,9 +459,11 @@ function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefine
 
   if (killer) {
     const leveled = gainXP(killer, xp)
-    if (leveled) world.events.push({ type: 'levelUp', pid: killer.id, level: killer.stats.level })
+    if (leveled) { world.events.push({ type: 'levelUp', pid: killer.id, level: killer.stats.level }); regenShopStock(killer) }
     // Flashpoint: killing a burning enemy resets the killer's Firebolt cooldown.
     if (e.burning && talentBonus.flashpoint(killer.talentRanks)) killer.cd.firebolt = 0
+    // Bounty progress.
+    if (questOnKill(killer)) world.events.push({ type: 'feat', name: killer.name, text: 'completed a bounty!' })
   }
   world.events.push({ type: 'enemyDeath', x: e.x, y: e.y, color: e.cfg.color, xp, mult })
   if (e.cfg.rare) {

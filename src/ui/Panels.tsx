@@ -31,7 +31,11 @@ export function Panels() {
   return (
     <div style={styles.backdrop} onClick={() => useGameStore.getState().setPanel('none')}>
       <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
-        {panel === 'inventory' ? <Inventory /> : panel === 'talents' ? <Talents /> : <Shop />}
+        {panel === 'inventory' ? <Inventory />
+          : panel === 'talents' ? <Talents />
+          : panel === 'shop' ? <Shop />
+          : panel === 'merchant' ? <Merchant />
+          : <QuestBoard />}
       </div>
     </div>
   )
@@ -166,6 +170,69 @@ function Shop() {
   )
 }
 
+function Merchant() {
+  const self = useGameStore((s) => s.self)
+  const gold = useGameStore((s) => s.hud.gold)
+  const actions = useGameStore((s) => s.actions)
+  if (!self) return <Empty title="Merchant" />
+  return (
+    <>
+      <Header title={`Merchant Brom — ${fmtCopper(gold)}`} />
+      <div style={{ padding: 12, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8 }}>
+        {self.shop.map((s, i) => {
+          const can = !s.sold && gold >= s.price
+          return (
+            <div key={i} style={{ ...styles.shopCard, borderColor: RARITY_COLOR[s.item.rarity], opacity: s.sold ? 0.4 : 1 }}>
+              <div style={{ color: RARITY_COLOR[s.item.rarity], fontWeight: 600, fontSize: 12 }}>{s.item.name}</div>
+              <div style={styles.statMini}>{statLines(s.item.stats).join(' · ')}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <span style={{ color: '#ffdd00', fontSize: 12 }}>{fmtCopper(s.price)}</span>
+                <button style={{ ...styles.shopBuy, opacity: can ? 1 : 0.4, cursor: can ? 'pointer' : 'default' }}
+                  disabled={!can} onClick={() => actions?.buy(i)}>{s.sold ? 'Sold' : 'Buy'}</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+function QuestBoard() {
+  const self = useGameStore((s) => s.self)
+  const actions = useGameStore((s) => s.actions)
+  if (!self) return <Empty title="Bounty Board" />
+  const q = self.quest
+  return (
+    <>
+      <Header title="Bounty Board" />
+      <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {!q && (
+          <>
+            <div style={{ color: '#cdd8ee', fontSize: 14 }}>Slay <b>15 monsters</b> for a gold bounty (scales with your level).</div>
+            <button style={styles.questBtn} onClick={() => actions?.acceptQuest()}>Accept Bounty</button>
+          </>
+        )}
+        {q && !q.done && (
+          <>
+            <div style={{ color: '#cdd8ee', fontSize: 14 }}>Bounty: slay monsters — <b>{q.kills}/{q.target}</b></div>
+            <div style={{ height: 8, background: 'rgba(51,68,85,0.5)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: `${(q.kills / q.target) * 100}%`, height: '100%', background: '#3366cc' }} />
+            </div>
+            <div style={{ color: '#778', fontSize: 12 }}>Reward: {fmtCopper(q.reward)}</div>
+          </>
+        )}
+        {q && q.done && (
+          <>
+            <div style={{ color: '#5d8', fontSize: 14 }}>Bounty complete! Claim your reward.</div>
+            <button style={styles.questBtn} onClick={() => actions?.claimQuest()}>Claim {fmtCopper(q.reward)}</button>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
 function Header({ title }: { title: string }) {
   return (
     <div style={styles.header}>
@@ -209,4 +276,6 @@ const styles: Record<string, React.CSSProperties> = {
   buyBtn: { marginTop: 3, fontSize: 11, padding: '2px 10px', borderRadius: 4, background: 'rgba(10,20,40,0.9)', border: '1px solid', fontFamily: 'inherit' },
   shopRow: { display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(12,18,30,0.9)', border: '1px solid rgba(45,70,110,0.4)', borderRadius: 8, padding: '10px 12px' },
   shopBuy: { fontSize: 12, padding: '6px 14px', borderRadius: 6, background: 'linear-gradient(135deg,rgba(20,80,160,0.8),rgba(10,50,100,0.8))', border: '1px solid rgba(60,120,220,0.45)', color: '#88bbff', fontFamily: 'inherit' },
+  shopCard: { background: 'rgba(12,18,30,0.9)', border: '1px solid', borderRadius: 8, padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: 3 },
+  questBtn: { alignSelf: 'flex-start', fontSize: 14, padding: '10px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#1460b0,#0a3a78)', border: 'none', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 }

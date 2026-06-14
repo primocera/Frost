@@ -69,6 +69,9 @@ export class Net {
   unequip(slot: EquipSlot) { this.send({ t: 'unequip', slot }) }
   buyTalent(id: TalentId) { this.send({ t: 'talent', id }) }
   train(spell: string) { this.send({ t: 'train', spell }) }
+  buy(idx: number) { this.send({ t: 'buy', idx }) }
+  acceptQuest() { this.send({ t: 'questAccept' }) }
+  claimQuest() { this.send({ t: 'questClaim' }) }
   sendChat(text: string) { this.send({ t: 'chat', text }) }
   drainChat() { const c = this.pendingChat; this.pendingChat = []; return c }
   private send(msg: object) { if (this.socket.readyState === 1) this.socket.send(JSON.stringify(msg)) }

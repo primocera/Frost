@@ -35,6 +35,8 @@ export function createPlayer(id: string, name: string, x: number, y: number): Pl
     equipped: { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
     talentRanks: {},
     talentPoints: 0,
+    shopStock: [],
+    quest: null,
     frozenMs: 0,
     slowMs: 0,
     slowMult: 1,

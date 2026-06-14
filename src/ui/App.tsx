@@ -84,7 +84,7 @@ function Game() {
         ))}
       </div>
 
-      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · B shop · Enter chat</div>
+      <div style={styles.controls}>WASD · Click/F bolt · Q/E/R spells · X swap · I bag · T talents · E near NPCs · Enter chat</div>
       {hud.dead && <div style={styles.dead}>You fell… respawning</div>}
       <Chat />
       <TouchControls />

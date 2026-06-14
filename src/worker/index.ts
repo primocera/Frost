@@ -3,7 +3,8 @@ import { createWorld, addPlayer, removePlayer, tick } from '../sim/world'
 import { serialize, selfOf } from '../sim/snapshot'
 import { equipItem, unequipItem } from '../sim/inventory'
 import { spendTalent } from '../sim/talents'
-import { trainSpell } from '../sim/shop'
+import { trainSpell, buyShopItem, regenShopStock } from '../sim/shop'
+import { acceptQuest, claimQuest } from '../sim/quest'
 import { extractSave, applySave, SavedPlayer } from '../sim/persistence'
 import { emptyInput, InputCommand, ClientMessage, WorldState } from '../sim/types'
 
@@ -89,7 +90,7 @@ export class FrostRoom {
       this.pids.set(id, pid)
       const player = addPlayer(this.world, id, msg.name || 'Mage')
       const saved = await this.state.storage.get<SavedPlayer>('p:' + pid)
-      if (saved) applySave(player, saved)
+      if (saved) { applySave(player, saved); regenShopStock(player) }   // stock for loaded level
       safeSend(ws, JSON.stringify({ t: 'welcome', id }))
       this.sysChat(`${player.name} joined the world`)
       return
@@ -104,6 +105,12 @@ export class FrostRoom {
       if (player) spendTalent(player, msg.id)
     } else if (msg.t === 'train') {
       if (player) trainSpell(player, msg.spell)
+    } else if (msg.t === 'buy') {
+      if (player) buyShopItem(player, msg.idx)
+    } else if (msg.t === 'questAccept') {
+      if (player) acceptQuest(player)
+    } else if (msg.t === 'questClaim') {
+      if (player) claimQuest(player)
     } else if (msg.t === 'chat') {
       const text = String(msg.text).slice(0, 200).trim()
       if (player && text) {

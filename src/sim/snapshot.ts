@@ -3,7 +3,7 @@ import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './type
 
 /** Personal inventory/talent state for the owning player (sent only to them). */
 export function selfOf(p: PlayerState): SelfState {
-  return { inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints }
+  return { inv: p.inventory, eq: p.equipped, ranks: p.talentRanks, pts: p.talentPoints, shop: p.shopStock, quest: p.quest }
 }
 
 /** key → EnemyConfig, so clients can rebuild render data from a compact key. */
@@ -57,7 +57,7 @@ export function hydratePlayer(s: Snapshot['players'][number]): PlayerState {
     activeBolt: s.activeBolt, learnedSpells: s.learned, manaRegenAccum: 0,
     dead: s.dead, gold: s.gold, inventory: [], inventoryCap: 30,
     equipped: { staff: null, robe: null, ring1: null, ring2: null, amulet: null },
-    talentRanks: {}, talentPoints: 0,
+    talentRanks: {}, talentPoints: 0, shopStock: [], quest: null,
     frozenMs: s.frozen ? 9999 : 0, slowMs: 0, slowMult: 1,
     castMs: s.castMs, hurtMs: s.hurtMs,
   }

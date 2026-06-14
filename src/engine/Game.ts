@@ -2,8 +2,9 @@ import { formatCopperShort } from '../utils/currency'
 import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
   getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
-  extractSave, applySave, SavedPlayer, trainSpell,
+  extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
 } from '../sim'
+import { nearestNPC } from './npcs'
 import { emptyInput, InputCommand } from '../sim/types'
 import type { EquipSlot } from '../items/ItemTypes'
 import type { TalentId } from '../talents/TalentTypes'
@@ -77,6 +78,9 @@ export class Game {
       unequip: (slot) => this.doUnequip(slot),
       buyTalent: (id) => this.doTalent(id),
       train: (spell) => this.doTrain(spell),
+      buy: (idx) => this.doBuy(idx),
+      acceptQuest: () => this.doQuest('accept'),
+      claimQuest: () => this.doQuest('claim'),
       sendChat: (text) => this.doChat(text),
     })
     useGameStore.getState().setMobile(touch.active)
@@ -155,6 +159,12 @@ export class Game {
   }
 
   private update = (dt: number) => {
+    // E interacts with a nearby NPC; checked before buildInput so it takes
+    // priority over Frost Nova (also E). NPCs are in the mob-free town.
+    const lpNow = this.localPlayer()
+    const npc = lpNow ? nearestNPC(lpNow.x, lpNow.y) : null
+    if (npc && this.input.consumePressed('e')) useGameStore.getState().setPanel(npc.panel)
+
     const cmd = this.buildInput()
 
     if (this.mode === 'net' && this.net) {
@@ -214,6 +224,14 @@ export class Game {
   private doTrain(spell: string) {
     if (this.mode === 'net' && this.net) this.net.train(spell)
     else { const p = this.localPlayer(); if (p) trainSpell(p, spell) }
+  }
+  private doBuy(idx: number) {
+    if (this.mode === 'net' && this.net) this.net.buy(idx)
+    else { const p = this.localPlayer(); if (p) buyShopItem(p, idx) }
+  }
+  private doQuest(which: 'accept' | 'claim') {
+    if (this.mode === 'net' && this.net) { which === 'accept' ? this.net.acceptQuest() : this.net.claimQuest() }
+    else { const p = this.localPlayer(); if (p) (which === 'accept' ? acceptQuest : claimQuest)(p) }
   }
   private doChat(text: string) {
     const t = text.trim()

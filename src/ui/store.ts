@@ -42,7 +42,7 @@ const initialHud: HudState = {
   zone: '', zoneColor: '#cfe3ff', spells: [], learnedSpells: ['bolt'],
 }
 
-export type Panel = 'none' | 'inventory' | 'talents' | 'shop'
+export type Panel = 'none' | 'inventory' | 'talents' | 'shop' | 'merchant' | 'quest'
 
 /** Action hooks the engine registers so React panels can drive the sim
  *  (local) or send messages to the server (networked). */
@@ -51,6 +51,9 @@ export interface GameActions {
   unequip: (slot: EquipSlot) => void
   buyTalent: (id: TalentId) => void
   train: (spell: string) => void
+  buy: (idx: number) => void
+  acceptQuest: () => void
+  claimQuest: () => void
   sendChat: (text: string) => void
 }
 
