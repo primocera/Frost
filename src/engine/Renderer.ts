@@ -4,6 +4,7 @@ import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, 
 import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance } from './Biomes'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
+import { drawMage, mageFrame } from './MageArt'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -42,7 +43,7 @@ export class Renderer {
     ctx.scale(cam.zoom, cam.zoom)
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
-    this.drawGround(cam, world.bounds)
+    this.drawGround(cam, world.bounds, world.timeMs)
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
@@ -128,7 +129,7 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2); ctx.stroke()
   }
 
-  private drawGround(cam: Camera, b: WorldBounds) {
+  private drawGround(cam: Camera, b: WorldBounds, timeMs: number) {
     const ctx = this.ctx
     const vx = Math.max(b.x, cam.originX)
     const vy = Math.max(b.y, cam.originY)
@@ -152,24 +153,25 @@ export class Renderer {
     // Town stone plaza (safe zone) — only draw when on screen.
     if (Math.abs(STARTER_X - cam.x) < cam.visW / 2 + PVP_SAFE_R &&
         Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
-      this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R)
+      this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R, timeMs)
     }
   }
 
-  /** A MOBA-style paved stone plaza for the town/safe zone. */
-  private drawPlaza(cx: number, cy: number, R: number) {
+  /** A Twisted-Treeline-style paved stone altar with glowing blue runes. */
+  private drawPlaza(cx: number, cy: number, R: number, timeMs: number) {
     const ctx = this.ctx
     const TAU = Math.PI * 2
+    const pulse = 0.55 + Math.sin(timeMs * 0.0022) * 0.45   // 0.1..1
     ctx.save()
     // paved base
     const g = ctx.createRadialGradient(cx, cy - R * 0.25, R * 0.15, cx, cy, R)
-    g.addColorStop(0, '#7c808a'); g.addColorStop(0.7, '#5b5e67'); g.addColorStop(1, '#42444b')
+    g.addColorStop(0, '#6f747f'); g.addColorStop(0.7, '#4f535d'); g.addColorStop(1, '#383b43')
     ctx.fillStyle = g
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill()
     // concentric paving rings
     ctx.lineWidth = 2
     for (let i = 1; i <= 6; i++) {
-      ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.20)' : 'rgba(255,255,255,0.06)'
+      ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.05)'
       ctx.beginPath(); ctx.arc(cx, cy, R * (i / 6.5), 0, TAU); ctx.stroke()
     }
     // radial cobble seams
@@ -181,17 +183,58 @@ export class Renderer {
       ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
       ctx.stroke()
     }
+
+    // ── glowing blue runes engraved in the stone ──
+    ctx.save()
+    ctx.shadowColor = 'rgba(90,180,255,0.95)'
+    ctx.shadowBlur = 10 + pulse * 14
+    const runeCol = `rgba(120,200,255,${0.45 + pulse * 0.45})`
+    // two glowing ring inscriptions
+    ctx.strokeStyle = runeCol; ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.62, 0, TAU); ctx.stroke()
+    ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.40, 0, TAU); ctx.stroke()
+    // ring of runic glyphs
+    const RUNES = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚨ', 'ᚱ', 'ᚲ', 'ᚷ', 'ᚹ', 'ᚺ', 'ᚾ', 'ᛁ', 'ᛃ']
+    ctx.fillStyle = runeCol; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.font = `${Math.round(R * 0.07)}px serif`
+    for (let i = 0; i < RUNES.length; i++) {
+      const a = (i / RUNES.length) * TAU - Math.PI / 2
+      const rx = cx + Math.cos(a) * R * 0.62, ry = cy + Math.sin(a) * R * 0.62
+      ctx.save(); ctx.translate(rx, ry); ctx.rotate(a + Math.PI / 2); ctx.fillText(RUNES[i], 0, 0); ctx.restore()
+    }
+    // radial rune spokes near the centre
+    ctx.strokeStyle = `rgba(120,200,255,${0.3 + pulse * 0.35})`; ctx.lineWidth = 2
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU
+      ctx.beginPath()
+      ctx.moveTo(cx + Math.cos(a) * R * 0.18, cy + Math.sin(a) * R * 0.18)
+      ctx.lineTo(cx + Math.cos(a) * R * 0.38, cy + Math.sin(a) * R * 0.38)
+      ctx.stroke()
+    }
+    ctx.restore()
+
     // ornate border
-    ctx.lineWidth = 9; ctx.strokeStyle = '#393b41'; ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.stroke()
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(150,200,255,0.45)'; ctx.beginPath(); ctx.arc(cx, cy, R - 8, 0, TAU); ctx.stroke()
-    // centre medallion
-    ctx.fillStyle = '#494c54'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.fill()
-    ctx.strokeStyle = 'rgba(150,200,255,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.stroke()
-    ctx.fillStyle = 'rgba(160,205,255,0.7)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.font = `${Math.round(R * 0.14)}px serif`; ctx.fillText('❄', cx, cy + 1)
+    ctx.lineWidth = 9; ctx.strokeStyle = '#34363d'; ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.stroke()
+    ctx.save()
+    ctx.shadowColor = 'rgba(90,180,255,0.9)'; ctx.shadowBlur = 8 + pulse * 12
+    ctx.lineWidth = 3; ctx.strokeStyle = `rgba(140,205,255,${0.4 + pulse * 0.4})`
+    ctx.beginPath(); ctx.arc(cx, cy, R - 8, 0, TAU); ctx.stroke()
+    ctx.restore()
+
+    // centre medallion with glowing rune
+    ctx.fillStyle = '#43464e'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.fill()
+    ctx.save()
+    ctx.shadowColor = 'rgba(110,190,255,1)'; ctx.shadowBlur = 12 + pulse * 18
+    ctx.strokeStyle = `rgba(150,210,255,${0.6 + pulse * 0.4})`; ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.stroke()
+    ctx.fillStyle = `rgba(170,215,255,${0.7 + pulse * 0.3})`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.font = `${Math.round(R * 0.15)}px serif`; ctx.fillText('❄', cx, cy + 1)
+    ctx.restore()
     ctx.textBaseline = 'alphabetic'
+
     // label
-    ctx.fillStyle = 'rgba(190,225,255,0.75)'; ctx.font = 'bold 16px -apple-system, "Segoe UI", sans-serif'
+    ctx.fillStyle = 'rgba(190,225,255,0.8)'; ctx.font = 'bold 16px -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center'
     ctx.fillText('✦ Millhaven — Safe Zone ✦', cx, cy - R + 30)
     ctx.restore()
   }
@@ -346,57 +389,21 @@ export class Renderer {
   ) {
     const ctx = this.ctx
     const moving = Math.abs(vx) > 18 || Math.abs(vy) > 18
-    const bob = moving ? Math.sin(timeMs * 0.012) * 1.5 : 0
+    const state = casting ? 'cast' : moving ? 'walk' : 'idle'
+    const frame = mageFrame(state, timeMs)
 
     ctx.save()
-    ctx.translate(x, y + bob)
+    ctx.translate(x, y)
     if (dead) ctx.globalAlpha = 0.5
     if (facing === -1) ctx.scale(-1, 1)
 
-    // Frozen tell (PvP Frost Nova) — icy ring.
     if (frozen) {
-      ctx.strokeStyle = 'rgba(150,225,255,0.85)'
-      ctx.lineWidth = 2.5
-      ctx.beginPath(); ctx.arc(0, 6, 20, 0, Math.PI * 2); ctx.stroke()
+      ctx.strokeStyle = 'rgba(150,225,255,0.85)'; ctx.lineWidth = 2.5
+      ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.stroke()
     }
 
-    // Cast glow
-    if (casting) {
-      const glow = ctx.createRadialGradient(0, 4, 0, 0, 4, 26)
-      glow.addColorStop(0, 'rgba(136,68,255,0.35)')
-      glow.addColorStop(1, 'rgba(136,68,255,0)')
-      ctx.fillStyle = glow
-      ctx.beginPath(); ctx.arc(0, 4, 26, 0, Math.PI * 2); ctx.fill()
-    }
-
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'
-    ctx.beginPath(); ctx.ellipse(0, 22, 11, 4, 0, 0, Math.PI * 2); ctx.fill()
-
-    const robe = ctx.createLinearGradient(-12, 0, 12, 22)
-    robe.addColorStop(0, hurt ? '#b5523b' : '#3b6fb5')
-    robe.addColorStop(1, hurt ? '#722f1f' : '#1f3f72')
-    ctx.fillStyle = robe
-    ctx.beginPath()
-    ctx.moveTo(-10, 2); ctx.bezierCurveTo(-14, 10, -13, 19, -8, 23)
-    ctx.lineTo(8, 23); ctx.bezierCurveTo(13, 19, 14, 10, 10, 2)
-    ctx.closePath(); ctx.fill()
-
-    const head = ctx.createRadialGradient(-1, -6, 0, 0, -5, 7)
-    head.addColorStop(0, '#f1c79b'); head.addColorStop(1, '#c89163')
-    ctx.fillStyle = head
-    ctx.beginPath(); ctx.arc(0, -5, 6.5, 0, Math.PI * 2); ctx.fill()
-
-    ctx.fillStyle = '#27407a'
-    ctx.beginPath(); ctx.moveTo(-8, -8); ctx.lineTo(2, -24); ctx.lineTo(9, -8); ctx.closePath(); ctx.fill()
-    ctx.fillStyle = '#9ecbff'
-    ctx.beginPath(); ctx.arc(2, -24, 1.8, 0, Math.PI * 2); ctx.fill()
-
-    ctx.strokeStyle = '#5a3d1e'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'
-    ctx.beginPath(); ctx.moveTo(12, -14); ctx.lineTo(13, 22); ctx.stroke()
-    const tip = ctx.createRadialGradient(12, -16, 0, 12, -16, 6)
-    tip.addColorStop(0, 'rgba(150,200,255,0.95)'); tip.addColorStop(1, 'rgba(80,140,255,0)')
-    ctx.fillStyle = tip
-    ctx.beginPath(); ctx.arc(12, -16, 6, 0, Math.PI * 2); ctx.fill()
+    drawMage(ctx, frame)
+    void hurt   // hit feedback is the floating damage text + screen flash
 
     ctx.restore()
     ctx.globalAlpha = 1
