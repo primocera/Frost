@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from './store'
-import { signup, login, saveAccount, logoutAccount } from './auth'
+import { playOnline, saveAccount, logoutAccount } from './auth'
 import { GameCanvas } from './GameCanvas'
 import { Panels } from './Panels'
 import { Chat } from './Chat'
@@ -24,7 +24,23 @@ export function App() {
 
 function Landing() {
   const startGame = useGameStore((s) => s.startGame)
-  const [name, setName] = useState('')
+  const account = useGameStore((s) => s.account)
+  const [name, setName] = useState(account?.name ?? '')
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const playOnlineNow = async () => {
+    const n = name.trim()
+    if (!n) { setErr('Enter a name first.'); return }
+    if (pw.length < 4) { setErr('Password must be at least 4 characters.'); return }
+    setErr(''); setBusy(true)
+    try {
+      const a = await playOnline(n, pw)
+      saveAccount(a); useGameStore.getState().setAccount(a); startGame(a.name, true)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not connect.') }
+    finally { setBusy(false) }
+  }
 
   return (
     <div style={styles.landing}>
@@ -43,15 +59,33 @@ function Landing() {
         spellCheck={false}
       />
 
-      <button style={styles.startBtn} onClick={() => startGame(name, false)}>
-        ▶ Play Solo
-      </button>
-      <button style={styles.onlineBtn} onClick={() => startGame(name, true)}>
-        ⚔ Play Online
-      </button>
-      <p style={styles.modeHint}>Solo is instant &amp; offline. Online shares one world with other mages (PvP + trading).</p>
+      <button style={styles.startBtn} onClick={() => startGame(name, false)}>▶ Play Solo</button>
 
-      <AccountBox />
+      {account ? (
+        <>
+          <button style={styles.onlineBtn} onClick={() => startGame(account.name, true)}>⚔ Play Online as {account.name}</button>
+          <button style={styles.acctLink} onClick={() => { logoutAccount(); useGameStore.getState().setAccount(null) }}>not you? log out</button>
+        </>
+      ) : (
+        <>
+          <input
+            style={styles.input}
+            type="password"
+            value={pw}
+            maxLength={64}
+            placeholder="password (for online play)"
+            onChange={(e) => setPw(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && playOnlineNow()}
+            autoComplete="current-password"
+          />
+          <button style={{ ...styles.onlineBtn, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={playOnlineNow}>
+            {busy ? '…' : '⚔ Play Online'}
+          </button>
+        </>
+      )}
+
+      {err && <div style={{ fontSize: 11, color: '#ff8a8a', width: 300, textAlign: 'center' }}>{err}</div>}
+      <p style={styles.modeHint}>Solo needs just a name. Online needs a name + password to protect your mage — first time signs you up.</p>
 
       {SUPPORT_URL && (
         <a style={styles.supportBtn} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
@@ -114,45 +148,6 @@ function Game() {
       <TouchControls />
       <Panels />
     </>
-  )
-}
-
-function AccountBox() {
-  const account = useGameStore((s) => s.account)
-  const [email, setEmail] = useState('')
-  const [pw, setPw] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-
-  if (account) {
-    return (
-      <div style={styles.acctBox}>
-        <span style={{ fontSize: 12, color: '#8fe0b0' }}>✓ Logged in as <b>{account.email}</b></span>
-        <button style={styles.acctLink} onClick={() => { logoutAccount(); useGameStore.getState().setAccount(null) }}>Log out</button>
-      </div>
-    )
-  }
-
-  const submit = async (fn: typeof login) => {
-    setErr(''); setBusy(true)
-    try {
-      const a = await fn(email.trim(), pw)
-      saveAccount(a); useGameStore.getState().setAccount(a)
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed.') }
-    finally { setBusy(false) }
-  }
-
-  return (
-    <div style={styles.acctBox}>
-      <div style={{ fontSize: 11, color: 'rgba(160,200,240,0.55)' }}>Account (optional) — save your mage across devices</div>
-      <input style={styles.acctInput} type="email" placeholder="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" spellCheck={false} />
-      <input style={styles.acctInput} type="password" placeholder="password (min 6)" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button style={styles.acctBtn} disabled={busy} onClick={() => submit(login)}>Log in</button>
-        <button style={styles.acctBtn} disabled={busy} onClick={() => submit(signup)}>Sign up</button>
-      </div>
-      {err && <div style={{ fontSize: 11, color: '#ff8a8a' }}>{err}</div>}
-    </div>
   )
 }
 
