@@ -11,7 +11,7 @@ import { TouchControls } from './TouchControls'
 // chooses amount" for tips, or a $5/mo subscription) and paste its URL here.
 // While empty, the support buttons stay hidden.
 const SUPPORT_URL = 'https://buy.stripe.com/7sY9ALfNO4Ir0aTfD3fnO00'
-// $3 one-time membership Stripe Payment Link (lifts the level-10 cap). The
+// $1 one-time membership Stripe Payment Link (lifts the level-10 cap). The
 // player's account pid is appended as client_reference_id so the webhook knows
 // who to unlock. Empty = unlock button hidden (cap still applies).
 const MEMBERSHIP_URL = ''   // e.g. 'https://buy.stripe.com/yyyy'
@@ -166,7 +166,7 @@ function CapPrompt() {
     const url = `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}`
     return (
       <a style={styles.capMini} href={url} target="_blank" rel="noopener noreferrer"
-        title="After paying, restart & Play Online to apply">⭐ Get Frost Plus — $3</a>
+        title="After paying, restart & Play Online to apply">⭐ Get Frost Plus — $1</a>
     )
   }
   const label = !MEMBERSHIP_URL ? `🔒 Lvl ${FREE_CAP} · Plus soon` : `🔒 Lvl ${FREE_CAP} · Play Online for Plus`
