@@ -154,10 +154,21 @@ function Game() {
       <TradePrompt />
       <BessiePrompt />
       <CapPrompt />
+      <MpBusy />
       <Chat />
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function MpBusy() {
+  const online = useGameStore((s) => s.online)
+  const net = useGameStore((s) => s.net)
+  // Player chose online but the server is unreachable/capped → reassure, don't alarm.
+  if (!online || net !== 'offline') return null
+  return (
+    <div style={styles.mpBusy}>⚔ Multiplayer is busy right now — playing solo. Your progress saves locally.</div>
   )
 }
 
@@ -366,6 +377,12 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+  },
+  mpBusy: {
+    position: 'fixed', top: 40, left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(30,22,12,0.82)', border: '1px solid rgba(200,160,60,0.4)', borderRadius: 8,
+    padding: '5px 12px', color: '#f0dcae', fontSize: 12, pointerEvents: 'none', maxWidth: '90vw',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif', textShadow: '0 1px 2px rgba(0,0,0,0.7)',
   },
   capMini: {
     position: 'fixed', top: 40, left: 12, fontSize: 12, fontWeight: 600,
