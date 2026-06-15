@@ -5,6 +5,7 @@ import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor,
 import { TREES } from '../sim/obstacles'
 import { LANDMARKS, drawLandmark, landmarkFootY } from './landmarks'
 import { drawMalfurion } from './MalfurionArt'
+import { drawPaths } from './paths'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -51,6 +52,7 @@ export class Renderer {
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds, world.timeMs)
+    drawPaths(ctx, inView)   // natural dirt paths between POIs, under entities
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
@@ -82,8 +84,6 @@ export class Renderer {
     ents.sort((a, b) => a.y - b.y)
     for (const ent of ents) ent.draw()
 
-    for (const proj of world.projectiles) if (inView(proj.x, proj.y)) this.drawProjectile(proj)
-
     // Airborne ambiance: butterflies (normal blend) + glowing fireflies (additive).
     for (const f of FLUTTERS) if (f.kind === 'butterfly') drawFlutter(ctx, f, world.timeMs, inView)
     ctx.save(); ctx.globalCompositeOperation = 'lighter'
@@ -94,11 +94,12 @@ export class Renderer {
 
     this.drawAmbient(cam)
 
-    // Spell FX + floating text are drawn ON TOP of the day-night tint so they
-    // stay vivid and glow through the dark instead of being dimmed by night.
+    // Spell FX, projectiles + floating text are drawn ON TOP of the day-night
+    // tint so they stay the brightest, most exciting objects at night.
     ctx.save()
     ctx.scale(cam.zoom, cam.zoom)
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
+    for (const proj of world.projectiles) if (inView(proj.x, proj.y)) this.drawProjectile(proj)
     fx.draw(ctx)
     ctx.restore()
 
@@ -140,10 +141,16 @@ export class Renderer {
     // Day-night lighting (single tint over the world; phase from the wall clock).
     const t = dayNightTint()
     if (t.a > 0.002) { ctx.fillStyle = `rgba(${t.r},${t.g},${t.b},${t.a})`; ctx.fillRect(0, 0, w, h) }
-    // Vignette
-    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75)
+    // Player-centred light: the camera follows the player, so the screen centre
+    // is ~the player. At night the lit ring tightens and the edges darken hard,
+    // so areas further from you fall into shadow (torch-light feel).
+    const night = nightAmount()
+    const inner = Math.min(w, h) * (0.38 - night * 0.20)
+    const darkA = 0.36 + night * 0.36
+    const g = ctx.createRadialGradient(w / 2, h / 2, inner, w / 2, h / 2, Math.max(w, h) * 0.78)
     g.addColorStop(0, 'rgba(0,0,0,0)')
-    g.addColorStop(1, 'rgba(0,0,0,0.38)')
+    g.addColorStop(0.7, `rgba(2,4,12,${darkA * 0.5})`)
+    g.addColorStop(1, `rgba(2,4,12,${darkA})`)
     ctx.fillStyle = g
     ctx.fillRect(0, 0, w, h)
   }
@@ -399,6 +406,19 @@ export class Renderer {
 
   private drawProjectile(b: ProjectileState) {
     const ctx = this.ctx
+    // Travelling light — a soft glow the bolt casts as it flies (LoL/Diablo
+    // feel), brighter at night so spells light the world up.
+    const night = nightAmount()
+    const lightRgb = (b.kind === 'frostbolt' || b.kind === 'enemy_frost_bolt') ? '120,190,255'
+      : b.kind === 'nature_bolt' ? '120,230,110'
+      : (b.kind === 'firebolt' || b.kind === 'enemy_fire_bolt') ? '255,150,60' : '210,150,255'
+    const lr = b.radius * (4 + night * 3.5)
+    const lg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, lr)
+    lg.addColorStop(0, `rgba(${lightRgb},${0.16 + night * 0.24})`); lg.addColorStop(1, `rgba(${lightRgb},0)`)
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(b.x, b.y, lr, 0, Math.PI * 2); ctx.fill()
+    ctx.globalCompositeOperation = 'source-over'
+
     let inner = '#ffee88', outer = 'rgba(255,100,0,0.0)', edge = '#ff6600'
     if (b.kind === 'frostbolt') { inner = '#ffffff'; edge = '#44ccff'; outer = 'rgba(80,180,255,0)' }
     else if (b.owner === 'enemy') {

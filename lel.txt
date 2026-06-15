@@ -359,5 +359,54 @@ Weekly Frost Titan Rankings
 3. Nova - 1.2M Damage
 
 
+Enhance nighttime atmosphere and spell visibility.
+
+- Reduce world brightness by 40%
+- Darken areas further from the player
+- Add subtle screen-edge vignette
+- Campfires, crystals, towers and bosses emit light
+
+Spells:
+- Firebolt emits orange light while travelling
+- Frostbolt emits blue light while travelling
+- Light briefly illuminates nearby terrain
+- Impact flashes
+- Particle trails
+- Enemy hit flash
+
+Goal:
+Make spells the brightest and most exciting objects at night.
+
+Style:
+League of Legends + Diablo.
+
+Mobile optimized.
+
+Generate natural dirt paths between:
+
+- farms
+- villages
+- towers
+- quest NPCs
+- boss arenas
+- landmarks
+
+Requirements:
+- curved paths
+- varied width
+- blended edges
+- occasional stones, flowers and grass patches
+- avoid straight lines
+
+Goal:
+Guide player movement naturally and make the world feel hand-crafted instead of randomly placed on grass.
+
+Provide production-ready code.
+
+
+
+
+
+
 
 
