@@ -1,5 +1,6 @@
 import { FARM_X, FARM_Y, BESSIE_X, BESSIE_Y, STARTER_X, STARTER_Y } from '../sim'
 import { softShadow } from './Shadows'
+import { nightAmount } from './dayNight'
 
 /**
  * Hand-built world landmarks + living ambiance, all procedural canvas art:
@@ -110,27 +111,39 @@ const PROP_DRAW: Record<PropKind, (c: CanvasRenderingContext2D, t: number) => vo
     c.fillStyle = '#3a2a16'; c.font = '8px serif'; c.textAlign = 'center'; c.fillText("HOLT'S FARM", -3, -23)
   },
   tower(c, t) {
-    shadow(c, 22, 8)
-    // stone shaft
-    const g = c.createLinearGradient(-16, 0, 16, 0)
-    g.addColorStop(0, '#5e5a54'); g.addColorStop(0.5, '#76726a'); g.addColorStop(1, '#5e5a54')
-    c.fillStyle = g; c.fillRect(-16, -78, 32, 78)
-    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1
-    for (let y = -68; y < 0; y += 12) { c.beginPath(); c.moveTo(-16, y); c.lineTo(16, y); c.stroke() }
-    // battlements
-    c.fillStyle = '#807c73'
-    for (let x = -16; x < 16; x += 11) c.fillRect(x, -88, 7, 12)
-    c.fillRect(-16, -80, 32, 6)
-    // lit window
-    c.fillStyle = '#ffd27a'; c.fillRect(-5, -52, 10, 13)
-    c.strokeStyle = '#3a352e'; c.strokeRect(-5, -52, 10, 13)
-    // pennant
-    c.strokeStyle = '#4a3318'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, -88); c.lineTo(0, -104); c.stroke()
+    shadow(c, 30, 10)
+    const H = 132, W = 26   // taller + wider than before
+    // buttressed stone base
+    c.fillStyle = '#4c4842'; c.beginPath(); c.moveTo(-W - 8, 0); c.lineTo(-W, -22); c.lineTo(W, -22); c.lineTo(W + 8, 0); c.closePath(); c.fill()
+    // main shaft
+    const g = c.createLinearGradient(-W, 0, W, 0)
+    g.addColorStop(0, '#56524b'); g.addColorStop(0.5, '#7c776e'); g.addColorStop(1, '#504c46')
+    c.fillStyle = g; c.fillRect(-W, -H, W * 2, H)
+    // stone courses + a few block seams
+    c.strokeStyle = 'rgba(0,0,0,0.16)'; c.lineWidth = 1
+    for (let y = -H + 14; y < -8; y += 14) { c.beginPath(); c.moveTo(-W, y); c.lineTo(W, y); c.stroke() }
+    c.strokeStyle = 'rgba(0,0,0,0.10)'
+    for (let y = -H + 14; y < -8; y += 28) { c.beginPath(); c.moveTo(0, y); c.lineTo(0, y + 14); c.stroke() }
+    // arrow slits
+    c.fillStyle = '#2a2620'
+    c.fillRect(-3, -H + 44, 6, 16); c.fillRect(-3, -H + 80, 6, 16)
+    // crenellated top (parapet + merlons)
+    c.fillStyle = '#888377'; c.fillRect(-W - 4, -H - 8, W * 2 + 8, 10)
+    for (let x = -W - 4; x < W + 4; x += 12) c.fillRect(x, -H - 18, 8, 12)
+    // lit window — faint by day, glowing after dark
+    const lit = 0.5 + nightAmount(t) * 0.5
+    c.save(); c.shadowColor = `rgba(255,200,90,${lit})`; c.shadowBlur = 6 + nightAmount(t) * 12
+    c.fillStyle = `rgba(255,210,120,${0.55 + lit * 0.45})`; c.fillRect(-5, -H + 24, 10, 13)
+    c.restore()
+    c.strokeStyle = '#3a352e'; c.lineWidth = 1; c.strokeRect(-5, -H + 24, 10, 13)
+    // banner
+    c.strokeStyle = '#4a3318'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -H - 18); c.lineTo(0, -H - 42); c.stroke()
     const wave = Math.sin(t * 0.004) * 2
-    c.fillStyle = '#3a78c8'; c.beginPath(); c.moveTo(0, -104); c.lineTo(14, -100 + wave); c.lineTo(0, -96); c.closePath(); c.fill()
+    c.fillStyle = '#2f63b0'; c.beginPath(); c.moveTo(0, -H - 42); c.lineTo(18, -H - 36 + wave); c.lineTo(0, -H - 28); c.closePath(); c.fill()
+    c.fillStyle = '#9ec4ff'; c.beginPath(); c.arc(3, -H - 35, 1.6, 0, Math.PI * 2); c.fill()
   },
   moonwell(c, t) {
-    const pulse = 0.6 + Math.sin(t * 0.0015) * 0.4
+    const pulse = (0.6 + Math.sin(t * 0.0015) * 0.4) * (1 + nightAmount(t) * 1.3)
     const glow = c.createRadialGradient(0, -6, 0, 0, -6, 46)
     glow.addColorStop(0, `rgba(120,210,255,${0.30 * pulse})`); glow.addColorStop(1, 'rgba(80,150,255,0)')
     c.fillStyle = glow; c.beginPath(); c.arc(0, -6, 46, 0, Math.PI * 2); c.fill()

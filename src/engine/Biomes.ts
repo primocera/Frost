@@ -1,5 +1,6 @@
 import { ZONE_DEFS } from '../sim'
 import { softShadow } from './Shadows'
+import { nightAmount } from './dayNight'
 
 /**
  * Procedural biome look: per-zone ground textures, scattered decorations and
@@ -139,11 +140,15 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
     }
   },
   pine(c) {
-    c.fillStyle = '#3a2a18'; c.fillRect(-2, -10, 4, 10)
-    c.fillStyle = '#244e30'
-    for (const oy of [-12, -20, -28]) { c.beginPath(); c.moveTo(-11, oy); c.lineTo(0, oy - 12); c.lineTo(11, oy); c.closePath(); c.fill() }
+    // Layered conifer (Botania-cone style): stacked tiers + snow caps.
+    c.fillStyle = '#3a2a18'; c.fillRect(-2.5, -13, 5, 13)
+    const tri = (oy: number, w: number, h: number) => { c.beginPath(); c.moveTo(-w, oy); c.lineTo(0, oy - h); c.lineTo(w, oy); c.closePath(); c.fill() }
+    c.fillStyle = '#214628'
+    for (const [oy, w] of [[-11, 15], [-20, 12.5], [-29, 10], [-37, 7.5]] as const) tri(oy, w, 13)
     c.fillStyle = '#356a40'
-    for (const oy of [-13, -21]) { c.beginPath(); c.moveTo(-8, oy); c.lineTo(0, oy - 9); c.lineTo(8, oy); c.closePath(); c.fill() }
+    for (const [oy, w] of [[-13, 12], [-22, 9.5], [-31, 7]] as const) tri(oy, w, 10)
+    c.fillStyle = 'rgba(225,242,255,0.55)'
+    for (const [oy, w] of [[-22, 5], [-31, 4], [-39, 3]] as const) tri(oy + 1, w, 6)
   },
   deadTree(c) {
     c.strokeStyle = '#4a3a30'; c.lineWidth = 3; c.lineCap = 'round'
@@ -224,8 +229,9 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
   // accents, deep-purple trunk, with an added glow + sparkles for the wilds.
   aurora(c) {
     const LEAF = '#8ad0e8', TRUNK = '#3a2a4a', ACC = '#d8a8f0'
-    const glow = c.createRadialGradient(0, -42, 0, 0, -42, 42)
-    glow.addColorStop(0, 'rgba(150,210,255,0.26)'); glow.addColorStop(0.6, 'rgba(190,150,240,0.12)'); glow.addColorStop(1, 'rgba(150,210,255,0)')
+    const ng = 1 + nightAmount() * 1.8   // shines after dark
+    const glow = c.createRadialGradient(0, -42, 0, 0, -42, 42 * Math.min(1.4, ng))
+    glow.addColorStop(0, `rgba(150,210,255,${0.26 * ng})`); glow.addColorStop(0.6, `rgba(190,150,240,${0.12 * ng})`); glow.addColorStop(1, 'rgba(150,210,255,0)')
     c.fillStyle = glow; c.beginPath(); c.arc(0, -42, 42, 0, Math.PI * 2); c.fill()
     // tapered deep-purple trunk
     c.fillStyle = TRUNK

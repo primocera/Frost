@@ -1,5 +1,6 @@
 import { ZONE_DEFS, STARTER_X, STARTER_Y, FARM_X, FARM_Y, PVP_SAFE_R } from '../sim'
 import { softShadow } from './Shadows'
+import { nightAmount } from './dayNight'
 
 /**
  * Procedural world landmarks — points of interest that break up empty terrain
@@ -56,17 +57,21 @@ function generate(): Landmark[] {
 export const LANDMARKS: Landmark[] = generate()
 export const landmarkFootY = (l: Landmark) => l.y
 
+// Some landmarks read better much larger.
+const KIND_SCALE: Partial<Record<LandmarkKind, number>> = { shrine: 1.9, watchtower: 1.45, mageTower: 1.5, ruinedTower: 1.35 }
+
 export function drawLandmark(ctx: CanvasRenderingContext2D, l: Landmark, t: number) {
   ctx.save()
   ctx.translate(l.x, l.y)
-  ctx.scale(l.s, l.s)
+  const s = l.s * (KIND_SCALE[l.kind] ?? 1)
+  ctx.scale(s, s)
   DRAW[l.kind](ctx, t + l.phase * 1000)
   ctx.restore()
 }
 
 const DRAW: Record<LandmarkKind, (c: CanvasRenderingContext2D, t: number) => void> = {
   shrine(c, t) {
-    const pulse = 0.6 + Math.sin(t * 0.0024) * 0.4
+    const pulse = (0.6 + Math.sin(t * 0.0024) * 0.4) * (1 + nightAmount(t) * 1.4)
     // glow + light beam
     const glow = c.createRadialGradient(0, -20, 0, 0, -20, 44)
     glow.addColorStop(0, `rgba(150,210,255,${0.32 * pulse})`); glow.addColorStop(1, 'rgba(120,180,255,0)')

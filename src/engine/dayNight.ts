@@ -57,3 +57,11 @@ export function isNight(now = Date.now()): boolean {
   const p = dayPhase(now)
   return p < 0.22 || p >= 0.86
 }
+
+/** 0 in full day → 1 at deep night. Used to make glows shine after dark. */
+export function nightAmount(now = Date.now()): number {
+  const p = dayPhase(now)
+  if (p >= 0.30 && p <= 0.72) return 0
+  const d = p < 0.30 ? (0.30 - p) / 0.30 : (p - 0.72) / 0.28
+  return Math.max(0, Math.min(1, d))
+}

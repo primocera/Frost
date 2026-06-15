@@ -10,7 +10,7 @@ import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
 import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard } from './Props'
 import { softShadow } from './Shadows'
-import { dayNightTint } from './dayNight'
+import { dayNightTint, nightAmount } from './dayNight'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -90,10 +90,17 @@ export class Renderer {
     for (const f of FLUTTERS) if (f.kind === 'firefly') drawFlutter(ctx, f, world.timeMs, inView)
     ctx.restore()
 
-    fx.draw(ctx)
     ctx.restore()
 
     this.drawAmbient(cam)
+
+    // Spell FX + floating text are drawn ON TOP of the day-night tint so they
+    // stay vivid and glow through the dark instead of being dimmed by night.
+    ctx.save()
+    ctx.scale(cam.zoom, cam.zoom)
+    ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
+    fx.draw(ctx)
+    ctx.restore()
 
     // Boss health bar (screen-space) when a boss is engaged near the local player.
     if (local) {
@@ -250,15 +257,31 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(cx, cy, R - 8, 0, TAU); ctx.stroke()
     ctx.restore()
 
-    // centre medallion with glowing rune
-    ctx.fillStyle = '#43464e'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.fill()
+    // ── central glowing fountain (Twisted-Treeline-style base) ──
+    const night = nightAmount()
+    const fr = R * 0.30                       // fountain radius
+    const gb = 1 + night * 1.4                // glow boost after dark
+    // big ambient glow pool
+    const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, fr * 2.4)
+    fg.addColorStop(0, `rgba(90,190,255,${(0.30 + pulse * 0.2) * gb})`)
+    fg.addColorStop(1, 'rgba(80,160,255,0)')
+    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(cx, cy, fr * 2.4, 0, TAU); ctx.fill()
+    // tiered stone basin
+    ctx.fillStyle = '#3c3f47'; ctx.beginPath(); ctx.arc(cx, cy, fr, 0, TAU); ctx.fill()
+    ctx.fillStyle = '#52565f'; ctx.beginPath(); ctx.arc(cx, cy, fr * 0.82, 0, TAU); ctx.fill()
+    // glowing water
+    const wg = ctx.createRadialGradient(cx, cy - fr * 0.15, 0, cx, cy, fr * 0.7)
+    wg.addColorStop(0, `rgba(180,235,255,${(0.7 + pulse * 0.3)})`)
+    wg.addColorStop(1, `rgba(60,150,235,${0.85})`)
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(cx, cy, fr * 0.66, 0, TAU); ctx.fill()
+    // central crystal pillar
     ctx.save()
-    ctx.shadowColor = 'rgba(110,190,255,1)'; ctx.shadowBlur = 12 + pulse * 18
-    ctx.strokeStyle = `rgba(150,210,255,${0.6 + pulse * 0.4})`; ctx.lineWidth = 2.5
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.16, 0, TAU); ctx.stroke()
-    ctx.fillStyle = `rgba(170,215,255,${0.7 + pulse * 0.3})`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.font = `${Math.round(R * 0.15)}px serif`; ctx.fillText('❄', cx, cy + 1)
+    ctx.shadowColor = 'rgba(120,200,255,1)'; ctx.shadowBlur = (14 + pulse * 20) * gb
+    ctx.fillStyle = `rgba(200,240,255,${0.85 + pulse * 0.15})`
+    ctx.beginPath(); ctx.moveTo(cx, cy - fr * 0.7); ctx.lineTo(cx + fr * 0.18, cy); ctx.lineTo(cx, cy + fr * 0.22); ctx.lineTo(cx - fr * 0.18, cy); ctx.closePath(); ctx.fill()
     ctx.restore()
+    // marble rim
+    ctx.strokeStyle = '#cdd6e8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, fr, 0, TAU); ctx.stroke()
     ctx.textBaseline = 'alphabetic'
 
     // label
