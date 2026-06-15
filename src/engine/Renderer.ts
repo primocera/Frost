@@ -8,6 +8,7 @@ import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
 import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard } from './Props'
 import { softShadow } from './Shadows'
+import { dayNightTint } from './dayNight'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -126,6 +127,9 @@ export class Renderer {
     const ambient = (zone ? biomeAt(zone.name) : DEFAULT_BIOME).ambient
     ctx.fillStyle = ambient
     ctx.fillRect(0, 0, w, h)
+    // Day-night lighting (single tint over the world; phase from the wall clock).
+    const t = dayNightTint()
+    if (t.a > 0.002) { ctx.fillStyle = `rgba(${t.r},${t.g},${t.b},${t.a})`; ctx.fillRect(0, 0, w, h) }
     // Vignette
     const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75)
     g.addColorStop(0, 'rgba(0,0,0,0)')

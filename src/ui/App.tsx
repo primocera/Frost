@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from './store'
 import { playOnline, saveAccount, logoutAccount } from './auth'
+import { dayPhaseLabel } from '../engine/dayNight'
 import { GameCanvas } from './GameCanvas'
 import { Panels } from './Panels'
 import { Chat } from './Chat'
@@ -122,6 +123,7 @@ function Game() {
         <a style={styles.supportMini} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" title="Help cover the multiplayer server">💜 Support</a>
       )}
       <AudioControl />
+      <DayIndicator />
       <div style={styles.hud}>
         <div style={styles.hudName}>{name} · Lv {hud.level}</div>
         <div style={{ ...styles.hudZone, color: hud.zoneColor }}>📍 {hud.zone}</div>
@@ -231,6 +233,13 @@ function BessiePrompt() {
   const isMobile = useGameStore((s) => s.isMobile)
   if (!near || panel !== 'none' || isMobile) return null
   return <div style={styles.tradePrompt}>Press <b style={{ color: '#ffe066' }}>E</b> to feed 🐔 Bessie</div>
+}
+
+function DayIndicator() {
+  const [, force] = useState(0)
+  useEffect(() => { const id = setInterval(() => force((n) => n + 1), 12000); return () => clearInterval(id) }, [])
+  const { label, icon } = dayPhaseLabel()
+  return <div style={styles.dayPill}>{icon} {label}</div>
 }
 
 function AudioControl() {
@@ -360,6 +369,11 @@ const styles: Record<string, React.CSSProperties> = {
   audio: {
     position: 'fixed', top: 34, right: 12, display: 'flex', alignItems: 'center', gap: 6,
     fontSize: 14, color: '#cfe3ff', background: 'rgba(6,10,20,0.4)', padding: '3px 8px', borderRadius: 8,
+  },
+  dayPill: {
+    position: 'fixed', top: 62, right: 12, fontSize: 12, fontWeight: 600, color: '#cfe3ff',
+    background: 'rgba(6,10,20,0.45)', padding: '3px 9px', borderRadius: 8, pointerEvents: 'none',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif',
   },
   hudName: { fontSize: 14, fontWeight: 700, marginBottom: 1 },
   hudZone: { fontSize: 11, fontWeight: 600, marginBottom: 3 },
