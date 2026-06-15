@@ -8,7 +8,7 @@ import { ZONE_DEFS } from '../sim'
 export type DecorType =
   | 'tree' | 'pine' | 'deadTree' | 'rock' | 'bush' | 'crystal'
   | 'lavaRock' | 'mushroom' | 'snowMound' | 'flower' | 'bone'
-  | 'oak' | 'fern' | 'glowTree' | 'glowFlower'
+  | 'oak' | 'fern' | 'glowTree' | 'glowFlower' | 'aurora'
 
 export interface Biome {
   ground: string
@@ -219,6 +219,31 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
     ] as const) { c.fillStyle = col; c.beginPath(); c.arc(ox, oy, r, 0, Math.PI * 2); c.fill() }
     c.fillStyle = 'rgba(180,150,255,0.5)'
     for (const [ox, oy] of [[-6, -58], [8, -50], [-12, -46]] as const) { c.beginPath(); c.arc(ox, oy, 3, 0, Math.PI * 2); c.fill() }
+  },
+  // Ported from the Botania garden's "Aurora" species — cyan canopy, lavender
+  // accents, deep-purple trunk, with an added glow + sparkles for the wilds.
+  aurora(c) {
+    const LEAF = '#8ad0e8', TRUNK = '#3a2a4a', ACC = '#d8a8f0'
+    const glow = c.createRadialGradient(0, -42, 0, 0, -42, 42)
+    glow.addColorStop(0, 'rgba(150,210,255,0.26)'); glow.addColorStop(0.6, 'rgba(190,150,240,0.12)'); glow.addColorStop(1, 'rgba(150,210,255,0)')
+    c.fillStyle = glow; c.beginPath(); c.arc(0, -42, 42, 0, Math.PI * 2); c.fill()
+    // tapered deep-purple trunk
+    c.fillStyle = TRUNK
+    c.beginPath(); c.moveTo(-3, 0); c.quadraticCurveTo(-1.6, -16, -1.4, -30); c.lineTo(1.4, -30); c.quadraticCurveTo(1.6, -16, 3, 0); c.closePath(); c.fill()
+    // three overlapping cyan canopy blobs
+    c.fillStyle = LEAF
+    for (const [ox, oy, r] of [[-12, -34, 16], [12, -34, 16], [0, -46, 17]] as const) { c.beginPath(); c.arc(ox, oy, r, 0, Math.PI * 2); c.fill() }
+    // lavender accent washes
+    c.fillStyle = ACC
+    c.globalAlpha = 0.6; c.beginPath(); c.arc(-5, -38, 9, 0, Math.PI * 2); c.fill()
+    c.globalAlpha = 0.7; c.beginPath(); c.arc(8, -43, 6, 0, Math.PI * 2); c.fill()
+    c.globalAlpha = 1
+    // top sprouts
+    c.save(); c.translate(-2, -60); c.rotate(-0.5); c.beginPath(); c.ellipse(0, 0, 1.5, 4, 0, 0, Math.PI * 2); c.fill(); c.restore()
+    c.save(); c.translate(2, -60); c.rotate(0.5); c.beginPath(); c.ellipse(0, 0, 1.5, 4, 0, 0, Math.PI * 2); c.fill(); c.restore()
+    // sparkles
+    c.fillStyle = 'rgba(255,255,255,0.9)'
+    for (const [sx, sy, sr] of [[14, -36, 1], [-13, -30, 0.9], [6, -50, 0.8], [-6, -52, 0.7]] as const) { c.beginPath(); c.arc(sx, sy, sr, 0, Math.PI * 2); c.fill() }
   },
   glowFlower(c) {
     const g = c.createRadialGradient(0, -8, 0, 0, -8, 9)

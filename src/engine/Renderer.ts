@@ -11,7 +11,7 @@ import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawC
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`
-const TREE_TYPE: Record<string, DecorType> = { oak: 'oak', tree: 'tree', pine: 'pine', glow: 'glowTree' }
+const TREE_TYPE: Record<string, DecorType> = { oak: 'oak', tree: 'tree', pine: 'pine', glow: 'glowTree', aurora: 'aurora' }
 const RARITY_HEX: Record<string, string> = {
   common: '#aaaaaa', magic: '#5599ff', rare: '#ffdd00', epic: '#cc44ff',
 }

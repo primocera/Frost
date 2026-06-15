@@ -10,7 +10,7 @@ import { STARTER_X, STARTER_Y, FARM_X, FARM_Y, PVP_SAFE_R, ZONE_DEFS } from './z
  *    blocks you. (Enemies skip trees to keep the per-tick cost low.)
  */
 export interface Obstacle { x: number; y: number; r: number }
-export type TreeKind = 'oak' | 'tree' | 'pine' | 'glow'
+export type TreeKind = 'oak' | 'tree' | 'pine' | 'glow' | 'aurora'
 export interface TreeObstacle extends Obstacle { kind: TreeKind; s: number }
 
 export const BUILDINGS: Obstacle[] = [
@@ -29,7 +29,7 @@ export const BUILDINGS: Obstacle[] = [
 // Which zones get solid trees, how dense, and what kind.
 const TREE_SPEC: Record<string, { perM: number; kind: (r: number) => TreeKind }> = {
   'Beginner Forest':     { perM: 13, kind: (r) => (r < 0.6 ? 'oak' : 'tree') },
-  'Elven Wilds':         { perM: 13, kind: () => 'glow' },
+  'Elven Wilds':         { perM: 13, kind: (r) => (r < 0.5 ? 'aurora' : 'glow') },
   'Mount Hyjal':         { perM: 11, kind: () => 'pine' },
   'Hillsbrad Foothills': { perM: 9,  kind: (r) => (r < 0.5 ? 'tree' : 'oak') },
 }
