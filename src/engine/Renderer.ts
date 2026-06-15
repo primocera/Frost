@@ -7,6 +7,7 @@ import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
 import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard } from './Props'
+import { softShadow } from './Shadows'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -282,8 +283,7 @@ export class Renderer {
     }
 
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'
-    ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.85, r * 0.9, r * 0.4, 0, 0, Math.PI * 2); ctx.fill()
+    softShadow(ctx, e.x, e.y + r * 0.85, r * 1.05, r * 0.46, e.isBoss ? 0.6 : 0.5)
 
     // Body sprite (status-tinted)
     let fill = hex(e.cfg.color)
@@ -382,8 +382,7 @@ export class Renderer {
     const ctx = this.ctx
     const bob = Math.sin(timeMs * 0.004 + drop.id) * 2
     const y = drop.y + bob
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'
-    ctx.beginPath(); ctx.ellipse(drop.x, drop.y + 6, 7, 3, 0, 0, Math.PI * 2); ctx.fill()
+    softShadow(ctx, drop.x, drop.y + 6, 8, 3.5, 0.5)
     if (drop.gold !== undefined) {
       ctx.fillStyle = '#ffcc33'
       ctx.beginPath(); ctx.arc(drop.x, y, 5, 0, Math.PI * 2); ctx.fill()

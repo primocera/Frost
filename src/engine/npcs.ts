@@ -1,4 +1,5 @@
 import { STARTER_X, STARTER_Y, HOLT_X, HOLT_Y } from '../sim'
+import { softShadow } from './Shadows'
 import type { Panel } from '../ui/store'
 
 /**
@@ -43,8 +44,7 @@ export function nearestNPC(px: number, py: number): NPC | null {
 /** Draw an NPC (centred at origin via the caller's translate). */
 export function drawNPC(ctx: CanvasRenderingContext2D, npc: NPC, near: boolean, timeMs: number) {
   // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'
-  ctx.beginPath(); ctx.ellipse(0, 22, 11, 4, 0, 0, Math.PI * 2); ctx.fill()
+  softShadow(ctx, 0, 22, 12, 4.5, 0.5)
   // robe
   const g = ctx.createLinearGradient(-12, 0, 12, 22)
   g.addColorStop(0, npc.robe); g.addColorStop(1, shade(npc.robe, -0.35))

@@ -3,6 +3,8 @@
  * sprite sheet. Drawn relative to the origin (caller translates to the player
  * position and applies the facing flip). `frame`: 0-3 idle, 4-7 walk, 8-10 cast.
  */
+import { softShadow } from './Shadows'
+
 const STYLE = {
   robe: ['#9a948a', '#7c766b', '#544f47'] as const, robeHi: '#b3ab9d', fold: '#4a463d',
   belt: '#6b5436', sleeve: '#857f74', hand: '#d8a878', head: ['#e8c098', '#bf8a5e'] as const,
@@ -49,8 +51,7 @@ export function drawMage(ctx: CanvasRenderingContext2D, frame: number) {
     ctx.beginPath(); ctx.ellipse(cx, by + 30, 22, 18, 0, 0, Math.PI * 2); ctx.fill()
   }
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'
-  ctx.beginPath(); ctx.ellipse(cx, by + 47, 10, 3.5, 0, 0, Math.PI * 2); ctx.fill()
+  softShadow(ctx, cx, by + 47, 11, 4, 0.5)
 
   drawStaff(ctx, by, a)
 

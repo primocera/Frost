@@ -1,4 +1,5 @@
 import { FARM_X, FARM_Y, BESSIE_X, BESSIE_Y, STARTER_X, STARTER_Y } from '../sim'
+import { softShadow } from './Shadows'
 
 /**
  * Hand-built world landmarks + living ambiance, all procedural canvas art:
@@ -50,9 +51,7 @@ export function drawProp(ctx: CanvasRenderingContext2D, p: Prop, timeMs: number)
   ctx.restore()
 }
 
-const shadow = (ctx: CanvasRenderingContext2D, rx: number, ry: number) => {
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill()
-}
+const shadow = (ctx: CanvasRenderingContext2D, rx: number, ry: number) => softShadow(ctx, 0, 0, rx + 2, ry + 1, 0.5)
 
 const PROP_DRAW: Record<PropKind, (c: CanvasRenderingContext2D, t: number) => void> = {
   cottage(c, t) {
@@ -174,7 +173,7 @@ export const GUARDS: Guard[] = [
 export function drawGuard(ctx: CanvasRenderingContext2D, g: Guard, t: number) {
   ctx.save(); ctx.translate(g.x, g.y)
   const bob = Math.sin(t * 0.002 + g.x) * 1
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 3, 10, 4, 0, 0, Math.PI * 2); ctx.fill()
+  softShadow(ctx, 0, 3, 11, 4.5, 0.5)
   if (g.flip) ctx.scale(-1, 1)
   // spear
   ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 2; ctx.lineCap = 'round'
@@ -219,7 +218,7 @@ export function chickenPos(ch: Chicken, t: number): { x: number; y: number; peck
 export function drawChicken(ctx: CanvasRenderingContext2D, x: number, y: number, peck: boolean, bessie: boolean, flip: boolean) {
   ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1)
   const s = bessie ? 1.25 : 1; ctx.scale(s, s)
-  ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill()
+  softShadow(ctx, 0, 0, 8, 3, 0.45)
   ctx.fillStyle = '#ddaa00'; ctx.fillRect(-2, -4, 1.2, 4); ctx.fillRect(1, -4, 1.2, 4)   // legs
   const bob = peck ? 1.5 : 0
   ctx.fillStyle = '#f2efe4'; ctx.beginPath(); ctx.ellipse(0, -8 + bob, 7, 6, 0, 0, Math.PI * 2); ctx.fill()   // body

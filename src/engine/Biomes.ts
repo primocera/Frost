@@ -1,4 +1,5 @@
 import { ZONE_DEFS } from '../sim'
+import { softShadow } from './Shadows'
 
 /**
  * Procedural biome look: per-zone ground textures, scattered decorations and
@@ -124,9 +125,8 @@ export function drawDecor(ctx: CanvasRenderingContext2D, d: DecorInstance) {
   ctx.save()
   ctx.translate(d.x, d.y)
   ctx.scale(d.s, d.s)
-  // soft shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'
-  ctx.beginPath(); ctx.ellipse(0, 0, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill()
+  // soft feathered ground shadow
+  softShadow(ctx, 0, 1, 12, 4.5, 0.5)
   DRAW[d.type](ctx)
   ctx.restore()
 }
