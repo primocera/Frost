@@ -5,7 +5,6 @@ import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor,
 import { TREES } from '../sim/obstacles'
 import { LANDMARKS, drawLandmark, landmarkFootY } from './landmarks'
 import { drawMalfurion } from './MalfurionArt'
-import { drawPaths } from './paths'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -52,7 +51,6 @@ export class Renderer {
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds, world.timeMs)
-    drawPaths(ctx, inView)   // natural dirt paths between POIs, under entities
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
