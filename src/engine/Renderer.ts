@@ -3,6 +3,7 @@ import { Particles } from './Particles'
 import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, getZoneAt, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
 import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance, DecorType } from './Biomes'
 import { TREES } from '../sim/obstacles'
+import { LANDMARKS, drawLandmark, landmarkFootY } from './landmarks'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -61,6 +62,7 @@ export class Renderer {
     // you see is the trunk you bump into.
     for (const t of TREES) if (inView(t.x, t.y)) ents.push({ y: t.y, draw: () => drawDecor(ctx, { x: t.x, y: t.y, type: TREE_TYPE[t.kind], s: t.s }) })
     for (const p of PROPS) if (inView(p.x, p.y)) ents.push({ y: propFootY(p), draw: () => drawProp(ctx, p, world.timeMs) })
+    for (const l of LANDMARKS) if (inView(l.x, l.y)) ents.push({ y: landmarkFootY(l), draw: () => drawLandmark(ctx, l, world.timeMs) })
     for (const ch of CHICKENS) {
       const cp = chickenPos(ch, world.timeMs)
       if (inView(cp.x, cp.y)) ents.push({ y: cp.y, draw: () => drawChicken(ctx, cp.x, cp.y, cp.peck, !!ch.bessie, cp.flip) })

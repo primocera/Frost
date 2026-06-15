@@ -2,6 +2,7 @@ import { WORLD_W, WORLD_H, STARTER_X, STARTER_Y, FARM_X, FARM_Y, ZONE_DEFS, BOSS
 import type { WorldState } from '../sim/types'
 import { biomeAt } from './Biomes'
 import { NPCS } from './npcs'
+import { LANDMARKS } from './landmarks'
 
 /**
  * Minimap. The static world (zone tiles + fixed POIs: town, farm, NPCs, boss
@@ -36,6 +37,11 @@ function getBase(): HTMLCanvasElement {
   dot(FARM_X, FARM_Y, 2.4, '#caa45a')                                       // farm
   for (const n of NPCS) dot(n.x, n.y, 1.8, n.marker === 'quest' ? '#ffd23a' : '#8fbfff')
   for (const b of BOSS_SPAWNS) { dot(b.x, b.y, 2.8, '#ff5544') }            // boss arenas (POIs)
+  for (const l of LANDMARKS) {
+    const col = l.kind === 'shrine' ? '#8fd6ff' : l.kind === 'treasure' ? '#ffd23a'
+      : l.kind === 'grove' ? '#5affc0' : l.kind.toLowerCase().includes('tower') ? '#d4dae6' : '#b0a890'
+    dot(l.x, l.y, 1.5, col)
+  }
   base = c
   return c
 }
