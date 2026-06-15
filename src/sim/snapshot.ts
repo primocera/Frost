@@ -3,6 +3,7 @@ import { BOSS_CFG_BY_KEY, BOSS_BY_KEY } from './bosses'
 import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './types'
 import { tradeViewFor } from './trade'
 import { raidSummary } from './raid'
+import { effMaxMana } from './player'
 
 /** Personal inventory/talent state for the owning player (sent only to them).
  *  `world` is optional: when present, the live trade session is included. */
@@ -34,7 +35,7 @@ export function serialize(world: WorldState, cullRadius = 1500): Snapshot {
     t: world.timeMs,
     players: world.players.map(p => ({
       id: p.id, name: p.name, x: p.x, y: p.y, vx: p.vx, vy: p.vy, facing: p.facing,
-      hp: p.stats.hp, maxHp: p.stats.maxHp, mana: p.stats.mana, maxMana: p.stats.maxMana,
+      hp: p.stats.hp, maxHp: p.stats.maxHp, mana: p.stats.mana, maxMana: effMaxMana(p),
       xp: p.stats.xp, xpToNext: p.stats.xpToNext, level: p.stats.level, gold: p.gold,
       activeBolt: p.activeBolt, learned: p.learnedSpells,
       castMs: p.castMs, hurtMs: p.hurtMs, dead: p.dead, frozen: p.frozenMs > 0,

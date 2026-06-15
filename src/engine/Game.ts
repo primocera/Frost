@@ -1,7 +1,7 @@
 import { formatCopperShort } from '../utils/currency'
 import {
   createWorld, addPlayer, tick, WorldState, PlayerState, SimEvent,
-  getZoneAt, Balance, fireboltCooldownMax, equipItem, unequipItem, spendTalent, selfOf,
+  getZoneAt, Balance, fireboltCooldownMax, effMaxMana, equipItem, unequipItem, spendTalent, selfOf,
   extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
   stashDeposit, stashWithdraw, dropItem, sellItem,
   acceptFarmQuest, feedBessie, claimFarmQuest, BESSIE_X, BESSIE_Y, FEED_RANGE,
@@ -481,7 +481,7 @@ export class Game {
     const blizzMax = Balance.spells.blizzard.cooldownMs
     useGameStore.getState().setHud({
       hp: Math.round(p.stats.hp), maxHp: p.stats.maxHp,
-      mana: Math.round(p.stats.mana), maxMana: p.stats.maxMana,
+      mana: Math.round(p.stats.mana), maxMana: effMaxMana(p),
       xp: Math.round(p.stats.xp), xpToNext: p.stats.xpToNext, level: p.stats.level,
       gold: p.gold, activeBolt: p.activeBolt, dead: p.dead,
       learnedSpells: p.learnedSpells,
