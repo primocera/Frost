@@ -14,7 +14,7 @@ const SUPPORT_URL = 'https://buy.stripe.com/7sY9ALfNO4Ir0aTfD3fnO00'
 // $3.50 one-time membership Stripe Payment Link (lifts the level-10 cap). The
 // player's account pid is appended as client_reference_id so the webhook knows
 // who to unlock. Empty = unlock button hidden (cap still applies).
-const MEMBERSHIP_URL = ''   // e.g. 'https://buy.stripe.com/yyyy'
+const MEMBERSHIP_URL = 'https://buy.stripe.com/7sY9ALdFG4Ir5vd8aBfnO01'
 const FREE_CAP = 10
 
 /**
