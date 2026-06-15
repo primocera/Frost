@@ -54,7 +54,15 @@ function generate(): Landmark[] {
   return out
 }
 
-export const LANDMARKS: Landmark[] = generate()
+// Big glowing shrines flanking the four corners of the spawn town.
+const SPAWN_SHRINES: Landmark[] = [
+  { x: STARTER_X - 400, y: STARTER_Y - 340, kind: 'shrine', s: 1.6, phase: 0 },
+  { x: STARTER_X + 400, y: STARTER_Y - 340, kind: 'shrine', s: 1.6, phase: 1.7 },
+  { x: STARTER_X - 400, y: STARTER_Y + 340, kind: 'shrine', s: 1.6, phase: 3.3 },
+  { x: STARTER_X + 400, y: STARTER_Y + 340, kind: 'shrine', s: 1.6, phase: 4.9 },
+]
+
+export const LANDMARKS: Landmark[] = [...SPAWN_SHRINES, ...generate()]
 export const landmarkFootY = (l: Landmark) => l.y
 
 // Some landmarks read better much larger.

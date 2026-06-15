@@ -15,6 +15,7 @@ export function familyOf(e: EnemyState): Family {
   if (k === 'imp') return 'imp'
   if (k === 'ghoul') return 'undead'
   if (k.includes('golem')) return 'construct'
+  if (k === 'highelf_sentinel' || k === 'nightblade_warden') return 'humanoid'   // elven sentinels, not blobs
   if (e.cfg.humanoid) return 'humanoid'
   if (e.cfg.aiType === 'ranged') return 'caster'
   if (e.cfg.aiType === 'elite' || e.cfg.aiType === 'tank') return 'brute'
@@ -147,15 +148,28 @@ const ART: Record<Family, (c: CanvasRenderingContext2D, r: number, fill: string,
   humanoid(c, r, fill, f) {
     // legs
     c.strokeStyle = '#2a2018'; c.lineWidth = 3; c.lineCap = 'round'
-    c.beginPath(); c.moveTo(-r * 0.3, r * 0.4); c.lineTo(-r * 0.3, r * 1.1); c.moveTo(r * 0.3, r * 0.4); c.lineTo(r * 0.3, r * 1.1); c.stroke()
-    // torso
+    c.beginPath(); c.moveTo(-r * 0.3, r * 0.5); c.lineTo(-r * 0.3, r * 1.15); c.moveTo(r * 0.3, r * 0.5); c.lineTo(r * 0.3, r * 1.15); c.stroke()
+    // cape behind
+    c.fillStyle = 'rgba(0,0,0,0.22)'
+    c.beginPath(); c.moveTo(-r * 0.5, -r * 0.2); c.quadraticCurveTo(-r * 0.85, r * 0.6, -r * 0.3, r * 0.95); c.lineTo(r * 0.3, r * 0.95); c.quadraticCurveTo(r * 0.85, r * 0.6, r * 0.5, -r * 0.2); c.closePath(); c.fill()
+    // shield (off hand)
+    c.fillStyle = fill; c.beginPath(); c.ellipse(-f * r * 0.72, r * 0.12, r * 0.28, r * 0.42, 0, 0, Math.PI * 2); c.fill()
+    c.strokeStyle = 'rgba(255,255,255,0.28)'; c.lineWidth = 1.2; c.stroke()
+    // armored torso (tinted)
     c.fillStyle = fill; c.beginPath()
-    c.moveTo(-r * 0.6, -r * 0.2); c.lineTo(r * 0.6, -r * 0.2); c.lineTo(r * 0.45, r * 0.6); c.lineTo(-r * 0.45, r * 0.6); c.closePath(); c.fill()
-    // head
-    c.fillStyle = '#d8a878'; c.beginPath(); c.arc(0, -r * 0.6, r * 0.4, 0, Math.PI * 2); c.fill()
-    // weapon hint
-    c.strokeStyle = '#b8c0cc'; c.lineWidth = 2; c.beginPath(); c.moveTo(f * r * 0.6, r * 0.2); c.lineTo(f * r * 1.1, -r * 0.6); c.stroke()
-    eye(c, f * 1.5, -r * 0.6, 1)
+    c.moveTo(-r * 0.55, -r * 0.25); c.lineTo(r * 0.55, -r * 0.25); c.lineTo(r * 0.42, r * 0.6); c.lineTo(-r * 0.42, r * 0.6); c.closePath(); c.fill()
+    c.strokeStyle = 'rgba(255,255,255,0.22)'; c.lineWidth = 1.4
+    c.beginPath(); c.moveTo(-r * 0.42, r * 0.22); c.lineTo(r * 0.42, r * 0.22); c.stroke()   // belt
+    c.beginPath(); c.moveTo(0, -r * 0.2); c.lineTo(0, r * 0.5); c.stroke()                    // center seam
+    // pauldrons
+    c.fillStyle = 'rgba(255,255,255,0.18)'; c.beginPath(); c.arc(-r * 0.55, -r * 0.22, r * 0.26, 0, Math.PI * 2); c.arc(r * 0.55, -r * 0.22, r * 0.26, 0, Math.PI * 2); c.fill()
+    // head + helm/hair
+    c.fillStyle = '#e8c8a0'; c.beginPath(); c.arc(0, -r * 0.62, r * 0.4, 0, Math.PI * 2); c.fill()
+    c.fillStyle = 'rgba(255,255,255,0.3)'; c.beginPath(); c.arc(0, -r * 0.74, r * 0.42, Math.PI, 0); c.fill()
+    // sword (main hand)
+    c.strokeStyle = '#cdd4dd'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(f * r * 0.6, r * 0.3); c.lineTo(f * r * 1.15, -r * 0.7); c.stroke()
+    c.strokeStyle = '#caa44a'; c.lineWidth = 2; c.beginPath(); c.moveTo(f * r * 0.5, r * 0.36); c.lineTo(f * r * 0.74, r * 0.2); c.stroke()
+    eye(c, f * 1.5, -r * 0.62, 1, '#dff0ff')
   },
   brute(c, r, fill, f) {
     c.fillStyle = dark

@@ -34,11 +34,7 @@ export const PROPS: Prop[] = [
   { x: 540, y: 4660, kind: 'moonwell' },
   { x: 1010, y: 5030, kind: 'moonwell' },
   { x: 300, y: 5180, kind: 'moonwell' },
-  // ── Town watchtowers (corners of the spawn safe zone) ──
-  { x: STARTER_X - 400, y: STARTER_Y - 340, kind: 'tower' },
-  { x: STARTER_X + 400, y: STARTER_Y - 340, kind: 'tower' },
-  { x: STARTER_X - 400, y: STARTER_Y + 340, kind: 'tower' },
-  { x: STARTER_X + 400, y: STARTER_Y + 340, kind: 'tower' },
+  // (Spawn corners now hold big glowing shrines — see landmarks.ts SPAWN_SHRINES.)
 ]
 
 const PROP_BASE: Record<PropKind, number> = { cottage: 0, coop: 0, hay: 0, fenceH: 0, fenceV: 0, well: 0, signpost: 0, moonwell: 6, tower: 0 }

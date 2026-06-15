@@ -404,6 +404,7 @@ export class Renderer {
     else if (b.owner === 'enemy') {
       if (b.kind === 'enemy_frost_bolt') { inner = '#ddffff'; edge = '#44ddff' }
       else if (b.kind === 'enemy_fire_bolt') { inner = '#ffddaa'; edge = '#ff8822' }
+      else if (b.kind === 'nature_bolt') { inner = '#eaffce'; edge = '#5fd84a' }   // Malfurion
       else { inner = '#eeccff'; edge = '#bb55ff' }
       outer = 'rgba(0,0,0,0)'
     }

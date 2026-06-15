@@ -23,7 +23,7 @@ const HYJAL_X = 750, HYJAL_Y = 1200    // arena in Mount Hyjal
 const MIN_CONTRIB_PCT = 0.02           // anti-leech: must deal ≥2% to be rewarded
 
 const MALFURION_CFG: EnemyConfig = {
-  key: 'malfurion', color: 0x66ffaa, radius: 60, aiType: 'ranged',
+  key: 'malfurion', color: 0x66ffaa, radius: 115, aiType: 'ranged',
   hp: RAID_BASE_HP, speed: 42, damage: 40, attackRange: 700, attackRate: 1500,
   aggroRange: 1400, wanderRadius: 0, idleTime: [0, 0], xpReward: 0,
   label: 'Malfurion the Corrupted', rare: true, humanoid: true,
@@ -134,7 +134,7 @@ function tickMalfurion(world: WorldState, e: EnemyState, dtMs: number, rng: RNG)
     const baseA = Math.atan2(tdy, tdx), n = phase === 3 ? 7 : 5, arc = 0.9
     for (let i = 0; i < n; i++) {
       const a = baseA + (i - (n - 1) / 2) * (arc / Math.max(1, n - 1))
-      world.projectiles.push({ id: world.nextProjId++, owner: 'enemy', kind: 'wraith_bolt', x: e.x, y: e.y, vx: Math.cos(a) * 340, vy: Math.sin(a) * 340, damage: 30, lifeMs: 3500, radius: 7 })
+      world.projectiles.push({ id: world.nextProjId++, owner: 'enemy', kind: 'nature_bolt', x: e.x, y: e.y, vx: Math.cos(a) * 340, vy: Math.sin(a) * 340, damage: 30, lifeMs: 3500, radius: 8 })
     }
   }
   // Ice/nature nova (phase 2+)
