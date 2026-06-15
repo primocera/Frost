@@ -1,6 +1,7 @@
 import Balance from '../sim/balance'
 import { hydrateEnemy, hydratePlayer } from '../sim/snapshot'
 import { WORLD_W, WORLD_H } from '../sim/zones'
+import { resolveObstacles } from '../sim/obstacles'
 import {
   EnemyState, InputCommand, PlayerState, ProjectileState, ServerMessage,
   SelfState, SimEvent, Vec2, WorldState,
@@ -147,6 +148,8 @@ export class Net {
       if (!local.dead && local.frozenMs <= 0) {
         this.pred.x = clamp(this.pred.x + dx * speed * dt, PLAYER_RADIUS, WORLD_W - PLAYER_RADIUS)
         this.pred.y = clamp(this.pred.y + dy * speed * dt, PLAYER_RADIUS, WORLD_H - PLAYER_RADIUS)
+        const solved = resolveObstacles(this.pred.x, this.pred.y, PLAYER_RADIUS)
+        this.pred.x = solved.x; this.pred.y = solved.y
       }
       local.x = this.pred.x; local.y = this.pred.y
       local.vx = dx * speed; local.vy = dy * speed

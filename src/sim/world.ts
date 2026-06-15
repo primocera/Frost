@@ -9,6 +9,7 @@ import { talentBonus } from './talents'
 import { regenShopStock } from './shop'
 import { questOnKill } from './quest'
 import { tickTrades, cancelTrade } from './trade'
+import { resolveObstacles } from './obstacles'
 import { BOSS_SPAWNS, BOSS_BY_KEY, bossEnemyConfig, BOSS_RESPAWN_MS } from './bosses'
 import { RNG } from './rng'
 import { buildSpawnZones, getZoneAt, STARTER_X, STARTER_Y, WORLD_W, WORLD_H, PVP_SAFE_R } from './zones'
@@ -167,6 +168,8 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
     if (e.isBoss) tickBoss(world, e, dtMs)
     e.x += e.vx * dt
     e.y += e.vy * dt
+    const es = resolveObstacles(e.x, e.y, e.cfg.radius)
+    e.x = es.x; e.y = es.y
   }
   separateEnemies(world)
 
@@ -220,6 +223,8 @@ function updatePlayer(world: WorldState, p: PlayerState, input: InputCommand | u
   const b = world.bounds
   p.x = Math.max(b.x + PLAYER_RADIUS, Math.min(b.x + b.w - PLAYER_RADIUS, p.x))
   p.y = Math.max(b.y + PLAYER_RADIUS, Math.min(b.y + b.h - PLAYER_RADIUS, p.y))
+  const solved = resolveObstacles(p.x, p.y, PLAYER_RADIUS)
+  p.x = solved.x; p.y = solved.y
 
   // PvP protection: refreshed in the safe zone, ticks down for a few seconds after leaving.
   if (inSafeZone(p.x, p.y)) p.pvpGraceMs = 5000
