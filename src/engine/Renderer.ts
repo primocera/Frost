@@ -6,7 +6,7 @@ import { TREES } from '../sim/obstacles'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
-import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard, drawPaths } from './Props'
+import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard } from './Props'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -47,7 +47,6 @@ export class Renderer {
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds, world.timeMs)
-    drawPaths(ctx, inView)   // worn dirt trail town → farm, under entities
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
