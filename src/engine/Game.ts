@@ -19,6 +19,7 @@ import { Particles } from './Particles'
 import { Renderer } from './Renderer'
 import { SoundManager } from './Sound'
 import { touch, resetTouchEdges } from './touch'
+import { minimap, drawMinimap, MINIMAP_ZOOMS } from './minimap'
 
 const LOCAL_ID = 'local'
 // Cap network input sends to ~15 Hz (vs. the 60 Hz sim) to stay within the
@@ -366,8 +367,16 @@ export class Game {
     if (!line.sys && line.from) this.bubbles.set(line.from, { text: line.text, ms: 5000 })
   }
 
+  private minimapAccum = 0
   private render = () => {
     this.renderer.draw(this.camera, this.world, this.fx, this.localId, this.bubbles)
+    // Minimap, throttled to ~10 fps (the base layer is cached; only dots redraw).
+    const mc = minimap.canvas
+    if (mc && ++this.minimapAccum >= 6) {
+      this.minimapAccum = 0
+      const mctx = mc.getContext('2d')
+      if (mctx) drawMinimap(mctx, this.world, this.localId, MINIMAP_ZOOMS[minimap.zoom] ?? MINIMAP_ZOOMS[1])
+    }
   }
 
   private handleEvents(events: SimEvent[]) {

@@ -3,6 +3,7 @@ import { useGameStore } from './store'
 import { playOnline, saveAccount, logoutAccount } from './auth'
 import { dayPhaseLabel } from '../engine/dayNight'
 import { GameCanvas } from './GameCanvas'
+import { Minimap } from './Minimap'
 import { Panels } from './Panels'
 import { Chat } from './Chat'
 import { TouchControls } from './TouchControls'
@@ -124,6 +125,7 @@ function Game() {
       )}
       <AudioControl />
       <DayIndicator />
+      <Minimap />
       <div style={styles.hud}>
         <div style={styles.hudName}>{name} · Lv {hud.level}</div>
         <div style={{ ...styles.hudZone, color: hud.zoneColor }}>📍 {hud.zone}</div>
