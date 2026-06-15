@@ -5,7 +5,7 @@ import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor,
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
-import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter } from './Props'
+import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawChicken, FLUTTERS, drawFlutter, GUARDS, drawGuard, drawPaths } from './Props'
 
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
@@ -58,6 +58,7 @@ export class Renderer {
       const cp = chickenPos(ch, world.timeMs)
       if (inView(cp.x, cp.y)) ents.push({ y: cp.y, draw: () => drawChicken(ctx, cp.x, cp.y, cp.peck, !!ch.bessie, cp.flip) })
     }
+    for (const g of GUARDS) if (inView(g.x, g.y)) ents.push({ y: g.y, draw: () => drawGuard(ctx, g, world.timeMs) })
     for (const n of NPCS) if (inView(n.x, n.y)) ents.push({ y: n.y, draw: () => { ctx.save(); ctx.translate(n.x, n.y); drawNPC(ctx, n, n === activeNpc, world.timeMs); ctx.restore() } })
     for (const e of world.enemies) if (inView(e.x, e.y)) ents.push({ y: e.y, draw: () => this.drawEnemy(e, world.timeMs) })
     for (const p of world.players) {
@@ -167,6 +168,8 @@ export class Renderer {
         Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
       this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R, timeMs)
     }
+    // Dirt trail from town up to the farm (under entities).
+    drawPaths(ctx)
     // Holt's farm yard (dirt + crops), drawn under the props/critters above it.
     if (Math.abs(4250 - cam.x) < cam.visW / 2 + 260 && Math.abs(4520 - cam.y) < cam.visH / 2 + 200) drawFarmGround(ctx)
   }

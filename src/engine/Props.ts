@@ -7,7 +7,7 @@ import { FARM_X, FARM_Y, BESSIE_X, BESSIE_Y, STARTER_X, STARTER_Y } from '../sim
  *  - Wandering critters (chickens incl. quest-hen Bessie, butterflies, fireflies)
  * that make the world feel inhabited rather than empty.
  */
-export type PropKind = 'cottage' | 'coop' | 'hay' | 'fenceH' | 'fenceV' | 'well' | 'signpost' | 'moonwell'
+export type PropKind = 'cottage' | 'coop' | 'hay' | 'fenceH' | 'fenceV' | 'well' | 'signpost' | 'moonwell' | 'tower'
 
 export interface Prop { x: number; y: number; kind: PropKind }
 
@@ -32,9 +32,14 @@ export const PROPS: Prop[] = [
   { x: 540, y: 4660, kind: 'moonwell' },
   { x: 1010, y: 5030, kind: 'moonwell' },
   { x: 300, y: 5180, kind: 'moonwell' },
+  // ── Town watchtowers (corners of the spawn safe zone) ──
+  { x: STARTER_X - 400, y: STARTER_Y - 340, kind: 'tower' },
+  { x: STARTER_X + 400, y: STARTER_Y - 340, kind: 'tower' },
+  { x: STARTER_X - 400, y: STARTER_Y + 340, kind: 'tower' },
+  { x: STARTER_X + 400, y: STARTER_Y + 340, kind: 'tower' },
 ]
 
-const PROP_BASE: Record<PropKind, number> = { cottage: 0, coop: 0, hay: 0, fenceH: 0, fenceV: 0, well: 0, signpost: 0, moonwell: 6 }
+const PROP_BASE: Record<PropKind, number> = { cottage: 0, coop: 0, hay: 0, fenceH: 0, fenceV: 0, well: 0, signpost: 0, moonwell: 6, tower: 0 }
 /** Sort key (feet y) so props depth-sort correctly against players/enemies. */
 export const propFootY = (p: Prop) => p.y + PROP_BASE[p.kind]
 
@@ -105,6 +110,26 @@ const PROP_DRAW: Record<PropKind, (c: CanvasRenderingContext2D, t: number) => vo
     c.fillStyle = '#8a6a3a'; c.fillRect(-18, -32, 30, 12)
     c.fillStyle = '#3a2a16'; c.font = '8px serif'; c.textAlign = 'center'; c.fillText("HOLT'S FARM", -3, -23)
   },
+  tower(c, t) {
+    shadow(c, 22, 8)
+    // stone shaft
+    const g = c.createLinearGradient(-16, 0, 16, 0)
+    g.addColorStop(0, '#5e5a54'); g.addColorStop(0.5, '#76726a'); g.addColorStop(1, '#5e5a54')
+    c.fillStyle = g; c.fillRect(-16, -78, 32, 78)
+    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.lineWidth = 1
+    for (let y = -68; y < 0; y += 12) { c.beginPath(); c.moveTo(-16, y); c.lineTo(16, y); c.stroke() }
+    // battlements
+    c.fillStyle = '#807c73'
+    for (let x = -16; x < 16; x += 11) c.fillRect(x, -88, 7, 12)
+    c.fillRect(-16, -80, 32, 6)
+    // lit window
+    c.fillStyle = '#ffd27a'; c.fillRect(-5, -52, 10, 13)
+    c.strokeStyle = '#3a352e'; c.strokeRect(-5, -52, 10, 13)
+    // pennant
+    c.strokeStyle = '#4a3318'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, -88); c.lineTo(0, -104); c.stroke()
+    const wave = Math.sin(t * 0.004) * 2
+    c.fillStyle = '#3a78c8'; c.beginPath(); c.moveTo(0, -104); c.lineTo(14, -100 + wave); c.lineTo(0, -96); c.closePath(); c.fill()
+  },
   moonwell(c, t) {
     const pulse = 0.6 + Math.sin(t * 0.0015) * 0.4
     const glow = c.createRadialGradient(0, -6, 0, 0, -6, 46)
@@ -134,6 +159,48 @@ export function drawFarmGround(ctx: CanvasRenderingContext2D) {
   for (let i = 0; i < 6; i++) ctx.fillRect(fx - 60, fy + i * 11, 130, 5)
   ctx.fillStyle = 'rgba(90,170,80,0.5)'
   for (let i = 0; i < 6; i++) for (let j = 0; j < 10; j++) { ctx.beginPath(); ctx.arc(fx - 56 + j * 13, fy + i * 11 + 2, 1.6, 0, Math.PI * 2); ctx.fill() }
+  ctx.restore()
+}
+
+// ── Town guards (decorative sentries near the spawn) ─────────────────────────
+export interface Guard { x: number; y: number; flip: boolean }
+export const GUARDS: Guard[] = [
+  { x: STARTER_X - 55, y: STARTER_Y - 405, flip: false },
+  { x: STARTER_X + 55, y: STARTER_Y - 405, flip: true },
+  { x: STARTER_X - 55, y: STARTER_Y + 405, flip: false },
+  { x: STARTER_X + 55, y: STARTER_Y + 405, flip: true },
+]
+
+export function drawGuard(ctx: CanvasRenderingContext2D, g: Guard, t: number) {
+  ctx.save(); ctx.translate(g.x, g.y)
+  const bob = Math.sin(t * 0.002 + g.x) * 1
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 3, 10, 4, 0, 0, Math.PI * 2); ctx.fill()
+  if (g.flip) ctx.scale(-1, 1)
+  // spear
+  ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 2; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(10, -36 + bob); ctx.lineTo(12, 8); ctx.stroke()
+  ctx.fillStyle = '#cdd2da'; ctx.beginPath(); ctx.moveTo(10, -44 + bob); ctx.lineTo(13, -35 + bob); ctx.lineTo(7, -35 + bob); ctx.closePath(); ctx.fill()
+  // legs
+  ctx.fillStyle = '#33384a'; ctx.fillRect(-5, -1 + bob, 4, 10); ctx.fillRect(1, -1 + bob, 4, 10)
+  // blue tabard
+  ctx.fillStyle = '#2f5aa0'; ctx.beginPath()
+  ctx.moveTo(-7, -20 + bob); ctx.lineTo(7, -20 + bob); ctx.lineTo(6, 2 + bob); ctx.lineTo(-6, 2 + bob); ctx.closePath(); ctx.fill()
+  // pauldrons
+  ctx.fillStyle = '#8a909a'; ctx.beginPath(); ctx.arc(-7, -18 + bob, 3.5, 0, Math.PI * 2); ctx.arc(7, -18 + bob, 3.5, 0, Math.PI * 2); ctx.fill()
+  // head + helmet
+  ctx.fillStyle = '#e8c098'; ctx.beginPath(); ctx.arc(0, -25 + bob, 5, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#9aa0aa'; ctx.beginPath(); ctx.arc(0, -26 + bob, 5.5, Math.PI, 0); ctx.fill()
+  ctx.fillRect(-5.5, -26 + bob, 11, 2)
+  ctx.restore()
+}
+
+/** Dirt trail winding from the spawn town up to Holt's farm. Drawn in drawGround. */
+export function drawPaths(ctx: CanvasRenderingContext2D) {
+  ctx.save()
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  const trail = () => { ctx.beginPath(); ctx.moveTo(STARTER_X, STARTER_Y - 380); ctx.lineTo(3650, 5300); ctx.lineTo(3950, 4980); ctx.lineTo(FARM_X - 30, FARM_Y + 80); ctx.stroke() }
+  ctx.strokeStyle = 'rgba(110,84,50,0.45)'; ctx.lineWidth = 26; trail()
+  ctx.strokeStyle = 'rgba(150,120,78,0.40)'; ctx.lineWidth = 13; trail()
   ctx.restore()
 }
 
