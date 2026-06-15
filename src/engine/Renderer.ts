@@ -4,6 +4,7 @@ import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, 
 import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance, DecorType } from './Biomes'
 import { TREES } from '../sim/obstacles'
 import { LANDMARKS, drawLandmark, landmarkFootY } from './landmarks'
+import { getMalfurionSprite } from './MalfurionSprite'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -297,7 +298,16 @@ export class Renderer {
     else if (e.frozenMs > 0) fill = '#88ddff'
     else if (e.slowMs > 0) fill = '#bbddff'
     ctx.save(); ctx.translate(e.x, e.y)
-    drawEnemyArt(ctx, e, fill, timeMs, r)
+    const mal = e.key === 'malfurion' ? getMalfurionSprite() : null
+    if (mal) {
+      const size = r * 3.4
+      if (e.facing < 0) ctx.scale(-1, 1)
+      if (e.hitFlashMs > 0) ctx.filter = 'brightness(1.7)'
+      ctx.drawImage(mal, -size / 2, r * 0.9 - size, size, size)
+      ctx.filter = 'none'
+    } else {
+      drawEnemyArt(ctx, e, fill, timeMs, r)
+    }
     ctx.restore()
 
     // Telegraph / charge tell
