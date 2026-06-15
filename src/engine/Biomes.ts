@@ -1,6 +1,7 @@
 import { ZONE_DEFS } from '../sim'
 import { softShadow } from './Shadows'
 import { nightAmount } from './dayNight'
+import { keyedSprite } from './sprites'
 
 /**
  * Procedural biome look: per-zone ground textures, scattered decorations and
@@ -11,6 +12,7 @@ export type DecorType =
   | 'tree' | 'pine' | 'deadTree' | 'rock' | 'bush' | 'crystal'
   | 'lavaRock' | 'mushroom' | 'snowMound' | 'flower' | 'bone'
   | 'oak' | 'fern' | 'glowTree' | 'glowFlower' | 'aurora'
+  | 'fDaisy' | 'fStar' | 'fSun' | 'fBell'
 
 export interface Biome {
   ground: string
@@ -34,7 +36,7 @@ const GRASS: Biome = {
 const ELWYNN: Biome = {
   ground: '#2f5a32',
   speckles: [['#3f7240cc', 100], ['#27532bcc', 70], ['#5a8c4eaa', 52], ['#86c46a55', 22]],
-  decor: ['bush', 'fern', 'fern', 'flower', 'flower', 'bush'], density: 26,
+  decor: ['bush', 'fern', 'flower', 'fDaisy', 'fDaisy', 'fSun', 'fern', 'bush'], density: 28,
   ambient: 'rgba(120,150,40,0.05)',
 }
 
@@ -46,20 +48,20 @@ export const BIOMES: Record<string, Biome> = {
   'Elven Wilds': {
     ground: '#16323a',
     speckles: [['#1f4a52cc', 90], ['#122a30cc', 70], ['#2f6e72aa', 40], ['#7a5cff33', 20]],
-    decor: ['glowFlower', 'glowFlower', 'mushroom', 'bush', 'fern'], density: 26,
+    decor: ['glowFlower', 'fStar', 'fBell', 'mushroom', 'bush', 'fern'], density: 26,
     ambient: 'rgba(40,20,90,0.16)',
   },
   'Mount Hyjal': {
     ground: '#1a3a24', speckles: [['#244e30cc', 80], ['#13301ccc', 70], ['#356040aa', 36]],
-    decor: ['rock', 'bush', 'fern'], density: 22, ambient: 'rgba(2,22,8,0.18)',
+    decor: ['rock', 'bush', 'fern', 'fStar', 'fBell'], density: 22, ambient: 'rgba(2,22,8,0.18)',
   },
   'Hillsbrad Foothills': {
     ground: '#2c3a1e', speckles: [['#3a4a26cc', 80], ['#222e16cc', 66], ['#4c5e30aa', 36]],
-    decor: ['bush', 'flower', 'rock', 'fern'], density: 18, ambient: 'rgba(16,18,0,0.08)',
+    decor: ['bush', 'fDaisy', 'fSun', 'flower', 'rock', 'fern'], density: 20, ambient: 'rgba(16,18,0,0.08)',
   },
   'Frozen Ruins': {
     ground: '#2b3a48', speckles: [['#3c4e60cc', 80], ['#223040ccc', 70], ['#5a6e84aa', 50]],
-    decor: ['snowMound', 'deadTree', 'rock'], density: 18, ambient: 'rgba(120,160,210,0.14)',
+    decor: ['snowMound', 'deadTree', 'rock', 'fBell'], density: 18, ambient: 'rgba(120,160,210,0.14)',
   },
   'Volcanic Wastes': {
     ground: '#2a1814', speckles: [['#3a201aee', 80], ['#180c0accc', 70], ['#ff5a1e55', 26]],
@@ -132,6 +134,15 @@ export function drawDecor(ctx: CanvasRenderingContext2D, d: DecorInstance) {
   ctx.restore()
 }
 
+function ctxTranslate(c: CanvasRenderingContext2D, dy: number) { c.translate(0, dy) }
+function flowerStem(c: CanvasRenderingContext2D, col: string) {
+  c.strokeStyle = col; c.lineWidth = 1.5; c.lineCap = 'round'
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -11); c.stroke()
+  c.fillStyle = col
+  c.beginPath(); c.ellipse(-2, -6, 2.4, 1.1, -0.5, 0, Math.PI * 2); c.fill()
+  c.beginPath(); c.ellipse(2, -4, 2.1, 1, 0.5, 0, Math.PI * 2); c.fill()
+}
+
 const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
   tree(c) {
     c.fillStyle = '#3a2a18'; c.fillRect(-2.5, -14, 5, 14)
@@ -140,7 +151,9 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
     }
   },
   pine(c) {
-    // Layered conifer (Botania-cone style): stacked tiers + snow caps.
+    // Botania's pine art (keyed PNG); falls back to a procedural conifer until loaded.
+    const sp = keyedSprite('pine.png')
+    if (sp) { const z = 66; c.drawImage(sp, -z / 2, 5 - z, z, z); return }
     c.fillStyle = '#3a2a18'; c.fillRect(-2.5, -13, 5, 13)
     const tri = (oy: number, w: number, h: number) => { c.beginPath(); c.moveTo(-w, oy); c.lineTo(0, oy - h); c.lineTo(w, oy); c.closePath(); c.fill() }
     c.fillStyle = '#214628'
@@ -250,6 +263,43 @@ const DRAW: Record<DecorType, (c: CanvasRenderingContext2D) => void> = {
     // sparkles
     c.fillStyle = 'rgba(255,255,255,0.9)'
     for (const [sx, sy, sr] of [[14, -36, 1], [-13, -30, 0.9], [6, -50, 0.8], [-6, -52, 0.7]] as const) { c.beginPath(); c.arc(sx, sy, sr, 0, Math.PI * 2); c.fill() }
+  },
+  // ── Botania flowers (ported from the garden project's shapes) ──
+  fDaisy(c) {
+    flowerStem(c, '#5a8a3a')
+    c.save(); ctxTranslate(c, -11); const hs = 5
+    c.fillStyle = '#f4ede0'
+    for (let i = 0; i < 8; i++) { c.save(); c.rotate(i / 8 * Math.PI * 2); c.beginPath(); c.ellipse(0, -hs * 0.55, hs * 0.32, hs * 0.55, 0, 0, Math.PI * 2); c.fill(); c.restore() }
+    c.fillStyle = '#e8c038'; c.beginPath(); c.arc(0, 0, hs * 0.4, 0, Math.PI * 2); c.fill()
+    c.restore()
+  },
+  fStar(c) {
+    flowerStem(c, '#5a8a3a')
+    c.save(); ctxTranslate(c, -12); const hs = 5
+    c.globalAlpha = 0.35; c.fillStyle = '#d8b8f8'; c.beginPath(); c.arc(0, 0, hs * 1.1, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1
+    c.fillStyle = '#a878d8'
+    for (let i = 0; i < 4; i++) { c.save(); c.rotate(i / 4 * Math.PI * 2); c.beginPath(); c.moveTo(0, -hs * 1.1); c.lineTo(hs * 0.35, -hs * 0.35); c.lineTo(0, 0); c.lineTo(-hs * 0.35, -hs * 0.35); c.closePath(); c.fill(); c.restore() }
+    c.fillStyle = '#e8d8f8'; c.beginPath(); c.arc(0, 0, hs * 0.35, 0, Math.PI * 2); c.fill()
+    c.fillStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.arc(-hs * 0.1, -hs * 0.1, hs * 0.15, 0, Math.PI * 2); c.fill()
+    c.restore()
+  },
+  fSun(c) {
+    flowerStem(c, '#5a8a3a')
+    c.save(); ctxTranslate(c, -12); const hs = 5
+    c.globalAlpha = 0.35; c.fillStyle = '#ffe890'; c.beginPath(); c.arc(0, 0, hs * 1.05, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1
+    c.fillStyle = '#f0c038'
+    for (let i = 0; i < 12; i++) { c.save(); c.rotate(i / 12 * Math.PI * 2); c.beginPath(); c.ellipse(0, -hs * 0.7, hs * 0.18, hs * 0.45, 0, 0, Math.PI * 2); c.fill(); c.restore() }
+    c.fillStyle = '#a86028'; c.beginPath(); c.arc(0, 0, hs * 0.45, 0, Math.PI * 2); c.fill()
+    c.restore()
+  },
+  fBell(c) {
+    flowerStem(c, '#3a5a8a')
+    c.save(); ctxTranslate(c, -11); const hs = 5
+    c.globalAlpha = 0.3; c.fillStyle = '#a8c0f0'; c.beginPath(); c.arc(0, 0, hs, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1
+    c.fillStyle = '#c8d8f8'
+    c.beginPath(); c.moveTo(-hs * 0.7, -hs * 0.2); c.quadraticCurveTo(-hs * 0.8, hs * 0.5, 0, hs * 0.6); c.quadraticCurveTo(hs * 0.8, hs * 0.5, hs * 0.7, -hs * 0.2); c.quadraticCurveTo(0, -hs * 0.5, -hs * 0.7, -hs * 0.2); c.closePath(); c.fill()
+    c.fillStyle = '#f4ede0'; c.beginPath(); c.ellipse(0, -hs * 0.1, hs * 0.3, hs * 0.18, 0, 0, Math.PI * 2); c.fill()
+    c.restore()
   },
   glowFlower(c) {
     const g = c.createRadialGradient(0, -8, 0, 0, -8, 9)

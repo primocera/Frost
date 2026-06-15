@@ -158,6 +158,7 @@ function Game() {
       <TradePrompt />
       <BessiePrompt />
       <CapPrompt />
+      <CapModal />
       <MpBusy />
       <ZoneBanner />
       <RaidBar />
@@ -221,6 +222,40 @@ function MpBusy() {
   if (!online || net !== 'offline') return null
   return (
     <div style={styles.mpBusy}>⚔ Multiplayer is busy right now — playing solo. Your progress saves locally.</div>
+  )
+}
+
+function CapModal() {
+  const level = useGameStore((s) => s.hud.level)
+  const account = useGameStore((s) => s.account)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (level >= FREE_CAP && !account?.member) {
+      try { if (!sessionStorage.getItem('frost_cap_seen')) setOpen(true) } catch { setOpen(true) }
+    }
+  }, [level, account])
+  if (!open) return null
+  const close = () => { try { sessionStorage.setItem('frost_cap_seen', '1') } catch { /* */ } setOpen(false) }
+  const url = MEMBERSHIP_URL && account ? `${MEMBERSHIP_URL}?client_reference_id=${encodeURIComponent(account.pid)}` : ''
+  return (
+    <div style={styles.capBackdrop} onClick={close}>
+      <div style={styles.capBox} onClick={(e) => e.stopPropagation()}>
+        <button style={styles.capClose} onClick={close} aria-label="Close">✕</button>
+        <div style={{ fontSize: 30 }}>🔒</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#ffd23a' }}>Level {FREE_CAP} reached</div>
+        <p style={{ fontSize: 13, color: '#cdd6e6', lineHeight: 1.5, margin: '4px 0 2px' }}>
+          That's the free cap. Unlock <b style={{ color: '#c8a6ff' }}>Frost Plus</b> to keep leveling — a one-time unlock that also keeps the servers running.
+        </p>
+        {MEMBERSHIP_URL && account ? (
+          <a style={styles.capBuy} href={url} target="_blank" rel="noopener noreferrer" onClick={close}>⭐ Get Frost Plus — $3.50</a>
+        ) : MEMBERSHIP_URL ? (
+          <div style={{ fontSize: 12, color: '#9ab' }}>Play Online (make an account) to unlock.</div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#9ab' }}>Frost Plus coming soon.</div>
+        )}
+        <button style={styles.capDismiss} onClick={close}>Keep playing free</button>
+      </div>
+    </div>
   )
 }
 
@@ -470,6 +505,22 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '5px 12px', color: '#f0dcae', fontSize: 12, pointerEvents: 'none', maxWidth: '90vw',
     fontFamily: '-apple-system, "Segoe UI", sans-serif', textShadow: '0 1px 2px rgba(0,0,0,0.7)',
   },
+  capBackdrop: {
+    position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(2,5,15,0.66)', backdropFilter: 'blur(3px)', fontFamily: '-apple-system, "Segoe UI", sans-serif',
+  },
+  capBox: {
+    position: 'relative', width: 320, maxWidth: 'calc(100vw - 32px)', textAlign: 'center',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '22px 20px',
+    background: 'linear-gradient(160deg,#15102a,#0a0a18)', border: '1px solid rgba(160,110,235,0.45)',
+    borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,0.6)',
+  },
+  capClose: { position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', color: '#88a', fontSize: 16, cursor: 'pointer' },
+  capBuy: {
+    marginTop: 4, padding: '10px 18px', borderRadius: 10, textDecoration: 'none', fontSize: 14, fontWeight: 700,
+    color: '#1a1206', background: 'linear-gradient(135deg,#ffd23a,#f0a020)',
+  },
+  capDismiss: { background: 'none', border: 'none', color: 'rgba(150,170,200,0.7)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 2 },
   capMini: {
     position: 'fixed', top: 40, left: 12, fontSize: 12, fontWeight: 600,
     color: '#e6c8ff', textDecoration: 'none', background: 'rgba(40,20,70,0.5)',
