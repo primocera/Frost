@@ -47,6 +47,7 @@ export class Renderer {
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds, world.timeMs)
+    drawPaths(ctx, inView)   // worn dirt trail town → farm, under entities
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
@@ -173,8 +174,6 @@ export class Renderer {
         Math.abs(STARTER_Y - cam.y) < cam.visH / 2 + PVP_SAFE_R) {
       this.drawPlaza(STARTER_X, STARTER_Y, PVP_SAFE_R, timeMs)
     }
-    // Dirt trail from town up to the farm (under entities).
-    drawPaths(ctx)
     // Holt's farm yard (dirt + crops), drawn under the props/critters above it.
     if (Math.abs(4250 - cam.x) < cam.visW / 2 + 260 && Math.abs(4520 - cam.y) < cam.visH / 2 + 200) drawFarmGround(ctx)
   }

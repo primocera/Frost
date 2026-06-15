@@ -194,14 +194,34 @@ export function drawGuard(ctx: CanvasRenderingContext2D, g: Guard, t: number) {
   ctx.restore()
 }
 
-/** Dirt trail winding from the spawn town up to Holt's farm. Drawn in drawGround. */
-export function drawPaths(ctx: CanvasRenderingContext2D) {
-  ctx.save()
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  const trail = () => { ctx.beginPath(); ctx.moveTo(STARTER_X, STARTER_Y - 380); ctx.lineTo(3650, 5300); ctx.lineTo(3950, 4980); ctx.lineTo(FARM_X - 30, FARM_Y + 80); ctx.stroke() }
-  ctx.strokeStyle = 'rgba(110,84,50,0.45)'; ctx.lineWidth = 26; trail()
-  ctx.strokeStyle = 'rgba(150,120,78,0.40)'; ctx.lineWidth = 13; trail()
-  ctx.restore()
+// A worn dirt trail town → farm, baked once as soft overlapping "dabs" so the
+// edges feather into the grass instead of looking like a painted stripe.
+interface Dab { x: number; y: number; r: number; pebble: boolean }
+function buildPathDabs(): Dab[] {
+  const pts: [number, number][] = [[STARTER_X, STARTER_Y - 380], [3680, 5300], [3960, 4980], [FARM_X - 30, FARM_Y + 80]]
+  let seed = 0x9a37
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
+  const dabs: Dab[] = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1]
+    const steps = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 15))
+    for (let j = 0; j < steps; j++) {
+      const t = j / steps
+      dabs.push({ x: x0 + (x1 - x0) * t + (rnd() - 0.5) * 10, y: y0 + (y1 - y0) * t + (rnd() - 0.5) * 10, r: 11 + rnd() * 5, pebble: rnd() < 0.12 })
+    }
+  }
+  return dabs
+}
+export const PATH_DABS: Dab[] = buildPathDabs()
+
+export function drawPaths(ctx: CanvasRenderingContext2D, inView: (x: number, y: number) => boolean) {
+  for (const d of PATH_DABS) {
+    if (!inView(d.x, d.y)) continue
+    const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r)
+    g.addColorStop(0, 'rgba(116,88,52,0.42)'); g.addColorStop(0.6, 'rgba(104,80,48,0.26)'); g.addColorStop(1, 'rgba(104,80,48,0)')
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill()
+    if (d.pebble) { ctx.fillStyle = 'rgba(150,140,128,0.5)'; ctx.beginPath(); ctx.arc(d.x + d.r * 0.2, d.y, 1.6, 0, Math.PI * 2); ctx.fill() }
+  }
 }
 
 // ── Critters ─────────────────────────────────────────────────────────────────
