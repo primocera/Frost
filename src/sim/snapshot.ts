@@ -2,6 +2,7 @@ import { ALL_ENEMIES, EnemyConfig } from './enemies'
 import { BOSS_CFG_BY_KEY, BOSS_BY_KEY } from './bosses'
 import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './types'
 import { tradeViewFor } from './trade'
+import { raidSummary } from './raid'
 
 /** Personal inventory/talent state for the owning player (sent only to them).
  *  `world` is optional: when present, the live trade session is included. */
@@ -53,6 +54,7 @@ export function serialize(world: WorldState, cullRadius = 1500): Snapshot {
     loot: world.loot.filter(l => near(l.x, l.y)).map(l => ({ id: l.id, x: l.x, y: l.y, gold: l.gold, rarity: l.item?.rarity })),
     grounds: world.grounds.map(g => ({ id: g.id, x: g.x, y: g.y, radius: g.radius })),
     events: world.events,
+    raid: raidSummary(world),
   }
 }
 

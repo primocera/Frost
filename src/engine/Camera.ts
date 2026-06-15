@@ -17,6 +17,21 @@ export class Camera {
   /** Optional world bounds to clamp the camera within. null = unbounded. */
   bounds: { x: number; y: number; w: number; h: number } | null = null
 
+  // Screen-shake offset (raid juice).
+  private shakeMs = 0
+  private shakeAmp = 0
+  private shakeX = 0
+  private shakeY = 0
+  shake(amp: number, ms = 450) { this.shakeAmp = Math.max(this.shakeAmp, amp); this.shakeMs = Math.max(this.shakeMs, ms) }
+  tickShake(dt: number) {
+    if (this.shakeMs <= 0) { this.shakeX = this.shakeY = 0; return }
+    this.shakeMs -= dt * 1000
+    const a = this.shakeAmp * Math.max(0, this.shakeMs / 450)
+    this.shakeX = (Math.random() - 0.5) * 2 * a
+    this.shakeY = (Math.random() - 0.5) * 2 * a
+    if (this.shakeMs <= 0) { this.shakeAmp = this.shakeX = this.shakeY = 0 }
+  }
+
   setViewport(w: number, h: number) { this.viewW = w; this.viewH = h }
 
   /** Visible world span (CSS viewport divided by zoom). */
@@ -46,8 +61,8 @@ export class Camera {
   }
 
   /** Top-left world coordinate currently visible. */
-  get originX() { return this.x - this.visW / 2 }
-  get originY() { return this.y - this.visH / 2 }
+  get originX() { return this.x - this.visW / 2 + this.shakeX }
+  get originY() { return this.y - this.visH / 2 + this.shakeY }
 
   screenToWorld(sx: number, sy: number) {
     return { x: this.originX + sx / this.zoom, y: this.originY + sy / this.zoom }

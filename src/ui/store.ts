@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { loadAccount, type Account } from './auth'
-import type { SelfState } from '../sim/types'
+import type { SelfState, RaidSnap } from '../sim/types'
 import type { EquipSlot } from '../items/ItemTypes'
 import type { TalentId } from '../talents/TalentTypes'
 
@@ -93,10 +93,12 @@ interface GameUIState {
   nearBessie: boolean
   online: boolean        // true = connect to multiplayer; false = solo (no server cost)
   account: Account | null
+  raid: RaidSnap | null
   volume: number
 
   startGame: (name: string, online: boolean) => void
   setAccount: (account: Account | null) => void
+  setRaid: (raid: RaidSnap | null) => void
   setNet: (net: NetStatus) => void
   setHud: (hud: HudState) => void
   setPanel: (panel: Panel) => void
@@ -129,11 +131,13 @@ export const useGameStore = create<GameUIState>((set) => ({
   nearBessie: false,
   online: false,
   account: loadAccount(),
+  raid: null,
   volume: 0.7,
 
   startGame: (name, online) =>
     set({ screen: 'playing', playerName: name || 'Apprentice', online }),
   setAccount: (account) => set({ account }),
+  setRaid: (raid) => set({ raid }),
   setNet: (net) => set({ net }),
   setHud: (hud) => set({ hud }),
   setPanel: (panel) => set({ panel }),

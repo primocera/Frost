@@ -4,7 +4,7 @@ import { WORLD_W, WORLD_H } from '../sim/zones'
 import { resolveObstacles } from '../sim/obstacles'
 import {
   EnemyState, InputCommand, PlayerState, ProjectileState, ServerMessage,
-  SelfState, SimEvent, Vec2, WorldState,
+  SelfState, SimEvent, Vec2, WorldState, RaidSnap,
 } from '../sim/types'
 import { EquipSlot } from '../items/ItemTypes'
 import { TalentId } from '../talents/TalentTypes'
@@ -36,10 +36,12 @@ export class Net {
   private pred: Vec2 = { x: 0, y: 0 }
   private predReady = false
   self: SelfState | null = null
+  raid: RaidSnap | null = null
 
   constructor(host: string, room: string, private name: string, private pid: string, private onStatus: (s: NetStatus) => void) {
     this.world = {
       bounds: { x: 0, y: 0, w: WORLD_W, h: WORLD_H },
+      raid: null, nextRaidMs: 0,
       players: [], enemies: [], projectiles: [], loot: [], grounds: [], zones: [], trades: [], bossRespawns: [],
       timeMs: 0, rngState: 0, events: [], nextEnemyId: 0, nextProjId: 0, nextLootId: 0,
       killStreak: 0, lastKillMs: 0,
@@ -132,6 +134,7 @@ export class Net {
     this.world.loot = s.loot.map(l => ({ id: l.id, x: l.x, y: l.y, gold: l.gold, item: l.rarity ? ({ rarity: l.rarity } as any) : undefined, ageMs: 0 }))
     this.world.grounds = s.grounds.map(g => ({ id: g.id, kind: 'blizzard' as const, ownerId: '', spellDamage: 0, x: g.x, y: g.y, radius: g.radius, tickTimer: 0, durationMs: 9999, zoneName: '' }))
 
+    this.raid = s.raid
     for (const ev of s.events) this.pending.push(ev)
   }
 

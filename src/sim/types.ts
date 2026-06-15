@@ -186,11 +186,24 @@ export type SimEvent =
   | { type: 'pickup'; pid: string; x: number; y: number; item?: Item; gold?: number }
   | { type: 'rareSlain'; label: string }
   | { type: 'feat'; name: string; text: string }   // notable deed → announced in chat
+  | { type: 'screenShake'; intensity: number }      // raid phase-3 juice
   | { type: 'death'; pid: string }
   | { type: 'respawn'; pid: string }
 
+/** Server-wide raid event (Malfurion in Mount Hyjal). */
+export interface RaidState {
+  enemyId: number
+  name: string
+  zone: string
+  phase: 1 | 2 | 3
+  despawnMs: number
+  participants: Record<string, number>   // player id → damage dealt
+}
+
 export interface WorldState {
   bounds: { x: number; y: number; w: number; h: number }
+  raid: RaidState | null
+  nextRaidMs: number
   players: PlayerState[]
   enemies: EnemyState[]
   projectiles: ProjectileState[]
@@ -252,6 +265,10 @@ export interface ProjSnap { id: number; owner: 'player' | 'enemy'; kind: string;
 export interface LootSnap { id: number; x: number; y: number; gold?: number; rarity?: string }
 export interface GroundSnap { id: number; x: number; y: number; radius: number }
 
+export interface RaidSnap {
+  name: string; hpPct: number; phase: number; participants: number; secondsLeft: number
+}
+
 export interface Snapshot {
   t: number
   players: PlayerSnap[]
@@ -260,6 +277,7 @@ export interface Snapshot {
   loot: LootSnap[]
   grounds: GroundSnap[]
   events: SimEvent[]
+  raid: RaidSnap | null
 }
 
 /** Full personal state sent only to the owning connection (inventory/talents). */

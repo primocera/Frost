@@ -5,6 +5,7 @@ import {
   extractSave, applySave, SavedPlayer, trainSpell, buyShopItem, acceptQuest, claimQuest,
   stashDeposit, stashWithdraw, dropItem, sellItem,
   acceptFarmQuest, feedBessie, claimFarmQuest, BESSIE_X, BESSIE_Y, FEED_RANGE,
+  raidSummary,
 } from '../sim'
 import { nearestNPC } from './npcs'
 import { emptyInput, InputCommand } from '../sim/types'
@@ -277,6 +278,7 @@ export class Game {
     for (const [name, b] of this.bubbles) { b.ms -= dt * 1000; if (b.ms <= 0) this.bubbles.delete(name) }
 
     this.fx.update(dt)
+    this.camera.tickShake(dt)
     const lp = this.localPlayer()
     if (lp) this.camera.follow(lp.x, lp.y)
     this.input.endFrame()
@@ -450,6 +452,9 @@ export class Game {
         case 'rareSlain':
           if (lp) this.fx.text(lp.x, lp.y - 60, `☠ ${ev.label} Slain!`, '#ffaa00', 24)
           break
+        case 'screenShake':
+          this.camera.shake(ev.intensity)
+          break
         default: break
       }
     }
@@ -460,6 +465,8 @@ export class Game {
     if (!p) return
     // Inventory/talent panel data.
     useGameStore.getState().setSelf(this.mode === 'net' && this.net ? this.net.self : selfOf(p))
+    // Raid banner data (from the snapshot online, or the local sim solo).
+    useGameStore.getState().setRaid(this.mode === 'net' && this.net ? this.net.raid : raidSummary(this.local))
 
     // Auto-open the trade window when a trade starts; close it when it ends.
     const trade = this.mode === 'net' && this.net ? this.net.self?.trade ?? null : null

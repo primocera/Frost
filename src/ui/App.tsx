@@ -160,10 +160,34 @@ function Game() {
       <CapPrompt />
       <MpBusy />
       <ZoneBanner />
+      <RaidBar />
       <Chat />
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function RaidBar() {
+  const raid = useGameStore((s) => s.raid)
+  if (!raid) return null
+  const mins = Math.floor(raid.secondsLeft / 60), secs = raid.secondsLeft % 60
+  const phaseCol = raid.phase === 3 ? '#ff4d4d' : raid.phase === 2 ? '#ffaa33' : '#5ad6ff'
+  return (
+    <div style={styles.raidBar}>
+      <div style={styles.raidTop}>
+        <span style={{ fontWeight: 800, color: '#eaf2ff' }}>☠ {raid.name}</span>
+        <span style={{ color: phaseCol, fontWeight: 700 }}>Phase {raid.phase}</span>
+      </div>
+      <div style={styles.raidTrack}>
+        <div style={{ width: `${Math.round(raid.hpPct * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#cc2222,#ff5544)', transition: 'width 0.3s' }} />
+        <span style={styles.raidHpText}>{Math.round(raid.hpPct * 100)}%</span>
+      </div>
+      <div style={styles.raidFoot}>
+        <span>👥 {raid.participants} fighting</span>
+        <span>⏳ {mins}:{secs.toString().padStart(2, '0')}</span>
+      </div>
+    </div>
   )
 }
 
@@ -418,6 +442,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
   },
+  raidBar: {
+    position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+    width: 340, maxWidth: 'calc(100vw - 24px)', background: 'rgba(10,6,16,0.82)',
+    border: '1px solid rgba(200,60,60,0.5)', borderRadius: 10, padding: '7px 12px',
+    fontFamily: '-apple-system, "Segoe UI", sans-serif', pointerEvents: 'none',
+    boxShadow: '0 4px 24px rgba(120,0,0,0.4)',
+  },
+  raidTop: { display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 },
+  raidTrack: { position: 'relative', height: 16, background: '#2a0a0a', borderRadius: 5, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.5)' },
+  raidHpText: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', textShadow: '0 1px 1px rgba(0,0,0,0.9)' },
+  raidFoot: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#cdb6c0', marginTop: 4 },
   zoneBanner: {
     position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,

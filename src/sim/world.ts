@@ -10,6 +10,7 @@ import { regenShopStock } from './shop'
 import { questOnKill } from './quest'
 import { tickTrades, cancelTrade } from './trade'
 import { resolveObstacles } from './obstacles'
+import { initRaid, tickRaid, onRaidDamage, onRaidKill } from './raid'
 import { BOSS_SPAWNS, BOSS_BY_KEY, bossEnemyConfig, BOSS_RESPAWN_MS } from './bosses'
 import { RNG } from './rng'
 import { buildSpawnZones, getZoneAt, STARTER_X, STARTER_Y, WORLD_W, WORLD_H, PVP_SAFE_R } from './zones'
@@ -52,6 +53,8 @@ function damagePlayersInRadius(world: WorldState, attackerId: string, cx: number
 export function createWorld(seed: number): WorldState {
   const world: WorldState = {
     bounds: { ...BOUNDS },
+    raid: null,
+    nextRaidMs: 0,
     players: [],
     enemies: [],
     projectiles: [],
@@ -77,6 +80,7 @@ export function createWorld(seed: number): WorldState {
     for (let i = 0; i < zone.maxEnemies; i++) spawnFromZone(world, zone, rng)
   }
   for (const b of BOSS_SPAWNS) spawnBoss(world, b.cfg.key, b.x, b.y)
+  initRaid(world)
   world.rngState = rng.state
   return world
 }
@@ -164,6 +168,7 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
     if (e.dying) { e.deathMs -= dtMs; continue }
     tickBurn(world, e, dtMs, rng)
     if (e.dying) continue
+    if (e.bossKey === 'malfurion') continue   // raid boss driven by tickRaid
     updateEnemy(e, world.players, world.enemies, world, dtMs, rng)
     if (e.isBoss) tickBoss(world, e, dtMs)
     e.x += e.vx * dt
@@ -178,6 +183,7 @@ export function tick(world: WorldState, inputs: Record<string, InputCommand>, dt
   updateLoot(world, dtMs)
   updateRespawns(world, dtMs, rng)
   updateBossRespawns(world, dtMs)
+  tickRaid(world, dt, dtMs, rng)
   tickTrades(world)
 
   world.enemies = world.enemies.filter(e => !(e.dying && e.deathMs <= 0))
@@ -341,6 +347,7 @@ function damageInRadius(world: WorldState, caster: PlayerState, cx: number, cy: 
     world.events.push({ type: 'enemyHit', x: e.x, y: e.y, damage: d, crit, frost: frost || wasFrozen })
     e.hp = Math.max(0, e.hp - d)
     e.hitFlashMs = 160
+    onRaidDamage(world, e, caster.id, d)
     if (e.hp <= 0) killEnemy(world, e, caster.id, rng)
   }
 }
@@ -362,6 +369,7 @@ function updateGrounds(world: WorldState, dtMs: number, rng: RNG) {
         world.events.push({ type: 'enemyHit', x: e.x, y: e.y, damage: dmg, crit: false, frost: true })
         e.hp = Math.max(0, e.hp - dmg)
         e.hitFlashMs = 120
+        onRaidDamage(world, e, g.ownerId, dmg)
         if (e.hp <= 0) killEnemy(world, e, g.ownerId, rng)
       }
       // PvP: blizzard also damages + chills enemy players standing in it.
@@ -458,6 +466,7 @@ function hitEnemy(world: WorldState, e: EnemyState, proj: ProjectileState, rng: 
 
   e.hp = Math.max(0, e.hp - dmg)
   e.hitFlashMs = 160
+  onRaidDamage(world, e, proj.ownerId, dmg)
   if (e.hp <= 0) killEnemy(world, e, proj.ownerId, rng)
 }
 
@@ -477,6 +486,7 @@ function tickBurn(world: WorldState, e: EnemyState, dtMs: number, rng: RNG) {
   e.burnTicksLeft--
   world.events.push({ type: 'enemyHit', x: e.x, y: e.y, damage: e.burnDmg, crit: false, frost: false })
   e.hp = Math.max(0, e.hp - e.burnDmg)
+  onRaidDamage(world, e, e.burnOwnerId, e.burnDmg)
   if (e.burnTicksLeft <= 0) e.burning = false
   if (e.hp <= 0) killEnemy(world, e, e.burnOwnerId, rng)
 }
@@ -551,6 +561,12 @@ function updateBossRespawns(world: WorldState, dtMs: number) {
 
 function killEnemy(world: WorldState, e: EnemyState, killerId: string | undefined, rng: RNG) {
   if (e.dying) return
+  if (e.bossKey === 'malfurion') {
+    onRaidKill(world, e, rng)   // contribution-tiered rewards + announcements
+    e.dying = true; e.deathMs = 600; e.vx = 0; e.vy = 0
+    world.events.push({ type: 'enemyDeath', x: e.x, y: e.y, color: e.cfg.color, xp: 0, mult: 1 })
+    return
+  }
   const killer = playerById(world, killerId)
   if (e.isBoss) world.bossRespawns.push({ key: e.bossKey, x: e.homeX, y: e.homeY, timer: BOSS_RESPAWN_MS })
 
