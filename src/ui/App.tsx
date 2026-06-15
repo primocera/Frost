@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from './store'
 import { playOnline, saveAccount, logoutAccount } from './auth'
 import { GameCanvas } from './GameCanvas'
@@ -155,10 +155,34 @@ function Game() {
       <BessiePrompt />
       <CapPrompt />
       <MpBusy />
+      <ZoneBanner />
       <Chat />
       <TouchControls />
       <Panels />
     </>
+  )
+}
+
+function ZoneBanner() {
+  const zone = useGameStore((s) => s.hud.zone)
+  const color = useGameStore((s) => s.hud.zoneColor)
+  const prev = useRef('')
+  const [shown, setShown] = useState<{ name: string; color: string } | null>(null)
+  const [vis, setVis] = useState(false)
+  useEffect(() => {
+    if (!zone || zone === prev.current) return
+    prev.current = zone
+    setShown({ name: zone, color })
+    setVis(true)
+    const t = setTimeout(() => setVis(false), 3000)   // hold, then fade out
+    return () => clearTimeout(t)
+  }, [zone, color])
+  if (!shown) return null
+  return (
+    <div style={{ ...styles.zoneBanner, opacity: vis ? 1 : 0 }}>
+      <div style={{ ...styles.zoneName, color: shown.color }}>{shown.name}</div>
+      <div style={{ ...styles.zoneRule, background: `linear-gradient(90deg, transparent, ${shown.color}, transparent)` }} />
+    </div>
   )
 }
 
@@ -378,6 +402,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ff6666', fontFamily: '-apple-system, "Segoe UI", sans-serif', fontSize: 28, fontWeight: 700,
     background: 'rgba(20,0,0,0.35)', pointerEvents: 'none', textShadow: '0 2px 8px rgba(0,0,0,0.8)',
   },
+  zoneBanner: {
+    position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    pointerEvents: 'none', transition: 'opacity 0.9s ease', textAlign: 'center',
+    fontFamily: 'Georgia, "Times New Roman", serif',
+  },
+  zoneName: {
+    fontSize: 42, fontWeight: 700, letterSpacing: 2,
+    textShadow: '0 2px 10px rgba(0,0,0,0.85), 0 0 24px rgba(0,0,0,0.6)',
+  },
+  zoneRule: { width: 260, height: 2, opacity: 0.85 },
   mpBusy: {
     position: 'fixed', top: 40, left: '50%', transform: 'translateX(-50%)',
     background: 'rgba(30,22,12,0.82)', border: '1px solid rgba(200,160,60,0.4)', borderRadius: 8,

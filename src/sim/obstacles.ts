@@ -28,7 +28,7 @@ export const BUILDINGS: Obstacle[] = [
 
 // Which zones get solid trees, how dense, and what kind.
 const TREE_SPEC: Record<string, { perM: number; kind: (r: number) => TreeKind }> = {
-  'Beginner Forest':     { perM: 13, kind: (r) => (r < 0.6 ? 'oak' : 'tree') },
+  'Beginner Forest':     { perM: 13, kind: (r) => (r < 0.4 ? 'oak' : r < 0.75 ? 'tree' : 'aurora') },
   'Elven Wilds':         { perM: 13, kind: (r) => (r < 0.5 ? 'aurora' : 'glow') },
   'Mount Hyjal':         { perM: 11, kind: () => 'pine' },
   'Hillsbrad Foothills': { perM: 9,  kind: (r) => (r < 0.5 ? 'tree' : 'oak') },
