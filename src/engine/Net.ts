@@ -148,7 +148,7 @@ export class Net {
       if (!local.dead && local.frozenMs <= 0) {
         this.pred.x = clamp(this.pred.x + dx * speed * dt, PLAYER_RADIUS, WORLD_W - PLAYER_RADIUS)
         this.pred.y = clamp(this.pred.y + dy * speed * dt, PLAYER_RADIUS, WORLD_H - PLAYER_RADIUS)
-        const solved = resolveObstacles(this.pred.x, this.pred.y, PLAYER_RADIUS)
+        const solved = resolveObstacles(this.pred.x, this.pred.y, PLAYER_RADIUS, true)
         this.pred.x = solved.x; this.pred.y = solved.y
       }
       local.x = this.pred.x; local.y = this.pred.y

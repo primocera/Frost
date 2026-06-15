@@ -1,7 +1,8 @@
 import { Camera } from './Camera'
 import { Particles } from './Particles'
 import { EnemyState, GroundEffectState, LootState, ProjectileState, WorldState, ZONE_DEFS, getZoneAt, STARTER_X, STARTER_Y, PVP_SAFE_R } from '../sim'
-import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance } from './Biomes'
+import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor, DecorInstance, DecorType } from './Biomes'
+import { TREES } from '../sim/obstacles'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -10,6 +11,7 @@ import { PROPS, drawProp, propFootY, drawFarmGround, CHICKENS, chickenPos, drawC
 export interface WorldBounds { x: number; y: number; w: number; h: number }
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`
+const TREE_TYPE: Record<string, DecorType> = { oak: 'oak', tree: 'tree', pine: 'pine', glow: 'glowTree' }
 const RARITY_HEX: Record<string, string> = {
   common: '#aaaaaa', magic: '#5599ff', rare: '#ffdd00', epic: '#cc44ff',
 }
@@ -53,6 +55,9 @@ export class Renderer {
     const activeNpc = local ? nearestNPC(local.x, local.y) : null
     const ents: Array<{ y: number; draw: () => void }> = []
     for (const d of this.decor) if (inView(d.x, d.y)) ents.push({ y: d.y, draw: () => drawDecor(ctx, d) })
+    // Solid trees (shared with the sim's collision list) — drawn so the trunk
+    // you see is the trunk you bump into.
+    for (const t of TREES) if (inView(t.x, t.y)) ents.push({ y: t.y, draw: () => drawDecor(ctx, { x: t.x, y: t.y, type: TREE_TYPE[t.kind], s: t.s }) })
     for (const p of PROPS) if (inView(p.x, p.y)) ents.push({ y: propFootY(p), draw: () => drawProp(ctx, p, world.timeMs) })
     for (const ch of CHICKENS) {
       const cp = chickenPos(ch, world.timeMs)

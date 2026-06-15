@@ -223,7 +223,7 @@ function updatePlayer(world: WorldState, p: PlayerState, input: InputCommand | u
   const b = world.bounds
   p.x = Math.max(b.x + PLAYER_RADIUS, Math.min(b.x + b.w - PLAYER_RADIUS, p.x))
   p.y = Math.max(b.y + PLAYER_RADIUS, Math.min(b.y + b.h - PLAYER_RADIUS, p.y))
-  const solved = resolveObstacles(p.x, p.y, PLAYER_RADIUS)
+  const solved = resolveObstacles(p.x, p.y, PLAYER_RADIUS, true)
   p.x = solved.x; p.y = solved.y
 
   // PvP protection: refreshed in the safe zone, ticks down for a few seconds after leaving.

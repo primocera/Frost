@@ -26,10 +26,13 @@ const GRASS: Biome = {
 
 // Bright, sunny Elwynn-style starter woods: vivid grass, fat oaks, lots of
 // flowers and ferns. Reads as friendly and alive vs. the moodier outer zones.
+// Note: big trees (oak/tree/pine/glowTree) are NOT in these decor lists — they
+// live in sim/obstacles.ts as solid, collidable trees the renderer draws. Here
+// we only scatter walk-through ground cover (bushes, ferns, flowers, rocks).
 const ELWYNN: Biome = {
   ground: '#2f5a32',
   speckles: [['#3f7240cc', 100], ['#27532bcc', 70], ['#5a8c4eaa', 52], ['#86c46a55', 22]],
-  decor: ['oak', 'oak', 'tree', 'bush', 'fern', 'flower', 'flower'], density: 30,
+  decor: ['bush', 'fern', 'fern', 'flower', 'flower', 'bush'], density: 26,
   ambient: 'rgba(120,150,40,0.05)',
 }
 
@@ -41,16 +44,16 @@ export const BIOMES: Record<string, Biome> = {
   'Elven Wilds': {
     ground: '#16323a',
     speckles: [['#1f4a52cc', 90], ['#122a30cc', 70], ['#2f6e72aa', 40], ['#7a5cff33', 20]],
-    decor: ['glowTree', 'glowTree', 'glowFlower', 'glowFlower', 'mushroom', 'bush'], density: 28,
+    decor: ['glowFlower', 'glowFlower', 'mushroom', 'bush', 'fern'], density: 26,
     ambient: 'rgba(40,20,90,0.16)',
   },
   'Mount Hyjal': {
     ground: '#1a3a24', speckles: [['#244e30cc', 80], ['#13301ccc', 70], ['#356040aa', 36]],
-    decor: ['pine', 'tree', 'rock', 'bush'], density: 26, ambient: 'rgba(2,22,8,0.18)',
+    decor: ['rock', 'bush', 'fern'], density: 22, ambient: 'rgba(2,22,8,0.18)',
   },
   'Hillsbrad Foothills': {
     ground: '#2c3a1e', speckles: [['#3a4a26cc', 80], ['#222e16cc', 66], ['#4c5e30aa', 36]],
-    decor: ['bush', 'flower', 'rock', 'tree'], density: 18, ambient: 'rgba(16,18,0,0.08)',
+    decor: ['bush', 'flower', 'rock', 'fern'], density: 18, ambient: 'rgba(16,18,0,0.08)',
   },
   'Frozen Ruins': {
     ground: '#2b3a48', speckles: [['#3c4e60cc', 80], ['#223040ccc', 70], ['#5a6e84aa', 50]],
