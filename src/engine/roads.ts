@@ -8,14 +8,15 @@ import { STARTER_X, STARTER_Y } from '../sim'
  * Caves / mines) just before that zone band. Straight, deliberate segments —
  * not a wandering trail. Drawn under entities; culled when off-screen.
  */
-const SPLIT_Y = 4350   // fork just below the Corrupted/Caves band (y 2900–4300)
+const SPLIT_Y = 4430   // 90° junction a bit before the Corrupted/Caves band (y 2900–4300)
 
 const LANES: { x: number; y: number }[][] = [
-  [{ x: STARTER_X, y: STARTER_Y - 430 }, { x: STARTER_X, y: 2650 }],  // town → north → frost land
-  [{ x: STARTER_X, y: SPLIT_Y }, { x: 2300, y: 3480 }],               // fork left → Corrupted Fields
-  [{ x: STARTER_X, y: SPLIT_Y }, { x: 4320, y: 3480 }],               // fork right → Arcane Caves (mines)
+  // North trunk — starts past the spawn plaza so it doesn't collide with town.
+  [{ x: STARTER_X, y: STARTER_Y - 520 }, { x: STARTER_X, y: 2650 }],  // town → north → frost land
+  [{ x: STARTER_X, y: SPLIT_Y }, { x: 2300, y: SPLIT_Y }],            // 90° fork left → Corrupted Fields
+  [{ x: STARTER_X, y: SPLIT_Y }, { x: 4320, y: SPLIT_Y }],            // 90° fork right → Arcane Caves (mines)
 ]
-const LANE_W = 42
+const LANE_W = 54
 
 function trace(ctx: CanvasRenderingContext2D, ln: { x: number; y: number }[]) {
   ctx.beginPath()
