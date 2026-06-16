@@ -5,6 +5,7 @@ import { BIOMES, DEFAULT_BIOME, biomeAt, buildPattern, generateDecor, drawDecor,
 import { TREES } from '../sim/obstacles'
 import { LANDMARKS, drawLandmark, landmarkFootY } from './landmarks'
 import { drawMalfurion } from './MalfurionArt'
+import { drawRoads } from './roads'
 import { drawEnemyArt, visualRadius } from './EnemyArt'
 import { NPCS, nearestNPC, drawNPC } from './npcs'
 import { drawMage, mageFrame } from './MageArt'
@@ -51,6 +52,7 @@ export class Renderer {
     ctx.translate(Math.round(-cam.originX), Math.round(-cam.originY))
 
     this.drawGround(cam, world.bounds, world.timeMs)
+    drawRoads(ctx, inView)   // single clean dirt road (town → farm) under entities
     for (const g of world.grounds) this.drawBlizzard(g, world.timeMs)
     for (const drop of world.loot) if (inView(drop.x, drop.y)) this.drawLoot(drop, world.timeMs)
 
