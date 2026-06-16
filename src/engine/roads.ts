@@ -1,57 +1,41 @@
-import { STARTER_X, STARTER_Y, FARM_X, FARM_Y } from '../sim'
+import { STARTER_X, STARTER_Y } from '../sim'
 
 /**
- * A proper dirt road — not translucent splatter. The route is a smooth curve
- * (waypoints joined with quadratic segments through their midpoints), stroked in
- * three passes: a soft dark edge that blends into the grass, an opaque packed-
- * dirt body, and a lighter "worn" centre stripe. Plus a few deterministic
- * pebbles for texture. One road for now (town → farm) to judge the look.
+ * Summoner's-Rift-style lanes (matching the reference screenshot): wide, warm
+ * tan dirt lanes with clean edges and a slightly lighter trodden centre, sitting
+ * on the darker grass. Layout: a north trunk out of town up to the Frozen Ruins,
+ * which forks left (toward the Corrupted Fields) and right (toward the Arcane
+ * Caves / mines) just before that zone band. Straight, deliberate segments —
+ * not a wandering trail. Drawn under entities; culled when off-screen.
  */
-const ROAD: { x: number; y: number }[] = [
-  { x: STARTER_X + 30, y: STARTER_Y - 410 },
-  { x: 3560, y: 5430 },
-  { x: 3760, y: 5150 },
-  { x: 3980, y: 4900 },
-  { x: 4180, y: 4650 },
-  { x: FARM_X - 20, y: FARM_Y + 80 },
-]
+const SPLIT_Y = 4350   // fork just below the Corrupted/Caves band (y 2900–4300)
 
-function tracePath(ctx: CanvasRenderingContext2D) {
+const LANES: { x: number; y: number }[][] = [
+  [{ x: STARTER_X, y: STARTER_Y - 430 }, { x: STARTER_X, y: 2650 }],  // town → north → frost land
+  [{ x: STARTER_X, y: SPLIT_Y }, { x: 2300, y: 3480 }],               // fork left → Corrupted Fields
+  [{ x: STARTER_X, y: SPLIT_Y }, { x: 4320, y: 3480 }],               // fork right → Arcane Caves (mines)
+]
+const LANE_W = 42
+
+function trace(ctx: CanvasRenderingContext2D, ln: { x: number; y: number }[]) {
   ctx.beginPath()
-  ctx.moveTo(ROAD[0].x, ROAD[0].y)
-  for (let i = 1; i < ROAD.length - 1; i++) {
-    const mx = (ROAD[i].x + ROAD[i + 1].x) / 2, my = (ROAD[i].y + ROAD[i + 1].y) / 2
-    ctx.quadraticCurveTo(ROAD[i].x, ROAD[i].y, mx, my)
-  }
-  const last = ROAD[ROAD.length - 1]
-  ctx.lineTo(last.x, last.y)
+  ctx.moveTo(ln[0].x, ln[0].y)
+  for (let i = 1; i < ln.length; i++) ctx.lineTo(ln[i].x, ln[i].y)
 }
 
-// A few pebbles scattered along the road (deterministic).
-const PEBBLES = (() => {
-  let seed = 0x2b91
-  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
-  const out: { x: number; y: number; r: number }[] = []
-  for (let i = 0; i < ROAD.length - 1; i++) {
-    const a = ROAD[i], b = ROAD[i + 1]
-    for (let k = 0; k < 4; k++) {
-      const t = (k + rnd()) / 4
-      out.push({ x: a.x + (b.x - a.x) * t + (rnd() - 0.5) * 14, y: a.y + (b.y - a.y) * t + (rnd() - 0.5) * 14, r: 1.2 + rnd() * 1.6 })
-    }
-  }
-  return out
-})()
-
 export function drawRoads(ctx: CanvasRenderingContext2D, inView: (x: number, y: number) => boolean) {
-  if (!ROAD.some(p => inView(p.x, p.y))) return
+  let any = false
+  for (const ln of LANES) for (const p of ln) if (inView(p.x, p.y)) { any = true; break }
+  if (!any) return
   ctx.save()
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  tracePath(ctx); ctx.strokeStyle = 'rgba(54,40,24,0.40)'; ctx.lineWidth = 30; ctx.stroke()   // soft blended edge
-  tracePath(ctx); ctx.strokeStyle = '#735734'; ctx.lineWidth = 22; ctx.stroke()                // packed dirt body
-  tracePath(ctx); ctx.strokeStyle = '#8a6a42'; ctx.lineWidth = 9; ctx.stroke()                 // worn centre
-  for (const p of PEBBLES) {
-    if (!inView(p.x, p.y)) continue
-    ctx.fillStyle = 'rgba(150,140,126,0.6)'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill()
-  }
+  // soft dark edge bleeding into the grass
+  for (const ln of LANES) { trace(ctx, ln); ctx.strokeStyle = 'rgba(46,34,18,0.38)'; ctx.lineWidth = LANE_W + 12; ctx.stroke() }
+  // packed tan lane body
+  for (const ln of LANES) { trace(ctx, ln); ctx.strokeStyle = '#ab8a58'; ctx.lineWidth = LANE_W; ctx.stroke() }
+  // faint lighter rim just inside the edge
+  for (const ln of LANES) { trace(ctx, ln); ctx.strokeStyle = 'rgba(206,178,120,0.5)'; ctx.lineWidth = LANE_W - 4; ctx.stroke() }
+  // lighter worn centre
+  for (const ln of LANES) { trace(ctx, ln); ctx.strokeStyle = '#bd9c68'; ctx.lineWidth = LANE_W * 0.5; ctx.stroke() }
   ctx.restore()
 }
