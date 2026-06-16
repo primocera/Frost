@@ -22,7 +22,7 @@ const RAID_HP_PER_PLAYER = 10_000
 const HYJAL_X = 750, HYJAL_Y = 1200    // arena in Mount Hyjal
 const MIN_CONTRIB_PCT = 0.02           // anti-leech: must deal ≥2% to be rewarded
 
-const MALFURION_CFG: EnemyConfig = {
+export const MALFURION_CFG: EnemyConfig = {
   key: 'malfurion', color: 0x66ffaa, radius: 115, aiType: 'ranged',
   hp: RAID_BASE_HP, speed: 42, damage: 40, attackRange: 700, attackRate: 1500,
   aggroRange: 1400, wanderRadius: 0, idleTime: [0, 0], xpReward: 0,

@@ -2,7 +2,7 @@ import { ALL_ENEMIES, EnemyConfig } from './enemies'
 import { BOSS_CFG_BY_KEY, BOSS_BY_KEY } from './bosses'
 import { EnemyState, PlayerState, SelfState, Snapshot, WorldState } from './types'
 import { tradeViewFor } from './trade'
-import { raidSummary } from './raid'
+import { raidSummary, MALFURION_CFG } from './raid'
 import { effMaxMana } from './player'
 
 /** Personal inventory/talent state for the owning player (sent only to them).
@@ -19,6 +19,7 @@ export function selfOf(p: PlayerState, world?: WorldState): SelfState {
 export const ENEMY_BY_KEY: Record<string, EnemyConfig> = {
   ...Object.fromEntries(ALL_ENEMIES.map(c => [c.key, c])),
   ...BOSS_CFG_BY_KEY,
+  [MALFURION_CFG.key]: MALFURION_CFG,
 }
 
 /**
